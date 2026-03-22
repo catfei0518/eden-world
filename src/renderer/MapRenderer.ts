@@ -1,7 +1,7 @@
 /**
  * 地图渲染器 - 简化版
  * 
- * 使用Canvas 2D渲染地图（无需PixiJS）
+ * 使用Canvas 2D渲染地图
  */
 
 import { GameMap, TileType } from '../world/MapGenerator';
@@ -76,6 +76,14 @@ export class MapRenderer {
         const ctx = this.canvas.getContext('2d');
         if (!ctx) throw new Error('Cannot get 2D context');
         this.ctx = ctx;
+        
+        // 初始相机位置
+        const mapSize = this.map.getSize();
+        const worldWidth = mapSize.width * TILE_SIZE;
+        const worldHeight = mapSize.height * TILE_SIZE;
+        
+        this.cameraX = Math.max(0, (worldWidth - this.viewportWidth) / 2);
+        this.cameraY = Math.max(0, (worldHeight - this.viewportHeight) / 2);
     }
     
     /**
@@ -88,10 +96,8 @@ export class MapRenderer {
         // 设置键盘事件
         this.setupKeyboard();
         
-        // 居中相机
-        const mapSize = this.map.getSize();
-        this.cameraX = (mapSize.width * TILE_SIZE - this.viewportWidth) / 2;
-        this.cameraY = (mapSize.height * TILE_SIZE - this.viewportHeight) / 2;
+        // 设置鼠标事件
+        this.setupMouse();
         
         // 初始渲染
         this.render();
@@ -114,7 +120,7 @@ export class MapRenderer {
      * 加载单个纹理
      */
     private loadTexture(type: string, path: string): Promise<void> {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             const img = new Image();
             img.onload = () => {
                 this.textureCache.set(type, img);
@@ -122,7 +128,7 @@ export class MapRenderer {
             };
             img.onerror = () => {
                 console.warn(`Failed to load texture: ${path}`);
-                resolve(); // 不阻塞其他纹理
+                resolve();
             };
             img.src = path;
         });
@@ -135,7 +141,6 @@ export class MapRenderer {
         window.addEventListener('keydown', (e) => {
             this.keys.add(e.key);
             
-            // 缩放快捷键
             if (e.key === '1') this.setZoom('FAR');
             if (e.key === '2') this.setZoom('NORMAL');
             if (e.key === '3') this.setZoom('CLOSE');
@@ -144,6 +149,59 @@ export class MapRenderer {
         window.addEventListener('keyup', (e) => {
             this.keys.delete(e.key);
         });
+    }
+    
+    /**
+     * 设置鼠标事件
+     */
+    private setupMouse(): void {
+        const canvas = this.canvas;
+        let isDragging = false;
+        let lastX = 0;
+        let lastY = 0;
+        
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastX = e.clientX;
+            lastY = e.clientY;
+            canvas.style.cursor = 'grabbing';
+        });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            
+            const deltaX = e.clientX - lastX;
+            const deltaY = e.clientY - lastY;
+            
+            this.pan(deltaX, deltaY);
+            
+            lastX = e.clientX;
+            lastY = e.clientY;
+        });
+        
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+            canvas.style.cursor = 'grab';
+        });
+        
+        canvas.addEventListener('mouseleave', () => {
+            isDragging = false;
+            canvas.style.cursor = 'grab';
+        });
+        
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            
+            if (e.deltaY < 0) {
+                if (this.zoomLevel === 'FAR') this.setZoom('NORMAL');
+                else if (this.zoomLevel === 'NORMAL') this.setZoom('CLOSE');
+            } else {
+                if (this.zoomLevel === 'CLOSE') this.setZoom('NORMAL');
+                else if (this.zoomLevel === 'NORMAL') this.setZoom('FAR');
+            }
+        });
+        
+        canvas.style.cursor = 'grab';
     }
     
     /**
@@ -160,14 +218,18 @@ export class MapRenderer {
         // 计算可见范围
         const startTileX = Math.floor(this.cameraX / TILE_SIZE);
         const startTileY = Math.floor(this.cameraY / TILE_SIZE);
-        const tilesX = Math.ceil(this.viewportWidth / (TILE_SIZE * this.zoom)) + 1;
-        const tilesY = Math.ceil(this.viewportHeight / (TILE_SIZE * this.zoom)) + 1;
+        const tilesX = Math.ceil(this.viewportWidth / (TILE_SIZE * this.zoom)) + 2;
+        const tilesY = Math.ceil(this.viewportHeight / (TILE_SIZE * this.zoom)) + 2;
         
         ctx.save();
         ctx.scale(this.zoom, this.zoom);
         ctx.translate(-this.cameraX, -this.cameraY);
         
-        // 渲染地形
+        // 渲染地形 - Tile放大35%以覆盖缝隙
+        const SCALE = 1.35;
+        const SCALED_SIZE = TILE_SIZE * SCALE;
+        const OFFSET = (SCALED_SIZE - TILE_SIZE) / 2;
+        
         for (let y = 0; y < tilesY; y++) {
             for (let x = 0; x < tilesX; x++) {
                 const tileX = startTileX + x;
@@ -185,10 +247,10 @@ export class MapRenderer {
                 
                 ctx.drawImage(
                     texture,
-                    tileX * TILE_SIZE,
-                    tileY * TILE_SIZE,
-                    TILE_SIZE,
-                    TILE_SIZE
+                    tileX * TILE_SIZE - OFFSET,
+                    tileY * TILE_SIZE - OFFSET,
+                    SCALED_SIZE,
+                    SCALED_SIZE
                 );
             }
         }
@@ -204,8 +266,10 @@ export class MapRenderer {
         const maxX = mapSize.width * TILE_SIZE - this.viewportWidth / this.zoom;
         const maxY = mapSize.height * TILE_SIZE - this.viewportHeight / this.zoom;
         
-        this.cameraX = Math.max(0, Math.min(maxX, this.cameraX + deltaX / this.zoom));
-        this.cameraY = Math.max(0, Math.min(maxY, this.cameraY + deltaY / this.zoom));
+        // 向右拖 = 地图向左移动 = cameraX减少
+        this.cameraX = Math.max(0, Math.min(maxX, this.cameraX - deltaX / this.zoom));
+        // 向上拖 = 地图向下移动 = cameraY减少
+        this.cameraY = Math.max(0, Math.min(maxY, this.cameraY - deltaY / this.zoom));
         
         this.render();
     }
@@ -216,6 +280,18 @@ export class MapRenderer {
     setZoom(level: ZoomLevel): void {
         this.zoomLevel = level;
         this.zoom = ZOOM_LEVELS[level];
+        
+        // 重新居中相机
+        const mapSize = this.map.getSize();
+        const worldWidth = mapSize.width * TILE_SIZE;
+        const worldHeight = mapSize.height * TILE_SIZE;
+        
+        const viewWidth = this.viewportWidth / this.zoom;
+        const viewHeight = this.viewportHeight / this.zoom;
+        
+        this.cameraX = Math.max(0, (worldWidth - viewWidth) / 2);
+        this.cameraY = Math.max(0, (worldHeight - viewHeight) / 2);
+        
         this.render();
     }
     
@@ -244,6 +320,11 @@ export class MapRenderer {
             this.pan(0, speed);
         }
     }
+    
+    /**
+     * 获取相机位置
+     */
+    getCameraX(): number { return this.cameraX; }
+    getCameraY(): number { return this.cameraY; }
+    getZoom(): number { return this.zoom; }
 }
-
-

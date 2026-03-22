@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>伊甸世界 Debug</title>
+</head>
+<body>
+    <h1>伊甸世界 Debug</h1>
+    <div id="status">Initializing...</div>
+    <canvas id="canvas" width="400" height="300" style="border:1px solid #333;image-rendering:pixelated;"></canvas>
+    
+    <script>
+        // Simple debug test
+        document.getElementById('status').textContent = 'Script loaded!';
+        
+        console.log('Debug: Script is running');
+        
+        // Try to load a simple image
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'green';
+        ctx.fillRect(0, 0, 400, 300);
+        ctx.fillStyle = 'white';
+        ctx.font = '20px Arial';
+        ctx.fillText('伊甸世界', 150, 150);
+        
+        document.getElementById('status').textContent = 'Canvas rendered!';
+        
+        // Test loading an image
+        const img = new Image();
+        img.onload = function() {
+            document.getElementById('status').textContent = 'Image loaded successfully!';
+            console.log('Debug: Image loaded');
+        };
+        img.onerror = function() {
+            document.getElementById('status').textContent = 'Image failed to load (expected)';
+            console.log('Debug: Image failed to load');
+        };
+        img.src = 'img/64x64像素草地春.png';
+    </script>
+</body>
+</html>
