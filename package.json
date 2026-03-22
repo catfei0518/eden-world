@@ -24,5 +24,10 @@
   "devDependencies": {
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "alea": "^1.0.1",
+    "jimp": "^1.6.0",
+    "simplex-noise": "^4.0.3"
   }
 }

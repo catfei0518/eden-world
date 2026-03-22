@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>伊甸世界 - 地图预览</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #fff;
+            font-family: Arial, sans-serif;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .info {
+            text-align: center;
+            color: #888;
+            margin-bottom: 20px;
+        }
+        #map {
+            display: block;
+            margin: 0 auto;
+            border: 3px solid #444;
+            border-radius: 8px;
+            image-rendering: pixelated;
+        }
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+            padding: 10px;
+            background: #2a2a3e;
+            border-radius: 8px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .legend-color {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            border: 1px solid #666;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 0 5px;
+            background: #4a4a6a;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #6a6a8a;
+        }
+    </style>
+</head>
+<body>
+    <h1>🌍 伊甸世界 - 地图预览</h1>
+    <div class="info">100×50格 | 每格 8×8 像素 | 共 800×400 像素</div>
+    
+    <div class="controls">
+        <button onclick="regenerate()">🔄 重新生成</button>
+    </div>
+    
+    <canvas id="map"></canvas>
+    
+    <div class="legend">
+        <div class="legend-item">
+            <div class="legend-color" style="background: #1e50aa;"></div>
+            <span>🌊 海洋</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #3268a8;"></div>
+            <span>🌊 湖泊</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #3c5a3c;"></div>
+            <span>🌲 森林</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #64b450;"></div>
+            <span>🌿 草地</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #dcc897;"></div>
+            <span>🌾 平原</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #e6c864;"></div>
+            <span>🏜️ 沙漠</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #787878;"></div>
+            <span>⛰️ 山地</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #5a6e3c;"></div>
+            <span>🏞️ 丘陵</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #3c4a3c;"></div>
+            <span>🌫️ 沼泽</span>
+        </div>
+    </div>
+
+    <script type="module">
+        // 地形颜色
+        const COLORS = {
+            'ocean': [30, 80, 170],
+            'lake': [50, 100, 200],
+            'swamp': [60, 90, 60],
+            'plain': [220, 200, 150],
+            'grass': [100, 180, 80],
+            'desert': [230, 200, 100],
+            'forest': [30, 100, 30],
+            'mountain': [120, 120, 120],
+            'hill': [90, 110, 60],
+            'cave': [60, 50, 50],
+            'river': [60, 120, 200],
+        };
+
+        const TILE_SIZE = 8;
+        const WIDTH = 100;
+        const HEIGHT = 50;
+
+        // 简单的随机数生成
+        function seededRandom(seed) {
+            return function() {
+                seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+                return seed / 0x7fffffff;
+            };
+        }
+
+        // Simplex噪声简化实现
+        function createNoise(rng) {
+            const p = new Uint8Array(256);
+            for (let i = 0; i < 256; i++) p[i] = i;
+            for (let i = 255; i > 0; i--) {
+                const j = Math.floor(rng() * (i + 1));
+                [p[i], p[j]] = [p[j], p[i]];
+            }
+            const perm = new Uint8Array(512);
+            for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
+            
+            return function(x, y) {
+                const F2 = 0.5 * (Math.sqrt(3) - 1);
+                const G2 = (3 - Math.sqrt(3)) / 6;
+                
+                let s = (x + y) * F2;
+                let i = Math.floor(x + s);
+                let j = Math.floor(y + s);
+                
+                let t = (i + j) * G2;
+                let X0 = i - t;
+                let Y0 = j - t;
+                let x0 = x - X0;
+                let y0 = y - Y0;
+                
+                let i1, j1;
+                if (x0 > y0) { i1 = 1; j1 = 0; }
+                else { i1 = 0; j1 = 1; }
+                
+                let x1 = x0 - i1 + G2;
+                let y1 = y0 - j1 + G2;
+                let x2 = x0 - 1 + 2 * G2;
+                let y2 = y0 - 1 + 2 * G2;
+                
+                let ii = i & 255;
+                let jj = j & 255;
+                
+                let n0 = 0, n1 = 0, n2 = 0;
+                
+                let t0 = 0.5 - x0*x0 - y0*y0;
+                if (t0 >= 0) {
+                    t0 *= t0;
+                    n0 = t0 * t0 * (perm[ii + perm[jj]] % 256);
+                }
+                
+                let t1 = 0.5 - x1*x1 - y1*y1;
+                if (t1 >= 0) {
+                    t1 *= t1;
+                    n1 = t1 * t1 * (perm[ii + i1 + perm[jj + j1]] % 256);
+                }
+                
+                let t2 = 0.5 - x2*x2 - y2*y2;
+                if (t2 >= 0) {
+                    t2 *= t2;
+                    n2 = t2 * t2 * (perm[ii + 1 + perm[jj + 1]] % 256);
+                }
+                
+                return 70 * (n0 + n1 + n2) / 255;
+            };
+        }
+
+        function fbm(noise, x, y, octaves, freq, persist) {
+            let value = 0;
+            let amp = 1;
+            let maxVal = 0;
+            for (let i = 0; i < octaves; i++) {
+                value += amp * noise(x * freq, y * freq);
+                maxVal += amp;
+                amp *= persist;
+                freq *= 2;
+            }
+            return value / maxVal;
+        }
+
+        function generateMap(seed) {
+            const rng = seededRandom(seed);
+            const noise = createNoise(rng);
+            const tiles = [];
+            
+            for (let y = 0; y < HEIGHT; y++) {
+                const row = [];
+                for (let x = 0; x < WIDTH; x++) {
+                    const h = fbm(noise, x, y, 4, 0.02, 0.5);
+                    const m = fbm(noise, x + 1000, y, 3, 0.015, 0.5);
+                    const t = fbm(noise, x + 2000, y, 2, 0.01, 0.5);
+                    
+                    let type;
+                    if (h < 0.35) type = 'ocean';
+                    else if (h < 0.4) type = m > 0.5 ? 'swamp' : 'lake';
+                    else if (h > 0.75) type = 'mountain';
+                    else if (h > 0.65) type = 'hill';
+                    else if (t < 0.3) type = m > 0.4 ? 'forest' : 'plain';
+                    else if (t > 0.7) type = m < 0.3 ? 'desert' : (m > 0.6 ? 'forest' : 'plain');
+                    else type = m > 0.5 ? 'forest' : (m > 0.35 ? 'grass' : 'plain');
+                    
+                    row.push({ type, h, m, t });
+                }
+                tiles.push(row);
+            }
+            return tiles;
+        }
+
+        function drawMap(tiles) {
+            const canvas = document.getElementById('map');
+            canvas.width = WIDTH * TILE_SIZE;
+            canvas.height = HEIGHT * TILE_SIZE;
+            const ctx = canvas.getContext('2d');
+            
+            for (let y = 0; y < HEIGHT; y++) {
+                for (let x = 0; x < WIDTH; x++) {
+                    const tile = tiles[y][x];
+                    const color = COLORS[tile.type];
+                    ctx.fillStyle = `rgb(${color[0]},${color[1]},${color[2]})`;
+                    ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                }
+            }
+        }
+
+        let currentSeed = Date.now();
+        let tiles = generateMap(currentSeed);
+        drawMap(tiles);
+
+        window.regenerate = function() {
+            currentSeed = Date.now();
+            tiles = generateMap(currentSeed);
+            drawMap(tiles);
+        };
+    </script>
+</body>
+</html>
