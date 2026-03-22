@@ -64,9 +64,11 @@ npm run preview
   /src
     /core           # 核心引擎
     /world          # 世界相关（地图生成）
-    /renderer       # 渲染系统
+    /renderer       # 渲染系统（PixiJS）
     /systems        # 游戏系统
-    /ai             # AI相关
+    │   /dna        # DNA系统（遗传与表现型）
+    │   /needs      # 需求系统（饥饿/口渴/安全等）
+    │   /ai         # AI决策系统
     /entities       # 实体
     /utils          # 工具函数
   /docs             # 文档
@@ -81,6 +83,7 @@ npm run preview
 - [GitHub规范](./docs/GITHUB_GUIDE.md)
 - [地图系统](./docs/systems/MAP.md)
 - [素材系统](./docs/systems/ASSETS.md)
+- [DNA系统](./docs/systems/DNA_SYSTEM.md) - AI决策与遗传机制
 
 ## 🤝 贡献
 
