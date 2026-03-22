@@ -1,0 +1,17 @@
+# 依赖
+node_modules/
+
+# 构建
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# 系统
+.DS_Store
+*.log
+
+# 私有文档（不上传）
+docs/WORKFLOW.md

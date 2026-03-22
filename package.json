@@ -1,0 +1,28 @@
+{
+  "name": "eden-world",
+  "version": "1.0.0",
+  "description": "> AI文明演化模拟器 - 观察AI角色在世界中自主生存、繁衍、发展",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/catfei0518/eden-world.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/catfei0518/eden-world/issues"
+  },
+  "homepage": "https://github.com/catfei0518/eden-world#readme",
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
