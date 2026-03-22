@@ -3,12 +3,19 @@
 > 最后更新：2026-03-23
 
 ## 当前版本
-- **版本**: v0.6.0-alpha
+- **版本**: v0.7.0-alpha
 - **GitHub**: https://github.com/catfei0518/eden-world
 
 ---
 
 ## 已完成
+
+### v0.7.0 - PixiJS迁移 ✅
+- [x] PixiJS v8渲染引擎
+- [x] GPU加速
+- [x] 以鼠标为中心缩放
+- [x] 相机系统完善
+- [x] 键盘WASD/方向键支持
 
 ### v0.6.0 - 物品渲染系统 ✅
 - [x] 物品管理器 (ItemManager)

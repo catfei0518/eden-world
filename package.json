@@ -1,14 +1,14 @@
 {
   "name": "eden-world",
-  "version": "0.6.0-alpha",
+  "version": "0.7.0-alpha",
   "description": "> AI文明演化模拟器 - 观察AI角色在世界中自主生存、繁衍、发展",
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc && npm run bundle",
-    "bundle": "esbuild src/main.ts --bundle --outfile=dist/bundle.js --format=iife --platform=browser",
+    "bundle": "esbuild src/main-pixi.ts --bundle --outfile=dist-release/bundle.js --format=iife --platform=browser",
     "dev": "npm run build && npm run preview",
     "test": "ts-node tests/MapGenerator.test.ts",
-    "preview": "npx serve ."
+    "preview": "npx serve dist-release -l 3333"
   },
   "repository": {
     "type": "git",
