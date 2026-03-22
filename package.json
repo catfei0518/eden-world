@@ -1,14 +1,14 @@
 {
   "name": "eden-world",
-  "version": "0.2.0",
+  "version": "0.4.0-alpha",
   "description": "> AI文明演化模拟器 - 观察AI角色在世界中自主生存、繁衍、发展",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs",
-    "test": "tests"
-  },
+  "main": "dist/main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc && npm run bundle",
+    "bundle": "esbuild src/main.ts --bundle --outfile=dist/bundle.js --format=iife --platform=browser",
+    "dev": "npm run build && npm run preview",
+    "test": "ts-node tests/MapGenerator.test.ts",
+    "preview": "npx serve ."
   },
   "repository": {
     "type": "git",
@@ -22,12 +22,14 @@
   },
   "homepage": "https://github.com/catfei0518/eden-world#readme",
   "devDependencies": {
+    "esbuild": "^0.27.4",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   },
   "dependencies": {
     "alea": "^1.0.1",
     "jimp": "^1.6.0",
+    "pixi.js": "^8.17.1",
     "simplex-noise": "^4.0.3"
   }
 }
