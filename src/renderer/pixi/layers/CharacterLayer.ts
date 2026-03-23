@@ -122,7 +122,6 @@ export class CharacterLayer {
             
             // 点击事件
             hitbox.on('pointerdown', (event: PIXI.FederatedPointerEvent) => {
-                event.stopPropagation();
                 if (this.onCharacterClick) {
                     this.onCharacterClick(char);
                 }
@@ -148,43 +147,25 @@ export class CharacterLayer {
     private setupInteraction(): void {
         // 让容器可以点击（用于关闭面板）
         this.container.eventMode = 'static';
+        this.container.hitArea = new PIXI.Rectangle(
+            0, 0, 
+            this.map.getSize().width * TILE_SIZE,
+            this.map.getSize().height * TILE_SIZE
+        );
     }
     
     update(deltaTime: number): void {
         // 准备世界状态
         const world = this.getWorldState();
         
-        // 检查死亡角色，先移除死亡角色
-        const deadChars = this.characters.filter(c => c.isDead);
-        for (const char of deadChars) {
-            // 移除精灵
-            const sprite = this.sprites.get(char);
-            if (sprite) {
-                this.container.removeChild(sprite);
-                sprite.destroy();
-                this.sprites.delete(char);
-            }
-            // 移除点击区域
-            const hitbox = this.hitboxes.get(char);
-            if (hitbox) {
-                this.container.removeChild(hitbox);
-                hitbox.destroy();
-                this.hitboxes.delete(char);
-            }
-            // 保留标签用于显示死亡状态
-            const label = this.labels.get(char);
-            if (label) {
-                label.text = `💀 ${char.name}: ${char.action}`;
-                label.style.fill = 0x888888; // 灰色
-            }
-        }
-        
-        // 更新存活角色
+        // 更新所有角色
         for (const char of this.characters) {
-            if (char.isDead) continue; // 跳过死亡角色
+            if (!char.isDead) {
+                // 存活角色：更新行为
+                char.update(deltaTime, world);
+            }
             
-            char.update(deltaTime, world);
-            
+            // 更新精灵位置
             const sprite = this.sprites.get(char);
             const hitbox = this.hitboxes.get(char);
             if (sprite) {
@@ -198,9 +179,16 @@ export class CharacterLayer {
                 hitbox.y = pos.y - HITBOX_SIZE / 2;
             }
             
+            // 更新标签
             const label = this.labels.get(char);
             if (label) {
-                label.text = `${char.name}: ${char.action}`;
+                if (char.isDead) {
+                    label.text = `💀 ${char.name}: 死亡`;
+                    label.style.fill = 0x888888;
+                } else {
+                    label.text = `${char.name}: ${char.action}`;
+                    label.style.fill = 0xffffff;
+                }
                 const pos = char.getPixelPos();
                 label.x = pos.x - label.width / 2;
                 label.y = pos.y - CHAR_SIZE - 14;

@@ -1,5 +1,5 @@
 /**
- * 状态UI - 点击角色时显示的属性面板
+ * 角色状态UI - 点击角色时显示的属性面板
  */
 
 import { Character } from '../entities/Character';
@@ -8,21 +8,13 @@ export class StatusUI {
     private panel: HTMLElement;
     private selectedChar: Character | null = null;
     private characters: Character[] = [];
-    private justSelected: boolean = false; // 防止立即关闭
+    private lastClickTime: number = 0;
+    private deathPanelShown: boolean = false;
     
     constructor() {
         this.createPanel();
         this.setupClickOutside();
         this.setupEscKey();
-    }
-    
-    // ESC键关闭
-    private setupEscKey(): void {
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && this.selectedChar) {
-                this.hide();
-            }
-        });
     }
     
     private createPanel(): void {
@@ -33,48 +25,23 @@ export class StatusUI {
     // 点击角色时调用
     showCharacter(char: Character): void {
         this.selectedChar = char;
+        this.deathPanelShown = false;
         this.panel.style.display = 'block';
-        this.justSelected = true; // 防止事件冒泡立即关闭
+        this.lastClickTime = Date.now();
         this.update();
-        
-        // 300ms后重置标志
-        setTimeout(() => {
-            this.justSelected = false;
-        }, 300);
     }
     
     // 关闭面板
     hide(): void {
         this.selectedChar = null;
+        this.deathPanelShown = false;
         this.panel.style.display = 'none';
-    }
-    
-    // 点击空白处关闭
-    private setupClickOutside(): void {
-        document.addEventListener('pointerdown', (e) => {
-            const target = e.target as HTMLElement;
-            
-            // 如果刚选中角色（300ms内），不关闭
-            if (this.justSelected) return;
-            
-            // 如果点击的是角色（hitbox），不关闭
-            if (target.classList.contains('char-hitbox')) return;
-            
-            // 如果点击的是面板内部，不关闭
-            if (this.panel.contains(target)) return;
-            
-            // 如果有选中的角色，关闭
-            if (this.selectedChar) {
-                this.hide();
-            }
-        });
     }
     
     // 更新角色数据
     updateCharacters(chars: Character[]): void {
         this.characters = chars;
         if (this.selectedChar) {
-            // 检查选中的角色是否还在
             if (!chars.includes(this.selectedChar)) {
                 this.hide();
             } else {
@@ -87,6 +54,26 @@ export class StatusUI {
         if (!this.selectedChar) return;
         
         const char = this.selectedChar;
+        const charAny = char as any;
+        
+        // 检查DNA
+        if (!char.phenotype) {
+            console.error('Character has no phenotype!');
+            return;
+        }
+        
+        // 如果角色已死亡，显示死亡面板
+        if (charAny.isDead) {
+            this.showDeathPanel(char);
+            return;
+        }
+        
+        // 如果角色不在characters列表中，关闭面板
+        if (!this.characters.includes(char)) {
+            this.hide();
+            return;
+        }
+        
         const dna = char.phenotype;
         
         // 更新名字和类型
@@ -135,10 +122,9 @@ export class StatusUI {
         const healthVal = document.getElementById('panel-health-val');
         const healthBar = document.getElementById('panel-health-bar');
         if (healthBar && healthVal) {
-            const charAny = char as any;
-            const maxHealth = charAny.maxHealth ? charAny.maxHealth() : 100;
-            const health = charAny.health !== undefined ? charAny.health : 100;
-            const healthPct = Math.round((health / maxHealth) * 100);
+            const maxHealth = char.maxHealth; // getter是属性访问
+            const health = char.health !== undefined ? char.health : 100;
+            const healthPct = maxHealth > 0 ? Math.round((health / maxHealth) * 100) : 0;
             healthBar.style.width = `${healthPct}%`;
             healthVal.textContent = `${healthPct}%`;
         }
@@ -147,11 +133,10 @@ export class StatusUI {
         const actionElem = document.getElementById('panel-action');
         if (actionElem) actionElem.textContent = char.action;
         
-        // DNA属性 - 完整列表
+        // DNA属性
         const dnaContainer = document.getElementById('panel-dna-attrs');
         if (dnaContainer) {
-            // 获取性格类型
-            const personality = (char as any).getPersonality ? (char as any).getPersonality() : '普通人';
+            const personality = charAny.getPersonality ? charAny.getPersonality() : '普通人';
             
             dnaContainer.innerHTML = `
                 <div class="dna-row" style="background: rgba(74, 169, 74, 0.3); font-weight: bold;">
@@ -173,31 +158,69 @@ export class StatusUI {
                     <span>🔥 代谢</span><span>${dna.metabolism.toFixed(2)}</span>
                 </div>
                 <div class="dna-row">
-                    <span>❓ 好奇</span><span>${(dna.curiosity * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>🛡️ 风险规避</span><span>${(dna.riskAversion * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>❤️ 同理心</span><span>${(dna.empathy * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>🤝 社交</span><span>${(dna.sociability * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>⏳ 耐心</span><span>${(dna.patience * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>🧠 智力</span><span>${(dna.intelligence * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>👁️ 感知</span><span>${(dna.perception * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
                     <span>💪 力量</span><span>${(dna.strength * 100).toFixed(0)}</span>
                 </div>
                 <div class="dna-row">
                     <span>🏋️ 体质</span><span>${(dna.constitution * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>🛡️ 免疫力</span><span>${(dna.immuneStrength * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>⏳ 寿命</span><span>${charAny.baseLifespan ? charAny.baseLifespan.toFixed(0) : 55}岁</span>
+                </div>
+                <div class="dna-row">
+                    <span>🌿 生活</span><span>${charAny.getLifestyleStatus ? charAny.getLifestyleStatus() : '-'}</span>
+                </div>
+            `;
+        }
+    }
+    
+    private showDeathPanel(char: Character): void {
+        const charAny = char as any;
+        
+        if (this.deathPanelShown) return;
+        this.deathPanelShown = true;
+        
+        // 更新标题
+        const titleElem = document.querySelector('#status-panel h3 span:first-child');
+        if (titleElem) titleElem.textContent = '💀 已死亡';
+        
+        // 头像变灰
+        const avatarElem = document.getElementById('panel-avatar');
+        if (avatarElem) {
+            (avatarElem as HTMLElement).style.background = '#666';
+            avatarElem.textContent = '💀';
+        }
+        
+        // 名字变灰
+        const nameElem = document.getElementById('panel-name');
+        if (nameElem) nameElem.textContent = char.name + ' (已死亡)';
+        
+        // 显示死亡信息
+        const posElem = document.getElementById('panel-position');
+        if (posElem) posElem.textContent = charAny.deathCause || '未知原因';
+        
+        // 清空状态条
+        const healthBar = document.getElementById('panel-health-bar');
+        const healthVal = document.getElementById('panel-health-val');
+        if (healthBar) healthBar.style.width = '0%';
+        if (healthVal) healthVal.textContent = '0%';
+        
+        // 显示死亡信息
+        const actionElem = document.getElementById('panel-action');
+        if (actionElem) actionElem.textContent = charAny.deathCause || '未知原因';
+        
+        // DNA区域显示死亡时间
+        const dnaContainer = document.getElementById('panel-dna-attrs');
+        if (dnaContainer) {
+            const deathTime = charAny.deathTime ? new Date(charAny.deathTime).toLocaleString() : '未知';
+            dnaContainer.innerHTML = `
+                <div class="dna-row" style="background: rgba(231, 76, 60, 0.3);">
+                    <span>💀 死因</span><span>${charAny.deathCause || '未知'}</span>
+                </div>
+                <div class="dna-row">
+                    <span>⏰ 死亡时间</span><span>${deathTime}</span>
                 </div>
             `;
         }
@@ -211,6 +234,28 @@ export class StatusUI {
         if (char.action === '休息中') return '💤休息';
         if (char.action === '闲置') return '🧘待机';
         return '🚶移动';
+    }
+    
+    // 点击空白处关闭
+    private setupClickOutside(): void {
+        document.addEventListener('pointerdown', (e) => {
+            const target = e.target as HTMLElement;
+            
+            if (Date.now() - this.lastClickTime < 200) return;
+            if (this.panel.contains(target)) return;
+            if (this.selectedChar) {
+                this.hide();
+            }
+        });
+    }
+    
+    // ESC键关闭
+    private setupEscKey(): void {
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.selectedChar) {
+                this.hide();
+            }
+        });
     }
     
     getSelectedCharacter(): Character | null {

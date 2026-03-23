@@ -46090,6 +46090,7 @@ ${e2}`);
   };
 
   // node_modules/pixi.js/lib/index.mjs
+  init_Rectangle();
   init_textureFrom();
   init_Container();
   init_Graphics();
@@ -47252,6 +47253,24 @@ ${e2}`);
       this.deathAge = 0;
       // 死亡标记
       this.isDead = false;
+      // ==================== 生存属性 ====================
+      // 生活方式统计
+      this.lifestyle = {
+        rawMeatEaten: 0,
+        // 吃生肉次数
+        rawWaterDrunk: 0,
+        // 喝生水次数
+        cookedMealsEaten: 0,
+        // 吃熟食次数
+        cleanWaterDrunk: 0,
+        // 喝净水次数
+        starvationDays: 0,
+        // 饥饿天数
+        diseaseEpisodes: 0,
+        // 患病次数
+        overworkDays: 0
+        // 过度劳累天数
+      };
       this.id = `char_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
       this.type = type;
       this.name = name || (type === "adam" ? "\u4E9A\u5F53" : "\u590F\u5A03");
@@ -47339,6 +47358,58 @@ ${e2}`);
       if (this.health <= 0) {
         this.die(`\u6218\u6597\u4F24\u5BB3 (-${damage}HP)`);
       }
+    }
+    // 计算基础寿命（DNA决定上限）
+    get baseLifespan() {
+      return 40 + this.phenotype.lifespan * 30;
+    }
+    // 计算生活方式系数
+    get lifestyleMultiplier() {
+      let mult = 1;
+      if (this.lifestyle.cookedMealsEaten > this.lifestyle.rawMeatEaten) {
+        mult += 0.1;
+      }
+      if (this.lifestyle.cleanWaterDrunk > this.lifestyle.rawWaterDrunk) {
+        mult += 0.1;
+      }
+      mult -= Math.min(this.lifestyle.rawMeatEaten * 0.05, 0.3);
+      mult -= Math.min(this.lifestyle.rawWaterDrunk * 0.03, 0.2);
+      mult -= Math.min(this.lifestyle.starvationDays * 0.02, 0.3);
+      mult -= Math.min(this.lifestyle.diseaseEpisodes * 0.1, 0.5);
+      return Math.max(0.3, Math.min(1.5, mult));
+    }
+    // 计算预期寿命
+    get lifeExpectancy() {
+      return this.baseLifespan * this.lifestyleMultiplier;
+    }
+    // 获取生活方式状态
+    getLifestyleStatus() {
+      const mult = this.lifestyleMultiplier;
+      if (mult >= 1.2) return "\u4F18\u826F";
+      if (mult >= 1) return "\u826F\u597D";
+      if (mult >= 0.8) return "\u4E00\u822C";
+      if (mult >= 0.6) return "\u8F83\u5DEE";
+      return "\u7CDF\u7CD5";
+    }
+    // 获取寿命影响描述
+    getLifeImpactDesc() {
+      const impacts = [];
+      if (this.lifestyle.cookedMealsEaten > this.lifestyle.rawMeatEaten) {
+        impacts.push("\u2705\u719F\u98DF");
+      }
+      if (this.lifestyle.cleanWaterDrunk > this.lifestyle.rawWaterDrunk) {
+        impacts.push("\u2705\u51C0\u6C34");
+      }
+      if (this.lifestyle.rawMeatEaten > 0) {
+        impacts.push(`\u274C\u751F\u8089\xD7${this.lifestyle.rawMeatEaten}`);
+      }
+      if (this.lifestyle.rawWaterDrunk > 0) {
+        impacts.push(`\u274C\u751F\u6C34\xD7${this.lifestyle.rawWaterDrunk}`);
+      }
+      if (this.lifestyle.starvationDays > 0) {
+        impacts.push(`\u274C\u9965\u997F\xD7${this.lifestyle.starvationDays}`);
+      }
+      return impacts.length > 0 ? impacts.join(" ") : "\u65E0\u8BB0\u5F55";
     }
     // 死亡方法
     die(cause = "\u672A\u77E5") {
@@ -47476,6 +47547,7 @@ ${e2}`);
   };
 
   // src/renderer/pixi/layers/CharacterLayer.ts
+  var TILE_SIZE4 = 64;
   var CHAR_SIZE = 32;
   var HITBOX_SIZE = 48;
   var CharacterLayer = class {
@@ -47566,7 +47638,6 @@ ${e2}`);
         this.container.addChild(hitbox);
         this.hitboxes.set(char, hitbox);
         hitbox.on("pointerdown", (event) => {
-          event.stopPropagation();
           if (this.onCharacterClick) {
             this.onCharacterClick(char);
           }
@@ -47588,32 +47659,19 @@ ${e2}`);
     }
     setupInteraction() {
       this.container.eventMode = "static";
+      this.container.hitArea = new Rectangle(
+        0,
+        0,
+        this.map.getSize().width * TILE_SIZE4,
+        this.map.getSize().height * TILE_SIZE4
+      );
     }
     update(deltaTime) {
       const world = this.getWorldState();
-      const deadChars = this.characters.filter((c2) => c2.isDead);
-      for (const char of deadChars) {
-        const sprite = this.sprites.get(char);
-        if (sprite) {
-          this.container.removeChild(sprite);
-          sprite.destroy();
-          this.sprites.delete(char);
-        }
-        const hitbox = this.hitboxes.get(char);
-        if (hitbox) {
-          this.container.removeChild(hitbox);
-          hitbox.destroy();
-          this.hitboxes.delete(char);
-        }
-        const label = this.labels.get(char);
-        if (label) {
-          label.text = `\u{1F480} ${char.name}: ${char.action}`;
-          label.style.fill = 8947848;
-        }
-      }
       for (const char of this.characters) {
-        if (char.isDead) continue;
-        char.update(deltaTime, world);
+        if (!char.isDead) {
+          char.update(deltaTime, world);
+        }
         const sprite = this.sprites.get(char);
         const hitbox = this.hitboxes.get(char);
         if (sprite) {
@@ -47628,7 +47686,13 @@ ${e2}`);
         }
         const label = this.labels.get(char);
         if (label) {
-          label.text = `${char.name}: ${char.action}`;
+          if (char.isDead) {
+            label.text = `\u{1F480} ${char.name}: \u6B7B\u4EA1`;
+            label.style.fill = 8947848;
+          } else {
+            label.text = `${char.name}: ${char.action}`;
+            label.style.fill = 16777215;
+          }
           const pos = char.getPixelPos();
           label.x = pos.x - label.width / 2;
           label.y = pos.y - CHAR_SIZE - 14;
@@ -47770,22 +47834,14 @@ ${e2}`);
 
   // src/renderer/StatusUI.ts
   var StatusUI = class {
-    // 防止立即关闭
     constructor() {
       this.selectedChar = null;
       this.characters = [];
-      this.justSelected = false;
+      this.lastClickTime = 0;
+      this.deathPanelShown = false;
       this.createPanel();
       this.setupClickOutside();
       this.setupEscKey();
-    }
-    // ESC键关闭
-    setupEscKey() {
-      document.addEventListener("keydown", (e2) => {
-        if (e2.key === "Escape" && this.selectedChar) {
-          this.hide();
-        }
-      });
     }
     createPanel() {
       this.panel = document.getElementById("status-panel");
@@ -47794,29 +47850,16 @@ ${e2}`);
     // 点击角色时调用
     showCharacter(char) {
       this.selectedChar = char;
+      this.deathPanelShown = false;
       this.panel.style.display = "block";
-      this.justSelected = true;
+      this.lastClickTime = Date.now();
       this.update();
-      setTimeout(() => {
-        this.justSelected = false;
-      }, 300);
     }
     // 关闭面板
     hide() {
       this.selectedChar = null;
+      this.deathPanelShown = false;
       this.panel.style.display = "none";
-    }
-    // 点击空白处关闭
-    setupClickOutside() {
-      document.addEventListener("pointerdown", (e2) => {
-        const target = e2.target;
-        if (this.justSelected) return;
-        if (target.classList.contains("char-hitbox")) return;
-        if (this.panel.contains(target)) return;
-        if (this.selectedChar) {
-          this.hide();
-        }
-      });
     }
     // 更新角色数据
     updateCharacters(chars) {
@@ -47832,6 +47875,19 @@ ${e2}`);
     update() {
       if (!this.selectedChar) return;
       const char = this.selectedChar;
+      const charAny = char;
+      if (!char.phenotype) {
+        console.error("Character has no phenotype!");
+        return;
+      }
+      if (charAny.isDead) {
+        this.showDeathPanel(char);
+        return;
+      }
+      if (!this.characters.includes(char)) {
+        this.hide();
+        return;
+      }
       const dna = char.phenotype;
       const nameElem = document.getElementById("panel-name");
       const typeElem = document.getElementById("panel-type");
@@ -47866,10 +47922,9 @@ ${e2}`);
       const healthVal = document.getElementById("panel-health-val");
       const healthBar = document.getElementById("panel-health-bar");
       if (healthBar && healthVal) {
-        const charAny = char;
-        const maxHealth = charAny.maxHealth ? charAny.maxHealth() : 100;
-        const health = charAny.health !== void 0 ? charAny.health : 100;
-        const healthPct = Math.round(health / maxHealth * 100);
+        const maxHealth = char.maxHealth;
+        const health = char.health !== void 0 ? char.health : 100;
+        const healthPct = maxHealth > 0 ? Math.round(health / maxHealth * 100) : 0;
         healthBar.style.width = `${healthPct}%`;
         healthVal.textContent = `${healthPct}%`;
       }
@@ -47877,7 +47932,7 @@ ${e2}`);
       if (actionElem) actionElem.textContent = char.action;
       const dnaContainer = document.getElementById("panel-dna-attrs");
       if (dnaContainer) {
-        const personality = char.getPersonality ? char.getPersonality() : "\u666E\u901A\u4EBA";
+        const personality = charAny.getPersonality ? charAny.getPersonality() : "\u666E\u901A\u4EBA";
         dnaContainer.innerHTML = `
                 <div class="dna-row" style="background: rgba(74, 169, 74, 0.3); font-weight: bold;">
                     <span>\u{1F3AD} \u6027\u683C</span><span>${personality}</span>
@@ -47898,31 +47953,53 @@ ${e2}`);
                     <span>\u{1F525} \u4EE3\u8C22</span><span>${dna.metabolism.toFixed(2)}</span>
                 </div>
                 <div class="dna-row">
-                    <span>\u2753 \u597D\u5947</span><span>${(dna.curiosity * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>\u{1F6E1}\uFE0F \u98CE\u9669\u89C4\u907F</span><span>${(dna.riskAversion * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>\u2764\uFE0F \u540C\u7406\u5FC3</span><span>${(dna.empathy * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>\u{1F91D} \u793E\u4EA4</span><span>${(dna.sociability * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>\u23F3 \u8010\u5FC3</span><span>${(dna.patience * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>\u{1F9E0} \u667A\u529B</span><span>${(dna.intelligence * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>\u{1F441}\uFE0F \u611F\u77E5</span><span>${(dna.perception * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
                     <span>\u{1F4AA} \u529B\u91CF</span><span>${(dna.strength * 100).toFixed(0)}</span>
                 </div>
                 <div class="dna-row">
                     <span>\u{1F3CB}\uFE0F \u4F53\u8D28</span><span>${(dna.constitution * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F6E1}\uFE0F \u514D\u75AB\u529B</span><span>${(dna.immuneStrength * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u23F3 \u5BFF\u547D</span><span>${charAny.baseLifespan ? charAny.baseLifespan.toFixed(0) : 55}\u5C81</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F33F} \u751F\u6D3B</span><span>${charAny.getLifestyleStatus ? charAny.getLifestyleStatus() : "-"}</span>
+                </div>
+            `;
+      }
+    }
+    showDeathPanel(char) {
+      const charAny = char;
+      if (this.deathPanelShown) return;
+      this.deathPanelShown = true;
+      const titleElem = document.querySelector("#status-panel h3 span:first-child");
+      if (titleElem) titleElem.textContent = "\u{1F480} \u5DF2\u6B7B\u4EA1";
+      const avatarElem = document.getElementById("panel-avatar");
+      if (avatarElem) {
+        avatarElem.style.background = "#666";
+        avatarElem.textContent = "\u{1F480}";
+      }
+      const nameElem = document.getElementById("panel-name");
+      if (nameElem) nameElem.textContent = char.name + " (\u5DF2\u6B7B\u4EA1)";
+      const posElem = document.getElementById("panel-position");
+      if (posElem) posElem.textContent = charAny.deathCause || "\u672A\u77E5\u539F\u56E0";
+      const healthBar = document.getElementById("panel-health-bar");
+      const healthVal = document.getElementById("panel-health-val");
+      if (healthBar) healthBar.style.width = "0%";
+      if (healthVal) healthVal.textContent = "0%";
+      const actionElem = document.getElementById("panel-action");
+      if (actionElem) actionElem.textContent = charAny.deathCause || "\u672A\u77E5\u539F\u56E0";
+      const dnaContainer = document.getElementById("panel-dna-attrs");
+      if (dnaContainer) {
+        const deathTime = charAny.deathTime ? new Date(charAny.deathTime).toLocaleString() : "\u672A\u77E5";
+        dnaContainer.innerHTML = `
+                <div class="dna-row" style="background: rgba(231, 76, 60, 0.3);">
+                    <span>\u{1F480} \u6B7B\u56E0</span><span>${charAny.deathCause || "\u672A\u77E5"}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u23F0 \u6B7B\u4EA1\u65F6\u95F4</span><span>${deathTime}</span>
                 </div>
             `;
       }
@@ -47935,6 +48012,25 @@ ${e2}`);
       if (char.action === "\u4F11\u606F\u4E2D") return "\u{1F4A4}\u4F11\u606F";
       if (char.action === "\u95F2\u7F6E") return "\u{1F9D8}\u5F85\u673A";
       return "\u{1F6B6}\u79FB\u52A8";
+    }
+    // 点击空白处关闭
+    setupClickOutside() {
+      document.addEventListener("pointerdown", (e2) => {
+        const target = e2.target;
+        if (Date.now() - this.lastClickTime < 200) return;
+        if (this.panel.contains(target)) return;
+        if (this.selectedChar) {
+          this.hide();
+        }
+      });
+    }
+    // ESC键关闭
+    setupEscKey() {
+      document.addEventListener("keydown", (e2) => {
+        if (e2.key === "Escape" && this.selectedChar) {
+          this.hide();
+        }
+      });
     }
     getSelectedCharacter() {
       return this.selectedChar;

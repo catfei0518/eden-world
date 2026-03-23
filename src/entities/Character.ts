@@ -173,6 +173,93 @@ export class Character {
     // 死亡标记
     public isDead: boolean = false;
     
+    // ==================== 生存属性 ====================
+    
+    // 生活方式统计
+    public lifestyle = {
+        rawMeatEaten: 0,       // 吃生肉次数
+        rawWaterDrunk: 0,        // 喝生水次数
+        cookedMealsEaten: 0,      // 吃熟食次数
+        cleanWaterDrunk: 0,      // 喝净水次数
+        starvationDays: 0,        // 饥饿天数
+        diseaseEpisodes: 0,       // 患病次数
+        overworkDays: 0,          // 过度劳累天数
+    };
+    
+    // 计算基础寿命（DNA决定上限）
+    public get baseLifespan(): number {
+        // 40-70游戏岁
+        return 40 + this.phenotype.lifespan * 30;
+    }
+    
+    // 计算生活方式系数
+    public get lifestyleMultiplier(): number {
+        let mult = 1.0;
+        
+        // 正面因素（简化版）
+        // 吃熟食+10%
+        if (this.lifestyle.cookedMealsEaten > this.lifestyle.rawMeatEaten) {
+            mult += 0.1;
+        }
+        // 喝净水+10%
+        if (this.lifestyle.cleanWaterDrunk > this.lifestyle.rawWaterDrunk) {
+            mult += 0.1;
+        }
+        
+        // 负面因素
+        // 生肉-5%每次（上限-30%）
+        mult -= Math.min(this.lifestyle.rawMeatEaten * 0.05, 0.3);
+        // 生水-3%每次（上限-20%）
+        mult -= Math.min(this.lifestyle.rawWaterDrunk * 0.03, 0.2);
+        // 饥饿-2%每天（上限-30%）
+        mult -= Math.min(this.lifestyle.starvationDays * 0.02, 0.3);
+        // 疾病-10%每次（上限-50%）
+        mult -= Math.min(this.lifestyle.diseaseEpisodes * 0.1, 0.5);
+        
+        return Math.max(0.3, Math.min(1.5, mult)); // 30%-150%
+    }
+    
+    // 计算预期寿命
+    public get lifeExpectancy(): number {
+        return this.baseLifespan * this.lifestyleMultiplier;
+    }
+    
+    // 获取生活方式状态
+    public getLifestyleStatus(): string {
+        const mult = this.lifestyleMultiplier;
+        if (mult >= 1.2) return '优良';
+        if (mult >= 1.0) return '良好';
+        if (mult >= 0.8) return '一般';
+        if (mult >= 0.6) return '较差';
+        return '糟糕';
+    }
+    
+    // 获取寿命影响描述
+    public getLifeImpactDesc(): string {
+        const impacts: string[] = [];
+        
+        // 正面
+        if (this.lifestyle.cookedMealsEaten > this.lifestyle.rawMeatEaten) {
+            impacts.push('✅熟食');
+        }
+        if (this.lifestyle.cleanWaterDrunk > this.lifestyle.rawWaterDrunk) {
+            impacts.push('✅净水');
+        }
+        
+        // 负面
+        if (this.lifestyle.rawMeatEaten > 0) {
+            impacts.push(`❌生肉×${this.lifestyle.rawMeatEaten}`);
+        }
+        if (this.lifestyle.rawWaterDrunk > 0) {
+            impacts.push(`❌生水×${this.lifestyle.rawWaterDrunk}`);
+        }
+        if (this.lifestyle.starvationDays > 0) {
+            impacts.push(`❌饥饿×${this.lifestyle.starvationDays}`);
+        }
+        
+        return impacts.length > 0 ? impacts.join(' ') : '无记录';
+    }
+    
     // 死亡方法
     public die(cause: string = '未知'): void {
         this.isDead = true;
