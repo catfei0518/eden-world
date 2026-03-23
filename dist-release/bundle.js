@@ -47361,7 +47361,8 @@ ${e2}`);
     }
     // 计算基础寿命（DNA决定上限）
     get baseLifespan() {
-      return 40 + this.phenotype.lifespan * 30;
+      const normalized = Math.max(0, Math.min(1, (this.phenotype.lifespan - 600) / 600));
+      return 40 + normalized * 30;
     }
     // 计算生活方式系数
     get lifestyleMultiplier() {
@@ -47960,12 +47961,6 @@ ${e2}`);
                 </div>
                 <div class="dna-row">
                     <span>\u{1F6E1}\uFE0F \u514D\u75AB\u529B</span><span>${(dna.immuneStrength * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>\u23F3 \u5BFF\u547D</span><span>${charAny.baseLifespan ? charAny.baseLifespan.toFixed(0) : 55}\u5C81</span>
-                </div>
-                <div class="dna-row">
-                    <span>\u{1F33F} \u751F\u6D3B</span><span>${charAny.getLifestyleStatus ? charAny.getLifestyleStatus() : "-"}</span>
                 </div>
             `;
       }

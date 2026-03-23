@@ -166,12 +166,6 @@ export class StatusUI {
                 <div class="dna-row">
                     <span>🛡️ 免疫力</span><span>${(dna.immuneStrength * 100).toFixed(0)}</span>
                 </div>
-                <div class="dna-row">
-                    <span>⏳ 寿命</span><span>${charAny.baseLifespan ? charAny.baseLifespan.toFixed(0) : 55}岁</span>
-                </div>
-                <div class="dna-row">
-                    <span>🌿 生活</span><span>${charAny.getLifestyleStatus ? charAny.getLifestyleStatus() : '-'}</span>
-                </div>
             `;
         }
     }

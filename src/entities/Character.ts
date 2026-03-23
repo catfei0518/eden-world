@@ -188,8 +188,9 @@ export class Character {
     
     // 计算基础寿命（DNA决定上限）
     public get baseLifespan(): number {
-        // 40-70游戏岁
-        return 40 + this.phenotype.lifespan * 30;
+        // DNA中lifespan是600-1200，需要归一化到40-70岁
+        const normalized = Math.max(0, Math.min(1, (this.phenotype.lifespan - 600) / 600));
+        return 40 + normalized * 30; // 40-70游戏岁
     }
     
     // 计算生活方式系数
