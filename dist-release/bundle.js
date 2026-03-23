@@ -47588,6 +47588,16 @@ ${e2}`);
         this.x = nextX;
         this.y = nextY;
       } else {
+        const offsets = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]];
+        for (const [ox, oy] of offsets) {
+          const altX = Math.round(this.x + ox);
+          const altY = Math.round(this.y + oy);
+          if (this.canMove(altX, altY)) {
+            this.x = altX;
+            this.y = altY;
+            return;
+          }
+        }
         this.target = null;
       }
     }

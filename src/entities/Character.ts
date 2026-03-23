@@ -482,10 +482,24 @@ export class Character {
         const nextX = this.x + (dx / dist) * speed;
         const nextY = this.y + (dy / dist) * speed;
         
+        // 检查目标点是否可移动
         if (this.canMove(Math.round(nextX), Math.round(nextY))) {
             this.x = nextX;
             this.y = nextY;
         } else {
+            // 被阻挡，尝试绕行（左右偏移）
+            const offsets = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]];
+            for (const [ox, oy] of offsets) {
+                const altX = Math.round(this.x + ox);
+                const altY = Math.round(this.y + oy);
+                if (this.canMove(altX, altY)) {
+                    this.x = altX;
+                    this.y = altY;
+                    // 仍然尝试朝原目标移动
+                    return;
+                }
+            }
+            // 完全被卡住，清除目标，重新漫游
             this.target = null;
         }
     }
