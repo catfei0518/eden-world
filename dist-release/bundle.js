@@ -47235,17 +47235,11 @@ ${e2}`);
   var Character = class {
     constructor(type, x2, y2, name, canMove) {
       // 状态 - 营养系统
-      // 初始为50%饱食状态（约750kcal和1000ml水）
-      this.calories = 750;
-      // 当前热量 (kcal)
-      this.water = 1e3;
-      // 当前水分 (ml)
-      this.vitamins = 0;
-      // 当前维生素 (mg)
-      this.protein = 0;
-      // 当前蛋白质 (g)
-      this.fat = 0;
-      // 当前脂肪 (g)
+      // 初始100% = 每日需求的1/3（约1顿饭的量）
+      this.calories = 100;
+      // 当前饱食度 0-100%
+      this.water = 100;
+      // 当前口渴度 0-100%
       this.energy = 5;
       // 精力 5=满, 0=空
       this.health = 100;
