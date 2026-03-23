@@ -47956,8 +47956,8 @@ ${e2}`);
       }
       const posElem = document.getElementById("panel-position");
       if (posElem) posElem.textContent = `(${char.x.toFixed(1)}, ${char.y.toFixed(1)})`;
-      const hungerPct = charAny.hungerPercent ? Math.min(100, charAny.hungerPercent()) : 50;
-      const thirstPct = charAny.thirstPercent ? Math.min(100, charAny.thirstPercent()) : 50;
+      const hungerPct = charAny.hungerPercent !== void 0 ? Math.min(100, Math.round(charAny.hungerPercent)) : 50;
+      const thirstPct = charAny.thirstPercent !== void 0 ? Math.min(100, Math.round(charAny.thirstPercent)) : 50;
       const energyPct = Math.round(char.energy / 5 * 100);
       const foodBar = document.getElementById("panel-food-bar");
       const waterBar = document.getElementById("panel-water-bar");
@@ -48055,8 +48055,8 @@ ${e2}`);
     }
     getStatusIcon(char) {
       const charAny = char;
-      const thirst = charAny.thirstPercent ? charAny.thirstPercent() : 50;
-      const hunger = charAny.hungerPercent ? charAny.hungerPercent() : 50;
+      const thirst = charAny.thirstPercent !== void 0 ? Math.round(charAny.thirstPercent) : 50;
+      const hunger = charAny.hungerPercent !== void 0 ? Math.round(charAny.hungerPercent) : 50;
       if (thirst < 30) return "\u{1F4A7}\u5F88\u6E34";
       if (hunger < 30) return "\u{1F356}\u5F88\u997F";
       if (thirst < 50) return "\u{1F4A7}\u53E3\u6E34";

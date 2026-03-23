@@ -94,8 +94,8 @@ export class StatusUI {
         if (posElem) posElem.textContent = `(${char.x.toFixed(1)}, ${char.y.toFixed(1)})`;
         
         // 进度条 - 使用新的饥饿/口渴系统
-        const hungerPct = charAny.hungerPercent ? Math.min(100, charAny.hungerPercent()) : 50;
-        const thirstPct = charAny.thirstPercent ? Math.min(100, charAny.thirstPercent()) : 50;
+        const hungerPct = charAny.hungerPercent !== undefined ? Math.min(100, Math.round(charAny.hungerPercent)) : 50;
+        const thirstPct = charAny.thirstPercent !== undefined ? Math.min(100, Math.round(charAny.thirstPercent)) : 50;
         const energyPct = Math.round((char.energy / 5) * 100);
         
         const foodBar = document.getElementById('panel-food-bar');
@@ -219,8 +219,8 @@ export class StatusUI {
     
     private getStatusIcon(char: Character): string {
         const charAny = char as any;
-        const thirst = charAny.thirstPercent ? charAny.thirstPercent() : 50;
-        const hunger = charAny.hungerPercent ? charAny.hungerPercent() : 50;
+        const thirst = charAny.thirstPercent !== undefined ? Math.round(charAny.thirstPercent) : 50;
+        const hunger = charAny.hungerPercent !== undefined ? Math.round(charAny.hungerPercent) : 50;
         
         if (thirst < 30) return '💧很渴';
         if (hunger < 30) return '🍖很饿';
