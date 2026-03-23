@@ -47409,11 +47409,11 @@ ${e2}`);
     }
     // 饥饿百分比 (0-100)
     get hungerPercent() {
-      return Math.min(150, Math.round(this.calories / this.dailyCalorieNeed * 100));
+      return Math.round(this.calories);
     }
     // 口渴百分比 (0-100)
     get thirstPercent() {
-      return Math.min(150, Math.round(this.water / this.dailyWaterNeed * 100));
+      return Math.round(this.water);
     }
     // 获取饥饿/口渴状态描述
     getHungerStatus() {
