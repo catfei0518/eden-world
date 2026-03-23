@@ -33,8 +33,9 @@ export class Character {
     y: number;
     
     // 状态 - 营养系统
-    calories: number = 0;      // 当前热量 (kcal)
-    water: number = 0;        // 当前水分 (ml)
+    // 初始为50%饱食状态（约750kcal和1000ml水）
+    calories: number = 750;      // 当前热量 (kcal)
+    water: number = 1000;       // 当前水分 (ml)
     vitamins: number = 0;     // 当前维生素 (mg)
     protein: number = 0;      // 当前蛋白质 (g)
     fat: number = 0;          // 当前脂肪 (g)
