@@ -53,6 +53,10 @@ export class Character {
     heldItem: string | null = null;  // 物品类型
     heldItemCount: number = 0;      // 物品数量
     
+    // LLM控制
+    useLLM: boolean = false;  // 是否使用LLM决策
+    lastLLMDecision: string = '';  // 上次LLM决策
+    
     // 碰撞检测
     private canMove: (x: number, y: number) => boolean;
     

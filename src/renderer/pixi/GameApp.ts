@@ -12,6 +12,7 @@ import { StatusUI } from '../StatusUI';
 import { ItemStatusUI } from '../ItemStatusUI';
 import { ConsoleUI } from '../ConsoleUI';
 import { commandSystem } from '../../systems/CommandSystem';
+import { LLMController } from '../../systems/LLMController';
 
 export class GameApp {
     private app: PIXI.Application;
@@ -30,6 +31,7 @@ export class GameApp {
     
     // 当前季节
     private currentSeason: string = 'summer';
+    private llmController: LLMController;
     
     constructor(map: GameMap, width: number, height: number) {
         this.map = map;
@@ -45,6 +47,7 @@ export class GameApp {
         this.statusUI = new StatusUI();
         this.itemStatusUI = new ItemStatusUI();
         this.consoleUI = new ConsoleUI();
+        this.llmController = new LLMController();
         
         // 设置控制台命令回调
         this.setupConsoleCommands();
@@ -73,6 +76,14 @@ export class GameApp {
         await this.tileLayer.init();
         await this.itemLayer.init();
         await this.characterLayer.init();
+        
+        // 启用LLM控制亚当和夏娃
+        const characters = this.characterLayer.getCharacters();
+        if (characters.length >= 2) {
+            this.llmController.addCharacter(characters[0]);  // 亚当
+            this.llmController.addCharacter(characters[1]);  // 夏娃
+            console.log('🤖 LLM控制器已启用，亚当和夏娃将由Ollama控制');
+        }
         
         // 设置角色点击回调
         this.characterLayer.onCharacterClick = (char) => {
@@ -117,9 +128,23 @@ export class GameApp {
     }
     
     startTick(): void {
+        // LLM更新计数器
+        let llmUpdateCounter = 0;
+        
         this.app.ticker.add((ticker) => {
             this.characterLayer.update(ticker.deltaTime);
             this.statusUI.updateCharacters(this.characterLayer.getCharacters());
+            
+            // 每60帧（约1秒）更新一次LLM
+            llmUpdateCounter++;
+            if (llmUpdateCounter >= 60) {
+                llmUpdateCounter = 0;
+                // 获取世界状态并更新LLM
+                const world = (this.characterLayer as any).getWorldState?.();
+                if (world) {
+                    this.llmController.update(world);
+                }
+            }
         });
     }
     

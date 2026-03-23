@@ -47258,6 +47258,11 @@ ${e2}`);
       this.heldItem = null;
       // 物品类型
       this.heldItemCount = 0;
+      // 物品数量
+      // LLM控制
+      this.useLLM = false;
+      // 是否使用LLM决策
+      this.lastLLMDecision = "";
       // 死亡原因
       this.deathCause = "";
       // 死亡时间（游戏时间戳）
@@ -48831,6 +48836,211 @@ ${e2}`);
     }
   };
 
+  // src/systems/LLMController.ts
+  var LLMController = class {
+    constructor() {
+      this.ollamaUrl = "http://localhost:11434";
+      this.model = "qwen3.5:2b";
+      this.characters = /* @__PURE__ */ new Map();
+      this.lastDecision = /* @__PURE__ */ new Map();
+      this.decisionInterval = 3e3;
+      // 3秒决策一次
+      // 可用动作
+      this.actions = [
+        "\u5BFB\u627E\u98DF\u7269",
+        "\u5BFB\u627E\u6C34\u6E90",
+        "\u5403\u4E1C\u897F",
+        "\u559D\u6C34",
+        "\u4F11\u606F",
+        "\u63A2\u7D22",
+        "\u95F2\u7F6E"
+      ];
+    }
+    /**
+     * 添加角色到LLM控制
+     */
+    addCharacter(char) {
+      char.useLLM = true;
+      this.characters.set(char.id, char);
+      console.log(`\u{1F916} ${char.name} \u5DF2\u542F\u7528LLM\u63A7\u5236`);
+    }
+    /**
+     * 移除角色从LLM控制
+     */
+    removeCharacter(charId) {
+      const char = this.characters.get(charId);
+      if (char) {
+        char.useLLM = false;
+        this.characters.delete(charId);
+      }
+    }
+    /**
+     * 更新所有LLM角色
+     */
+    async update(world) {
+      const now = Date.now();
+      for (const [id, char] of this.characters) {
+        const last = this.lastDecision.get(id) || 0;
+        if (now - last < this.decisionInterval) {
+          continue;
+        }
+        try {
+          const decision = await this.getDecision(char, world);
+          if (decision) {
+            this.executeDecision(char, decision, world);
+            this.lastDecision.set(id, now);
+          }
+        } catch (error) {
+          console.error(`LLM\u51B3\u7B56\u5931\u8D25 for ${char.name}:`, error);
+        }
+      }
+    }
+    /**
+     * 获取LLM决策
+     */
+    async getDecision(char, world) {
+      const prompt = this.buildPrompt(char, world);
+      try {
+        const response = await fetch(`${this.ollamaUrl}/api/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: this.model,
+            prompt,
+            options: {
+              temperature: 0.1,
+              num_predict: 80
+            },
+            stream: false
+          })
+        });
+        if (!response.ok) {
+          throw new Error(`Ollama\u9519\u8BEF: ${response.status}`);
+        }
+        const data = await response.json();
+        return this.parseResponse(data.response, char);
+      } catch (error) {
+        console.error("Ollama\u8C03\u7528\u5931\u8D25:", error);
+        return null;
+      }
+    }
+    /**
+     * 构建提示词
+     */
+    buildPrompt(char, world) {
+      const dna = char.dna.getPhenotype();
+      const hunger = char.hungerPercent;
+      const thirst = char.thirstPercent;
+      const energy = Math.round(char.energy / 5 * 100);
+      const health = Math.round(char.health);
+      const bravery = dna.bravery > 0.6 ? "\u52C7\u6562" : "\u8C28\u614E";
+      const aggression = dna.aggression > 0.6 ? "\u51B2\u52A8" : "\u51B7\u9759";
+      const foods = world.nearbyFood || [];
+      const waters = world.nearbyWater || [];
+      let foodInfo = "\u65E0";
+      if (foods.length > 0) {
+        const nearest = foods[0];
+        const dist = Math.sqrt(
+          Math.pow(nearest.position.x - char.x, 2) + Math.pow(nearest.position.y - char.y, 2)
+        ).toFixed(1);
+        foodInfo = `${nearest.type} (\u8DDD\u79BB${dist})`;
+      }
+      let waterInfo = "\u65E0";
+      if (waters.length > 0) {
+        const nearest = waters[0];
+        const dist = Math.sqrt(
+          Math.pow(nearest.position.x - char.x, 2) + Math.pow(nearest.position.y - char.y, 2)
+        ).toFixed(1);
+        waterInfo = `${nearest.type} (\u8DDD\u79BB${dist})`;
+      }
+      return `\u4F60\u662F${char.name}\uFF0C\u4E00\u4E2A${bravery}\u800C${aggression}\u7684\u539F\u59CB\u4EBA\u3002
+
+\u5F53\u524D\u72B6\u6001\uFF1A
+- \u9965\u997F\uFF1A${hunger}% (0%=\u997F\u6B7B, 100%=\u5403\u9971)
+- \u53E3\u6E34\uFF1A${thirst}% (0%=\u6E34\u6B7B, 100%=\u559D\u8DB3)
+- \u7CBE\u529B\uFF1A${energy}%
+- \u751F\u547D\uFF1A${health}%
+
+\u73AF\u5883\u4FE1\u606F\uFF1A
+- \u6700\u8FD1\u98DF\u7269\uFF1A${foodInfo}
+- \u6700\u8FD1\u6C34\u6E90\uFF1A${waterInfo}
+
+\u53EF\u9009\u52A8\u4F5C\uFF1A\u5BFB\u627E\u98DF\u7269\u3001\u5BFB\u627E\u6C34\u6E90\u3001\u5403\u4E1C\u897F\u3001\u559D\u6C34\u3001\u4F11\u606F\u3001\u63A2\u7D22\u3001\u95F2\u7F6E
+
+\u6839\u636E\u5F53\u524D\u72B6\u6001\u9009\u62E9\u6700\u5408\u9002\u7684\u52A8\u4F5C\u3002\u53EA\u8F93\u51FAJSON\uFF1A
+{"action":"\u52A8\u4F5C\u540D"}`;
+    }
+    /**
+     * 解析响应
+     */
+    parseResponse(response, char) {
+      const jsonMatch = response.match(/\{[^}]+\}/);
+      if (jsonMatch) {
+        try {
+          const json = JSON.parse(jsonMatch[0]);
+          if (json.action && this.actions.includes(json.action)) {
+            char.lastLLMDecision = `${json.action}: ${json.reason || ""}`;
+            return { action: json.action };
+          }
+        } catch (e2) {
+        }
+      }
+      const lower = response.toLowerCase();
+      for (const action of this.actions) {
+        if (lower.includes(action)) {
+          char.lastLLMDecision = `${action}`;
+          return { action };
+        }
+      }
+      return { action: "\u95F2\u7F6E" };
+    }
+    /**
+     * 执行决策
+     */
+    executeDecision(char, decision, world) {
+      char.action = decision.action;
+      switch (decision.action) {
+        case "\u5BFB\u627E\u98DF\u7269":
+          this.goToNearest(char, world.nearbyFood);
+          break;
+        case "\u5BFB\u627E\u6C34\u6E90":
+          this.goToNearest(char, world.nearbyWater);
+          break;
+        case "\u4F11\u606F":
+          break;
+        case "\u95F2\u7F6E":
+        case "\u63A2\u7D22":
+        default:
+          char.target = null;
+          break;
+      }
+      console.log(`\u{1F916} ${char.name} LLM\u51B3\u7B56: ${decision.action}`);
+    }
+    /**
+     * 前往最近的物品
+     */
+    goToNearest(char, items) {
+      if (!items || items.length === 0) {
+        char.target = null;
+        return;
+      }
+      let nearest = items[0];
+      let minDist = Infinity;
+      for (const item of items) {
+        const dist = Math.sqrt(
+          Math.pow(item.position.x - char.x, 2) + Math.pow(item.position.y - char.y, 2)
+        );
+        if (dist < minDist) {
+          minDist = dist;
+          nearest = item;
+        }
+      }
+      if (nearest) {
+        char.target = { x: nearest.position.x, y: nearest.position.y };
+      }
+    }
+  };
+
   // src/renderer/pixi/GameApp.ts
   var GameApp = class {
     constructor(map, width, height) {
@@ -48848,6 +49058,7 @@ ${e2}`);
       this.statusUI = new StatusUI();
       this.itemStatusUI = new ItemStatusUI();
       this.consoleUI = new ConsoleUI();
+      this.llmController = new LLMController();
       this.setupConsoleCommands();
     }
     async init() {
@@ -48866,6 +49077,12 @@ ${e2}`);
       await this.tileLayer.init();
       await this.itemLayer.init();
       await this.characterLayer.init();
+      const characters = this.characterLayer.getCharacters();
+      if (characters.length >= 2) {
+        this.llmController.addCharacter(characters[0]);
+        this.llmController.addCharacter(characters[1]);
+        console.log("\u{1F916} LLM\u63A7\u5236\u5668\u5DF2\u542F\u7528\uFF0C\u4E9A\u5F53\u548C\u590F\u5A03\u5C06\u7531Ollama\u63A7\u5236");
+      }
       this.characterLayer.onCharacterClick = (char) => {
         this.statusUI.showCharacter(char);
       };
@@ -48892,9 +49109,18 @@ ${e2}`);
       return this.characterLayer;
     }
     startTick() {
+      let llmUpdateCounter = 0;
       this.app.ticker.add((ticker) => {
         this.characterLayer.update(ticker.deltaTime);
         this.statusUI.updateCharacters(this.characterLayer.getCharacters());
+        llmUpdateCounter++;
+        if (llmUpdateCounter >= 60) {
+          llmUpdateCounter = 0;
+          const world = this.characterLayer.getWorldState?.();
+          if (world) {
+            this.llmController.update(world);
+          }
+        }
       });
     }
     // 设置控制台命令处理
