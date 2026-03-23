@@ -47234,16 +47234,28 @@ ${e2}`);
   var TILE_SIZE3 = 64;
   var Character = class {
     constructor(type, x2, y2, name, canMove) {
-      // 状态
-      this.food = 5;
-      this.water = 5;
+      // 状态 - 营养系统
+      this.calories = 0;
+      // 当前热量 (kcal)
+      this.water = 0;
+      // 当前水分 (ml)
+      this.vitamins = 0;
+      // 当前维生素 (mg)
+      this.protein = 0;
+      // 当前蛋白质 (g)
+      this.fat = 0;
+      // 当前脂肪 (g)
       this.energy = 5;
-      // 5=满, 0=空
+      // 精力 5=满, 0=空
       this.health = 100;
       // 生命值 0-100
       // 当前行动
       this.action = "\u95F2\u7F6E";
       this.target = null;
+      // 手中物品
+      this.heldItem = null;
+      // 物品类型
+      this.heldItemCount = 0;
       // 死亡原因
       this.deathCause = "";
       // 死亡时间（游戏时间戳）
@@ -47391,6 +47403,40 @@ ${e2}`);
       if (mult >= 0.6) return "\u8F83\u5DEE";
       return "\u7CDF\u7CD5";
     }
+    // ==================== 营养系统 ====================
+    // 计算每日基础代谢需求 (kcal)
+    get dailyCalorieNeed() {
+      return 1500 * (0.5 + this.phenotype.metabolism);
+    }
+    // 计算每日水分需求 (ml)
+    get dailyWaterNeed() {
+      return 2e3;
+    }
+    // 饥饿百分比 (0-100)
+    get hungerPercent() {
+      return Math.min(150, Math.round(this.calories / this.dailyCalorieNeed * 100));
+    }
+    // 口渴百分比 (0-100)
+    get thirstPercent() {
+      return Math.min(150, Math.round(this.water / this.dailyWaterNeed * 100));
+    }
+    // 获取饥饿/口渴状态描述
+    getHungerStatus() {
+      const pct = this.hungerPercent;
+      if (pct >= 80) return "\u9971";
+      if (pct >= 50) return "\u6B63\u5E38";
+      if (pct >= 30) return "\u9965\u997F";
+      if (pct >= 10) return "\u5F88\u997F";
+      return "\u997F\u6B7B";
+    }
+    getThirstStatus() {
+      const pct = this.thirstPercent;
+      if (pct >= 80) return "\u5145\u8DB3";
+      if (pct >= 50) return "\u6B63\u5E38";
+      if (pct >= 30) return "\u53E3\u6E34";
+      if (pct >= 10) return "\u5F88\u6E34";
+      return "\u6E34\u6B7B";
+    }
     // 获取寿命影响描述
     getLifeImpactDesc() {
       const impacts = [];
@@ -47435,21 +47481,23 @@ ${e2}`);
     }
     // 每帧更新
     update(deltaTime, world) {
-      const consumption = deltaTime * 0.01 * this.metabolismRate;
-      this.food = Math.max(0, this.food - consumption);
-      this.water = Math.max(0, this.water - consumption * 1.5);
-      this.energy = Math.max(0, this.energy - consumption);
+      const consumptionPerMinute = deltaTime / 60;
+      const calorieConsumption = this.dailyCalorieNeed / 10 * consumptionPerMinute;
+      const waterConsumption = this.dailyWaterNeed / 10 * consumptionPerMinute;
+      this.calories = Math.max(0, this.calories - calorieConsumption);
+      this.water = Math.max(0, this.water - waterConsumption);
+      this.energy = Math.max(0, this.energy - consumptionPerMinute * 0.1);
       if (this.action === "\u5BFB\u627E\u98DF\u7269" && world.nearbyFood.length > 0) {
-        this.food = Math.min(5, this.food + 8e-3 * this.metabolismRate);
+        this.calories += 0.5 * this.phenotype.metabolism;
       }
       if (this.action === "\u5BFB\u627E\u6C34\u6E90" && world.nearbyWater.length > 0) {
-        this.water = Math.min(5, this.water + 0.013 * this.metabolismRate);
+        this.water += 0.5 * this.phenotype.metabolism;
       }
-      if (this.water <= 0 && !this.isDead) {
-        this.health = Math.max(0, this.health - deltaTime * 2 / 60);
-      }
-      if (this.food <= 0 && !this.isDead) {
+      if (this.calories <= 0 && !this.isDead) {
         this.health = Math.max(0, this.health - deltaTime * 1 / 60);
+      }
+      if (this.water < this.dailyWaterNeed * 0.1 && !this.isDead) {
+        this.health = Math.max(0, this.health - deltaTime * 2 / 60);
       }
       if (this.health <= 0 && !this.isDead) {
         this.die("\u9965\u997F/\u53E3\u6E34\u8017\u5C3D");
@@ -47462,12 +47510,22 @@ ${e2}`);
     // 决策（受DNA性格影响）
     decide(world) {
       if (this.target) return;
-      if (this.water < this.thirstThreshold) {
+      if (this.heldItem) {
+        if (this.hungerPercent < 80) {
+          this.action = "\u5403\u4E1C\u897F";
+          return;
+        }
+        if (this.thirstPercent < 80) {
+          this.action = "\u559D\u6C34";
+          return;
+        }
+      }
+      if (this.thirstPercent < 50) {
         this.action = "\u5BFB\u627E\u6C34\u6E90";
         this.goToWater(world);
         return;
       }
-      if (this.food < this.hungerThreshold) {
+      if (this.hungerPercent < 50) {
         this.action = "\u5BFB\u627E\u98DF\u7269";
         this.goToFood(world);
         return;
@@ -47538,11 +47596,13 @@ ${e2}`);
     arrive() {
       this.target = null;
       if (this.action === "\u5BFB\u627E\u6C34\u6E90") {
-        this.water = Math.min(5, this.water + 2);
-        this.action = "\u996E\u6C34\u4E2D";
+        this.heldItem = "river_water";
+        this.heldItemCount = 1;
+        this.action = "\u53D6\u6C34\u4E2D";
       } else if (this.action === "\u5BFB\u627E\u98DF\u7269") {
-        this.food = Math.min(5, this.food + 2);
-        this.action = "\u8FDB\u98DF\u4E2D";
+        this.heldItem = "berry";
+        this.heldItemCount = 1;
+        this.action = "\u91C7\u96C6\u4E2D";
       }
       this.energy = 5;
     }
@@ -47877,10 +47937,6 @@ ${e2}`);
       if (!this.selectedChar) return;
       const char = this.selectedChar;
       const charAny = char;
-      if (!char.phenotype) {
-        console.error("Character has no phenotype!");
-        return;
-      }
       if (charAny.isDead) {
         this.showDeathPanel(char);
         return;
@@ -47905,8 +47961,8 @@ ${e2}`);
       }
       const posElem = document.getElementById("panel-position");
       if (posElem) posElem.textContent = `(${char.x.toFixed(1)}, ${char.y.toFixed(1)})`;
-      const foodPct = Math.round(char.food / 5 * 100);
-      const waterPct = Math.round(char.water / 5 * 100);
+      const hungerPct = charAny.hungerPercent ? Math.min(100, charAny.hungerPercent()) : 50;
+      const thirstPct = charAny.thirstPercent ? Math.min(100, charAny.thirstPercent()) : 50;
       const energyPct = Math.round(char.energy / 5 * 100);
       const foodBar = document.getElementById("panel-food-bar");
       const waterBar = document.getElementById("panel-water-bar");
@@ -47914,11 +47970,11 @@ ${e2}`);
       const foodVal = document.getElementById("panel-food-val");
       const waterVal = document.getElementById("panel-water-val");
       const energyVal = document.getElementById("panel-energy-val");
-      if (foodBar) foodBar.style.width = `${foodPct}%`;
-      if (waterBar) waterBar.style.width = `${waterPct}%`;
+      if (foodBar) foodBar.style.width = `${hungerPct}%`;
+      if (waterBar) waterBar.style.width = `${thirstPct}%`;
       if (energyBar) energyBar.style.width = `${energyPct}%`;
-      if (foodVal) foodVal.textContent = `${foodPct}%`;
-      if (waterVal) waterVal.textContent = `${waterPct}%`;
+      if (foodVal) foodVal.textContent = `${hungerPct}%`;
+      if (waterVal) waterVal.textContent = `${thirstPct}%`;
       if (energyVal) energyVal.textContent = `${energyPct}%`;
       const healthVal = document.getElementById("panel-health-val");
       const healthBar = document.getElementById("panel-health-bar");
@@ -47934,13 +47990,12 @@ ${e2}`);
       const dnaContainer = document.getElementById("panel-dna-attrs");
       if (dnaContainer) {
         const personality = charAny.getPersonality ? charAny.getPersonality() : "\u666E\u901A\u4EBA";
-        const lifestyle = charAny.getLifestyleStatus ? charAny.getLifestyleStatus() : "-";
         dnaContainer.innerHTML = `
                 <div class="dna-row" style="background: rgba(74, 169, 74, 0.3); font-weight: bold;">
                     <span>\u{1F3AD} \u6027\u683C</span><span>${personality}</span>
                 </div>
                 <div class="dna-row" style="background: rgba(74, 169, 74, 0.2);">
-                    <span>\u{1F33F} \u751F\u6D3B\u72B6\u6001</span><span>${lifestyle}</span>
+                    <span>\u{1F33F} \u751F\u6D3B\u72B6\u6001</span><span>${charAny.getLifestyleStatus ? charAny.getLifestyleStatus() : "-"}</span>
                 </div>
                 <div class="dna-row">
                     <span>\u2694\uFE0F \u80C6\u91CF</span><span>${(dna.bravery * 100).toFixed(0)}</span>
@@ -48004,8 +48059,13 @@ ${e2}`);
       }
     }
     getStatusIcon(char) {
-      if (char.water < 2) return "\u{1F4A7}\u53E3\u6E34";
-      if (char.food < 2) return "\u{1F356}\u9965\u997F";
+      const charAny = char;
+      const thirst = charAny.thirstPercent ? charAny.thirstPercent() : 50;
+      const hunger = charAny.hungerPercent ? charAny.hungerPercent() : 50;
+      if (thirst < 30) return "\u{1F4A7}\u5F88\u6E34";
+      if (hunger < 30) return "\u{1F356}\u5F88\u997F";
+      if (thirst < 50) return "\u{1F4A7}\u53E3\u6E34";
+      if (hunger < 50) return "\u{1F356}\u9965\u997F";
       if (char.energy < 2) return "\u{1F634}\u75B2\u60EB";
       if (char.action === "\u996E\u6C34\u4E2D") return "\u{1F4A7}\u996E\u6C34";
       if (char.action === "\u8FDB\u98DF\u4E2D") return "\u{1F356}\u8FDB\u98DF";
@@ -48714,10 +48774,11 @@ ${e2}`);
         if (args[0]) {
           const char = chars.find((c2) => c2.name === args[0]);
           if (char) {
+            const charAny = char;
             commandSystem.print(`\u{1F4CA} ${char.name}:`);
             commandSystem.print(`   \u4F4D\u7F6E: (${char.x.toFixed(1)}, ${char.y.toFixed(1)})`);
-            commandSystem.print(`   \u9965\u997F: ${(char.food / 5 * 100).toFixed(0)}%`);
-            commandSystem.print(`   \u6C34: ${(char.water / 5 * 100).toFixed(0)}%`);
+            commandSystem.print(`   \u9965\u997F: ${charAny.hungerPercent}%`);
+            commandSystem.print(`   \u6C34: ${charAny.thirstPercent}%`);
             commandSystem.print(`   \u7CBE\u529B: ${(char.energy / 5 * 100).toFixed(0)}%`);
             commandSystem.print(`   \u884C\u52A8: ${char.action}`);
             commandSystem.print(`   \u5B63\u8282: ${seasonNames[this.currentSeason] || this.currentSeason}`);

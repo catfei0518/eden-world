@@ -143,10 +143,11 @@ export class GameApp {
             if (args[0]) {
                 const char = chars.find(c => c.name === args[0]);
                 if (char) {
+                    const charAny = char as any;
                     commandSystem.print(`📊 ${char.name}:`);
                     commandSystem.print(`   位置: (${char.x.toFixed(1)}, ${char.y.toFixed(1)})`);
-                    commandSystem.print(`   饥饿: ${(char.food/5*100).toFixed(0)}%`);
-                    commandSystem.print(`   水: ${(char.water/5*100).toFixed(0)}%`);
+                    commandSystem.print(`   饥饿: ${charAny.hungerPercent}%`);
+                    commandSystem.print(`   水: ${charAny.thirstPercent}%`);
                     commandSystem.print(`   精力: ${(char.energy/5*100).toFixed(0)}%`);
                     commandSystem.print(`   行动: ${char.action}`);
                     commandSystem.print(`   季节: ${seasonNames[this.currentSeason] || this.currentSeason}`);

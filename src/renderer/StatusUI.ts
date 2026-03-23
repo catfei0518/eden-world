@@ -56,12 +56,6 @@ export class StatusUI {
         const char = this.selectedChar;
         const charAny = char as any;
         
-        // 检查DNA
-        if (!char.phenotype) {
-            console.error('Character has no phenotype!');
-            return;
-        }
-        
         // 如果角色已死亡，显示死亡面板
         if (charAny.isDead) {
             this.showDeathPanel(char);
@@ -99,9 +93,9 @@ export class StatusUI {
         const posElem = document.getElementById('panel-position');
         if (posElem) posElem.textContent = `(${char.x.toFixed(1)}, ${char.y.toFixed(1)})`;
         
-        // 进度条
-        const foodPct = Math.round((char.food / 5) * 100);
-        const waterPct = Math.round((char.water / 5) * 100);
+        // 进度条 - 使用新的饥饿/口渴系统
+        const hungerPct = charAny.hungerPercent ? Math.min(100, charAny.hungerPercent()) : 50;
+        const thirstPct = charAny.thirstPercent ? Math.min(100, charAny.thirstPercent()) : 50;
         const energyPct = Math.round((char.energy / 5) * 100);
         
         const foodBar = document.getElementById('panel-food-bar');
@@ -111,18 +105,18 @@ export class StatusUI {
         const waterVal = document.getElementById('panel-water-val');
         const energyVal = document.getElementById('panel-energy-val');
         
-        if (foodBar) foodBar.style.width = `${foodPct}%`;
-        if (waterBar) waterBar.style.width = `${waterPct}%`;
+        if (foodBar) foodBar.style.width = `${hungerPct}%`;
+        if (waterBar) waterBar.style.width = `${thirstPct}%`;
         if (energyBar) energyBar.style.width = `${energyPct}%`;
-        if (foodVal) foodVal.textContent = `${foodPct}%`;
-        if (waterVal) waterVal.textContent = `${waterPct}%`;
+        if (foodVal) foodVal.textContent = `${hungerPct}%`;
+        if (waterVal) waterVal.textContent = `${thirstPct}%`;
         if (energyVal) energyVal.textContent = `${energyPct}%`;
         
         // 生命值
         const healthVal = document.getElementById('panel-health-val');
         const healthBar = document.getElementById('panel-health-bar');
         if (healthBar && healthVal) {
-            const maxHealth = char.maxHealth; // getter是属性访问
+            const maxHealth = char.maxHealth;
             const health = char.health !== undefined ? char.health : 100;
             const healthPct = maxHealth > 0 ? Math.round((health / maxHealth) * 100) : 0;
             healthBar.style.width = `${healthPct}%`;
@@ -137,14 +131,13 @@ export class StatusUI {
         const dnaContainer = document.getElementById('panel-dna-attrs');
         if (dnaContainer) {
             const personality = charAny.getPersonality ? charAny.getPersonality() : '普通人';
-            const lifestyle = charAny.getLifestyleStatus ? charAny.getLifestyleStatus() : '-';
             
             dnaContainer.innerHTML = `
                 <div class="dna-row" style="background: rgba(74, 169, 74, 0.3); font-weight: bold;">
                     <span>🎭 性格</span><span>${personality}</span>
                 </div>
                 <div class="dna-row" style="background: rgba(74, 169, 74, 0.2);">
-                    <span>🌿 生活状态</span><span>${lifestyle}</span>
+                    <span>🌿 生活状态</span><span>${charAny.getLifestyleStatus ? charAny.getLifestyleStatus() : '-'}</span>
                 </div>
                 <div class="dna-row">
                     <span>⚔️ 胆量</span><span>${(dna.bravery * 100).toFixed(0)}</span>
@@ -225,8 +218,14 @@ export class StatusUI {
     }
     
     private getStatusIcon(char: Character): string {
-        if (char.water < 2) return '💧口渴';
-        if (char.food < 2) return '🍖饥饿';
+        const charAny = char as any;
+        const thirst = charAny.thirstPercent ? charAny.thirstPercent() : 50;
+        const hunger = charAny.hungerPercent ? charAny.hungerPercent() : 50;
+        
+        if (thirst < 30) return '💧很渴';
+        if (hunger < 30) return '🍖很饿';
+        if (thirst < 50) return '💧口渴';
+        if (hunger < 50) return '🍖饥饿';
         if (char.energy < 2) return '😴疲惫';
         if (char.action === '饮水中') return '💧饮水';
         if (char.action === '进食中') return '🍖进食';

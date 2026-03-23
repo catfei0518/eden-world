@@ -32,15 +32,23 @@ export class Character {
     x: number;
     y: number;
     
-    // 状态
-    food: number = 5;
-    water: number = 5;
-    energy: number = 5; // 5=满, 0=空
+    // 状态 - 营养系统
+    calories: number = 0;      // 当前热量 (kcal)
+    water: number = 0;        // 当前水分 (ml)
+    vitamins: number = 0;     // 当前维生素 (mg)
+    protein: number = 0;      // 当前蛋白质 (g)
+    fat: number = 0;          // 当前脂肪 (g)
+    
+    energy: number = 5; // 精力 5=满, 0=空
     health: number = 100; // 生命值 0-100
     
     // 当前行动
     action: string = '闲置';
     target: { x: number; y: number } | null = null;
+    
+    // 手中物品
+    heldItem: string | null = null;  // 物品类型
+    heldItemCount: number = 0;      // 物品数量
     
     // 碰撞检测
     private canMove: (x: number, y: number) => boolean;
@@ -235,6 +243,48 @@ export class Character {
         return '糟糕';
     }
     
+    // ==================== 营养系统 ====================
+    
+    // 计算每日基础代谢需求 (kcal)
+    public get dailyCalorieNeed(): number {
+        // 代谢0.5 = 1500kcal, 代谢1.0 = 2000kcal
+        return 1500 * (0.5 + this.phenotype.metabolism);
+    }
+    
+    // 计算每日水分需求 (ml)
+    public get dailyWaterNeed(): number {
+        return 2000; // 固定2000ml
+    }
+    
+    // 饥饿百分比 (0-100)
+    public get hungerPercent(): number {
+        return Math.min(150, Math.round((this.calories / this.dailyCalorieNeed) * 100));
+    }
+    
+    // 口渴百分比 (0-100)
+    public get thirstPercent(): number {
+        return Math.min(150, Math.round((this.water / this.dailyWaterNeed) * 100));
+    }
+    
+    // 获取饥饿/口渴状态描述
+    public getHungerStatus(): string {
+        const pct = this.hungerPercent;
+        if (pct >= 80) return '饱';
+        if (pct >= 50) return '正常';
+        if (pct >= 30) return '饥饿';
+        if (pct >= 10) return '很饿';
+        return '饿死';
+    }
+    
+    public getThirstStatus(): string {
+        const pct = this.thirstPercent;
+        if (pct >= 80) return '充足';
+        if (pct >= 50) return '正常';
+        if (pct >= 30) return '口渴';
+        if (pct >= 10) return '很渴';
+        return '渴死';
+    }
+    
     // 获取寿命影响描述
     public getLifeImpactDesc(): string {
         const impacts: string[] = [];
@@ -292,29 +342,33 @@ export class Character {
     // 每帧更新
     update(deltaTime: number, world: WorldState): void {
         // 消耗（受代谢影响）
-        const consumption = deltaTime * 0.01 * this.metabolismRate;
-        this.food = Math.max(0, this.food - consumption);
-        this.water = Math.max(0, this.water - consumption * 1.5);
-        this.energy = Math.max(0, this.energy - consumption);
+        // 每分钟消耗约1/10的每日需求
+        const consumptionPerMinute = deltaTime / 60;
+        const calorieConsumption = (this.dailyCalorieNeed / 10) * consumptionPerMinute;
+        const waterConsumption = (this.dailyWaterNeed / 10) * consumptionPerMinute;
+        
+        this.calories = Math.max(0, this.calories - calorieConsumption);
+        this.water = Math.max(0, this.water - waterConsumption);
+        this.energy = Math.max(0, this.energy - consumptionPerMinute * 0.1);
         
         // 在食物/水源附近时恢复（基于代谢）
         if (this.action === '寻找食物' && world.nearbyFood.length > 0) {
-            // 在食物附近，每秒恢复0.5
-            this.food = Math.min(5, this.food + 0.008 * this.metabolismRate);
+            // 在食物附近，每秒恢复少量热量
+            this.calories += 0.5 * this.phenotype.metabolism;
         }
         if (this.action === '寻找水源' && world.nearbyWater.length > 0) {
-            // 在水源附近，每秒恢复0.8
-            this.water = Math.min(5, this.water + 0.013 * this.metabolismRate);
+            // 在水源附近，每秒恢复少量水分
+            this.water += 0.5 * this.phenotype.metabolism;
         }
         
         // 生命值消耗
-        // 口渴为0：每分钟消耗2点生命
-        if (this.water <= 0 && !this.isDead) {
-            this.health = Math.max(0, this.health - deltaTime * 2 / 60);
-        }
-        // 饥饿为0：每分钟消耗1点生命
-        if (this.food <= 0 && !this.isDead) {
+        // 热量为0：每分钟消耗生命
+        if (this.calories <= 0 && !this.isDead) {
             this.health = Math.max(0, this.health - deltaTime * 1 / 60);
+        }
+        // 水分低于10%：每分钟消耗生命
+        if (this.water < this.dailyWaterNeed * 0.1 && !this.isDead) {
+            this.health = Math.max(0, this.health - deltaTime * 2 / 60);
         }
         
         // 死亡检查
@@ -336,15 +390,29 @@ export class Character {
         // 有目标时不决策
         if (this.target) return;
         
+        // 手中有物品，先处理
+        if (this.heldItem) {
+            // 吃东西
+            if (this.hungerPercent < 80) {
+                this.action = '吃东西';
+                return;
+            }
+            // 喝水
+            if (this.thirstPercent < 80) {
+                this.action = '喝水';
+                return;
+            }
+        }
+        
         // 口渴优先（但受阈值影响）
-        if (this.water < this.thirstThreshold) {
+        if (this.thirstPercent < 50) {
             this.action = '寻找水源';
             this.goToWater(world);
             return;
         }
         
         // 饥饿次之（但受阈值影响）
-        if (this.food < this.hungerThreshold) {
+        if (this.hungerPercent < 50) {
             this.action = '寻找食物';
             this.goToFood(world);
             return;
@@ -354,7 +422,7 @@ export class Character {
         if (this.energy < 2) {
             this.action = '休息中';
             this.target = null;
-            this.energy = Math.min(5, this.energy + 0.15); // 恢复（受耐力影响）
+            this.energy = Math.min(5, this.energy + 0.15);
             return;
         }
         
@@ -431,11 +499,15 @@ export class Character {
         this.target = null;
         
         if (this.action === '寻找水源') {
-            this.water = Math.min(5, this.water + 2);
-            this.action = '饮水中'; // 改变动作为饮水中
+            // 获取水源物品
+            this.heldItem = 'river_water';
+            this.heldItemCount = 1;
+            this.action = '取水中';
         } else if (this.action === '寻找食物') {
-            this.food = Math.min(5, this.food + 2);
-            this.action = '进食中'; // 改变动作为进食中
+            // 获取食物物品
+            this.heldItem = 'berry';
+            this.heldItemCount = 1;
+            this.action = '采集中';
         }
         
         this.energy = 5; // 完全恢复
