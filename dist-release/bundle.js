@@ -48005,7 +48005,7 @@ ${e2}`);
                     <span>\u{1F3C3} \u654F\u6377</span><span>${(dna.agility * 100).toFixed(0)}</span>
                 </div>
                 <div class="dna-row">
-                    <span>\u{1F525} \u4EE3\u8C22</span><span>${dna.metabolism.toFixed(2)}</span>
+                    <span>\u{1F525} \u4EE3\u8C22</span><span>${(dna.metabolism * 100).toFixed(0)}</span>
                 </div>
                 <div class="dna-row">
                     <span>\u{1F4AA} \u529B\u91CF</span><span>${(dna.strength * 100).toFixed(0)}</span>

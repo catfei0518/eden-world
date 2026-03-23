@@ -152,7 +152,7 @@ export class StatusUI {
                     <span>🏃 敏捷</span><span>${(dna.agility * 100).toFixed(0)}</span>
                 </div>
                 <div class="dna-row">
-                    <span>🔥 代谢</span><span>${dna.metabolism.toFixed(2)}</span>
+                    <span>🔥 代谢</span><span>${(dna.metabolism * 100).toFixed(0)}</span>
                 </div>
                 <div class="dna-row">
                     <span>💪 力量</span><span>${(dna.strength * 100).toFixed(0)}</span>
