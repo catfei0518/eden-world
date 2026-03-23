@@ -79,13 +79,15 @@
 
 ### v1.0 - 网游架构 ✅ (规划中)
 - [ ] 权威服务器架构设计
-- [ ] MySQL数据库设计
+- [ ] PostgreSQL数据库设计 ← 选定
+- [ ] Redis缓存层 ← 选定
 - [ ] REST API开发
 - [ ] WebSocket实时同步
 - [ ] 防作弊系统
-- [ ] Redis缓存层
 - [ ] 玩家账户系统
 - [ ] 角色存档管理
+
+**技术栈：Node.js + NestJS + PostgreSQL + Redis + Socket.io**
 
 ### AI系统 (待开发)
 - [ ] AI决策架构
