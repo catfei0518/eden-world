@@ -53,13 +53,18 @@ class GameEngine {
     }
     
     generateWorld() {
-        // 生成简单的世界
+        // 生成简单的世界 - 使用图片素材路径
         const tiles = [];
         for (let y = 0; y < MAP_HEIGHT; y++) {
             const row = [];
             for (let x = 0; x < MAP_WIDTH; x++) {
-                // 简单草地
-                row.push({ type: 'grass', x, y });
+                // 使用草平原图片
+                row.push({ 
+                    type: 'grass', 
+                    x, 
+                    y,
+                    image: '/img/64x64像素草平原.png'
+                });
             }
             tiles.push(row);
         }

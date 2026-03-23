@@ -13,6 +13,7 @@ export class EdenWorldClient {
         this.characters = new Map();
         this.worldContainer = new PIXI.Container();
         this.characterSprites = new Map();
+        this.terrainRendered = false;
         
         this.init();
     }
@@ -29,13 +30,12 @@ export class EdenWorldClient {
     
     async setupPixi() {
         // PixiJS v8 方式
+        const container = document.getElementById('game-container')!;
+        
         const canvas = document.createElement('canvas');
         canvas.style.width = '100%';
         canvas.style.height = '100%';
-        canvas.style.position = 'fixed';
-        canvas.style.top = '0';
-        canvas.style.left = '0';
-        document.body.appendChild(canvas);
+        container.appendChild(canvas);
         
         this.app = new PIXI.Application();
         await this.app.init({
@@ -50,25 +50,99 @@ export class EdenWorldClient {
         // 创建世界容器
         this.app.stage.addChild(this.worldContainer);
         
-        // 缩放
-        this.worldContainer.scale.set(3);
+        // 缩放 - 让地图变小一点能看到全貌
+        this.worldContainer.scale.set(0.5);
         
-        // 居中到角色起始位置 (50, 25)
-        const tileSize = 64;
-        const centerX = 50 * tileSize * 3;
-        const centerY = 25 * tileSize * 3;
-        this.worldContainer.x = window.innerWidth / 2 - centerX;
-        this.worldContainer.y = window.innerHeight / 2 - centerY;
-        
-        // 添加一个简单的地面背景
-        const ground = new PIXI.Graphics();
-        ground.rect(-1000, -1000, 2000, 2000);
-        ground.fill(0x87CEEB);
-        this.worldContainer.addChildAt(ground, 0);
+        // 居中
+        this.worldContainer.x = 0;
+        this.worldContainer.y = 0;
         
         window.addEventListener('resize', () => {
             this.app.renderer.resize(window.innerWidth, window.innerHeight);
         });
+        
+        // 添加相机控制
+        this.setupCameraControls();
+    }
+    
+    setupCameraControls() {
+        let isDragging = false;
+        let lastX = 0;
+        let lastY = 0;
+        
+        // 鼠标拖动
+        this.app.canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastX = e.clientX;
+            lastY = e.clientY;
+            this.app.canvas.style.cursor = 'grabbing';
+        });
+        
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+            this.app.canvas.style.cursor = 'grab';
+        });
+        
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            
+            const dx = e.clientX - lastX;
+            const dy = e.clientY - lastY;
+            
+            this.worldContainer.x += dx;
+            this.worldContainer.y += dy;
+            
+            lastX = e.clientX;
+            lastY = e.clientY;
+        });
+        
+        // 鼠标滚轮缩放
+        this.app.canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            
+            const scaleFactor = e.deltaY > 0 ? 0.9 : 1.1;
+            const newScale = this.worldContainer.scale.x * scaleFactor;
+            
+            // 限制缩放范围
+            if (newScale > 0.1 && newScale < 5) {
+                this.worldContainer.scale.set(newScale);
+            }
+        });
+        
+        // 设置鼠标样式
+        this.app.canvas.style.cursor = 'grab';
+    }
+    
+    async renderTerrain(tiles) {
+        console.log('renderTerrain called, tiles:', tiles.length);
+        
+        // 加载草地图片
+        const texture = await PIXI.Assets.load('/img/64x64像素草平原.png');
+        
+        // 只渲染角色周围的一小块区域
+        const viewRadius = 10;  // 10 tile范围
+        const centerX = 50;
+        const centerY = 25;
+        
+        for (let dy = -viewRadius; dy <= viewRadius; dy++) {
+            for (let dx = -viewRadius; dx <= viewRadius; dx++) {
+                const tileX = centerX + dx;
+                const tileY = centerY + dy;
+                
+                // 确保在地图范围内
+                if (tileX < 0 || tileX >= 100 || tileY < 0 || tileY >= 50) continue;
+                
+                const tile = tiles[tileY]?.[tileX];
+                if (!tile) continue;
+                
+                const sprite = new PIXI.Sprite(texture);
+                sprite.x = tileX * 64;
+                sprite.y = tileY * 64;
+                this.worldContainer.addChildAt(sprite, 0);
+            }
+        }
+        
+        console.log('添加草地纹理');
     }
     
     setupServerConnection() {
@@ -112,6 +186,13 @@ export class EdenWorldClient {
         }
         
         console.log('🎨 开始渲染, 角色数:', state.characters?.length);
+        
+        // 渲染地形（只渲染一次）
+        if (state.world?.tiles && !this.terrainRendered) {
+            this.renderTerrain(state.world.tiles).then(() => {
+                this.terrainRendered = true;
+            });
+        }
         
         // 渲染角色
         for (const char of state.characters) {

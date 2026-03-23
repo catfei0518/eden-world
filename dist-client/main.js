@@ -39048,6 +39048,82 @@ ${parts.join("\n")}
     }
   });
 
+  // node_modules/pixi.js/lib/scene/text-bitmap/AbstractBitmapFont.mjs
+  var AbstractBitmapFont;
+  var init_AbstractBitmapFont = __esm({
+    "node_modules/pixi.js/lib/scene/text-bitmap/AbstractBitmapFont.mjs"() {
+      init_eventemitter3();
+      init_deprecation();
+      AbstractBitmapFont = class extends eventemitter3_default {
+        constructor() {
+          super(...arguments);
+          this.chars = /* @__PURE__ */ Object.create(null);
+          this.lineHeight = 0;
+          this.fontFamily = "";
+          this.fontMetrics = { fontSize: 0, ascent: 0, descent: 0 };
+          this.baseLineOffset = 0;
+          this.distanceField = { type: "none", range: 0 };
+          this.pages = [];
+          this.applyFillAsTint = true;
+          this.baseMeasurementFontSize = 100;
+          this.baseRenderedFontSize = 100;
+        }
+        /**
+         * The name of the font face.
+         * @deprecated since 8.0.0 Use `fontFamily` instead.
+         */
+        get font() {
+          deprecation(v8_0_0, "BitmapFont.font is deprecated, please use BitmapFont.fontFamily instead.");
+          return this.fontFamily;
+        }
+        /**
+         * The map of base page textures (i.e., sheets of glyphs).
+         * @deprecated since 8.0.0 Use `pages` instead.
+         */
+        get pageTextures() {
+          deprecation(v8_0_0, "BitmapFont.pageTextures is deprecated, please use BitmapFont.pages instead.");
+          return this.pages;
+        }
+        /**
+         * The size of the font face in pixels.
+         * @deprecated since 8.0.0 Use `fontMetrics.fontSize` instead.
+         */
+        get size() {
+          deprecation(v8_0_0, "BitmapFont.size is deprecated, please use BitmapFont.fontMetrics.fontSize instead.");
+          return this.fontMetrics.fontSize;
+        }
+        /**
+         * The kind of distance field for this font or "none".
+         * @deprecated since 8.0.0 Use `distanceField.type` instead.
+         */
+        get distanceFieldRange() {
+          deprecation(v8_0_0, "BitmapFont.distanceFieldRange is deprecated, please use BitmapFont.distanceField.range instead.");
+          return this.distanceField.range;
+        }
+        /**
+         * The range of the distance field in pixels.
+         * @deprecated since 8.0.0 Use `distanceField.range` instead.
+         */
+        get distanceFieldType() {
+          deprecation(v8_0_0, "BitmapFont.distanceFieldType is deprecated, please use BitmapFont.distanceField.type instead.");
+          return this.distanceField.type;
+        }
+        destroy(destroyTextures = false) {
+          this.emit("destroy", this);
+          this.removeAllListeners();
+          for (const i2 in this.chars) {
+            this.chars[i2].texture?.destroy();
+          }
+          this.chars = null;
+          if (destroyTextures) {
+            this.pages.forEach((page) => page.texture.destroy(true));
+            this.pages = null;
+          }
+        }
+      };
+    }
+  });
+
   // node_modules/tiny-lru/dist/tiny-lru.js
   function lru(max = 1e3, ttl = 0, resetTtl = false) {
     if (isNaN(max) || max < 0) {
@@ -39536,6 +39612,12 @@ ${parts.join("\n")}
       return false;
     }
     return BREAKING_SPACES_SET.has(char.charCodeAt(0));
+  }
+  function isCollapsibleSpace(char) {
+    if (typeof char !== "string") {
+      return false;
+    }
+    return COLLAPSIBLE_SPACES_SET.has(char.charCodeAt(0));
   }
   function isBreakAfterChar(char) {
     if (typeof char !== "string") {
@@ -40506,95 +40588,6 @@ ${parts.join("\n")}
     }
   });
 
-  // node_modules/pixi.js/lib/scene/text/canvas/utils/getCanvasFillStyle.mjs
-  function getCanvasFillStyle(fillStyle, context2, textMetrics, padding = 0, offsetX = 0, offsetY = 0) {
-    if (fillStyle.texture === Texture.WHITE && !fillStyle.fill) {
-      return Color.shared.setValue(fillStyle.color).setAlpha(fillStyle.alpha ?? 1).toHexa();
-    } else if (!fillStyle.fill) {
-      const pattern = context2.createPattern(fillStyle.texture.source.resource, "repeat");
-      const tempMatrix8 = fillStyle.matrix.copyTo(Matrix.shared);
-      tempMatrix8.scale(fillStyle.texture.source.pixelWidth, fillStyle.texture.source.pixelHeight);
-      pattern.setTransform(tempMatrix8);
-      return pattern;
-    } else if (fillStyle.fill instanceof FillPattern) {
-      const fillPattern = fillStyle.fill;
-      const pattern = context2.createPattern(fillPattern.texture.source.resource, "repeat");
-      const tempMatrix8 = fillPattern.transform.copyTo(Matrix.shared);
-      tempMatrix8.scale(
-        fillPattern.texture.source.pixelWidth,
-        fillPattern.texture.source.pixelHeight
-      );
-      pattern.setTransform(tempMatrix8);
-      return pattern;
-    } else if (fillStyle.fill instanceof FillGradient) {
-      const fillGradient = fillStyle.fill;
-      const isLinear = fillGradient.type === "linear";
-      const isLocal = fillGradient.textureSpace === "local";
-      let width = 1;
-      let height = 1;
-      if (isLocal && textMetrics) {
-        width = textMetrics.width + padding;
-        height = textMetrics.height + padding;
-      }
-      let gradient;
-      let isNearlyVertical = false;
-      if (isLinear) {
-        const { start, end } = fillGradient;
-        gradient = context2.createLinearGradient(
-          start.x * width + offsetX,
-          start.y * height + offsetY,
-          end.x * width + offsetX,
-          end.y * height + offsetY
-        );
-        isNearlyVertical = Math.abs(end.x - start.x) < Math.abs((end.y - start.y) * 0.1);
-      } else {
-        const { center, innerRadius, outerCenter, outerRadius } = fillGradient;
-        gradient = context2.createRadialGradient(
-          center.x * width + offsetX,
-          center.y * height + offsetY,
-          innerRadius * width,
-          outerCenter.x * width + offsetX,
-          outerCenter.y * height + offsetY,
-          outerRadius * width
-        );
-      }
-      if (isNearlyVertical && isLocal && textMetrics) {
-        const ratio = textMetrics.lineHeight / height;
-        for (let i2 = 0; i2 < textMetrics.lines.length; i2++) {
-          const start = (i2 * textMetrics.lineHeight + padding / 2) / height;
-          fillGradient.colorStops.forEach((stop) => {
-            let globalStop = start + stop.offset * ratio;
-            globalStop = Math.max(0, Math.min(1, globalStop));
-            gradient.addColorStop(
-              // fix to 5 decimal places to avoid floating point precision issues
-              Math.floor(globalStop * PRECISION) / PRECISION,
-              Color.shared.setValue(stop.color).toHex()
-            );
-          });
-        }
-      } else {
-        fillGradient.colorStops.forEach((stop) => {
-          gradient.addColorStop(stop.offset, Color.shared.setValue(stop.color).toHex());
-        });
-      }
-      return gradient;
-    }
-    warn("FillStyle not recognised", fillStyle);
-    return "red";
-  }
-  var PRECISION;
-  var init_getCanvasFillStyle = __esm({
-    "node_modules/pixi.js/lib/scene/text/canvas/utils/getCanvasFillStyle.mjs"() {
-      init_Color();
-      init_Matrix();
-      init_Texture();
-      init_warn();
-      init_FillGradient();
-      init_FillPattern();
-      PRECISION = 1e5;
-    }
-  });
-
   // node_modules/pixi.js/lib/scene/text/TextStyle.mjs
   function convertV7Tov8Style(style) {
     const oldStyle = style;
@@ -41169,6 +41162,950 @@ ${parts.join("\n")}
     }
   });
 
+  // node_modules/pixi.js/lib/scene/text/canvas/utils/getCanvasFillStyle.mjs
+  function getCanvasFillStyle(fillStyle, context2, textMetrics, padding = 0, offsetX = 0, offsetY = 0) {
+    if (fillStyle.texture === Texture.WHITE && !fillStyle.fill) {
+      return Color.shared.setValue(fillStyle.color).setAlpha(fillStyle.alpha ?? 1).toHexa();
+    } else if (!fillStyle.fill) {
+      const pattern = context2.createPattern(fillStyle.texture.source.resource, "repeat");
+      const tempMatrix8 = fillStyle.matrix.copyTo(Matrix.shared);
+      tempMatrix8.scale(fillStyle.texture.source.pixelWidth, fillStyle.texture.source.pixelHeight);
+      pattern.setTransform(tempMatrix8);
+      return pattern;
+    } else if (fillStyle.fill instanceof FillPattern) {
+      const fillPattern = fillStyle.fill;
+      const pattern = context2.createPattern(fillPattern.texture.source.resource, "repeat");
+      const tempMatrix8 = fillPattern.transform.copyTo(Matrix.shared);
+      tempMatrix8.scale(
+        fillPattern.texture.source.pixelWidth,
+        fillPattern.texture.source.pixelHeight
+      );
+      pattern.setTransform(tempMatrix8);
+      return pattern;
+    } else if (fillStyle.fill instanceof FillGradient) {
+      const fillGradient = fillStyle.fill;
+      const isLinear = fillGradient.type === "linear";
+      const isLocal = fillGradient.textureSpace === "local";
+      let width = 1;
+      let height = 1;
+      if (isLocal && textMetrics) {
+        width = textMetrics.width + padding;
+        height = textMetrics.height + padding;
+      }
+      let gradient;
+      let isNearlyVertical = false;
+      if (isLinear) {
+        const { start, end } = fillGradient;
+        gradient = context2.createLinearGradient(
+          start.x * width + offsetX,
+          start.y * height + offsetY,
+          end.x * width + offsetX,
+          end.y * height + offsetY
+        );
+        isNearlyVertical = Math.abs(end.x - start.x) < Math.abs((end.y - start.y) * 0.1);
+      } else {
+        const { center, innerRadius, outerCenter, outerRadius } = fillGradient;
+        gradient = context2.createRadialGradient(
+          center.x * width + offsetX,
+          center.y * height + offsetY,
+          innerRadius * width,
+          outerCenter.x * width + offsetX,
+          outerCenter.y * height + offsetY,
+          outerRadius * width
+        );
+      }
+      if (isNearlyVertical && isLocal && textMetrics) {
+        const ratio = textMetrics.lineHeight / height;
+        for (let i2 = 0; i2 < textMetrics.lines.length; i2++) {
+          const start = (i2 * textMetrics.lineHeight + padding / 2) / height;
+          fillGradient.colorStops.forEach((stop) => {
+            let globalStop = start + stop.offset * ratio;
+            globalStop = Math.max(0, Math.min(1, globalStop));
+            gradient.addColorStop(
+              // fix to 5 decimal places to avoid floating point precision issues
+              Math.floor(globalStop * PRECISION) / PRECISION,
+              Color.shared.setValue(stop.color).toHex()
+            );
+          });
+        }
+      } else {
+        fillGradient.colorStops.forEach((stop) => {
+          gradient.addColorStop(stop.offset, Color.shared.setValue(stop.color).toHex());
+        });
+      }
+      return gradient;
+    }
+    warn("FillStyle not recognised", fillStyle);
+    return "red";
+  }
+  var PRECISION;
+  var init_getCanvasFillStyle = __esm({
+    "node_modules/pixi.js/lib/scene/text/canvas/utils/getCanvasFillStyle.mjs"() {
+      init_Color();
+      init_Matrix();
+      init_Texture();
+      init_warn();
+      init_FillGradient();
+      init_FillPattern();
+      PRECISION = 1e5;
+    }
+  });
+
+  // node_modules/pixi.js/lib/scene/text-bitmap/DynamicBitmapFont.mjs
+  var _DynamicBitmapFont, DynamicBitmapFont;
+  var init_DynamicBitmapFont = __esm({
+    "node_modules/pixi.js/lib/scene/text-bitmap/DynamicBitmapFont.mjs"() {
+      init_Color();
+      init_Rectangle();
+      init_CanvasPool();
+      init_ImageSource();
+      init_Texture();
+      init_TextureStyle();
+      init_deprecation();
+      init_CanvasTextMetrics();
+      init_fontStringFromTextStyle();
+      init_getCanvasFillStyle();
+      init_TextStyle();
+      init_AbstractBitmapFont();
+      _DynamicBitmapFont = class _DynamicBitmapFont2 extends AbstractBitmapFont {
+        /**
+         * @param options - The options for the dynamic bitmap font.
+         */
+        constructor(options) {
+          super();
+          this.resolution = 1;
+          this.pages = [];
+          this._padding = 0;
+          this._measureCache = /* @__PURE__ */ Object.create(null);
+          this._currentChars = [];
+          this._currentX = 0;
+          this._currentY = 0;
+          this._currentMaxCharHeight = 0;
+          this._currentPageIndex = -1;
+          this._skipKerning = false;
+          const dynamicOptions = { ..._DynamicBitmapFont2.defaultOptions, ...options };
+          this._textureSize = dynamicOptions.textureSize;
+          this._mipmap = dynamicOptions.mipmap;
+          const style = dynamicOptions.style.clone();
+          if (dynamicOptions.overrideFill) {
+            style._fill.color = 16777215;
+            style._fill.alpha = 1;
+            style._fill.texture = Texture.WHITE;
+            style._fill.fill = null;
+          }
+          this.applyFillAsTint = dynamicOptions.overrideFill;
+          const requestedFontSize = style.fontSize;
+          style.fontSize = this.baseMeasurementFontSize;
+          const font = fontStringFromTextStyle(style);
+          if (dynamicOptions.overrideSize) {
+            if (style._stroke) {
+              style._stroke.width *= this.baseRenderedFontSize / requestedFontSize;
+            }
+            if (style.dropShadow) {
+              style.dropShadow.blur *= this.baseRenderedFontSize / requestedFontSize;
+              style.dropShadow.distance *= this.baseRenderedFontSize / requestedFontSize;
+            }
+          } else {
+            style.fontSize = this.baseRenderedFontSize = requestedFontSize;
+          }
+          this._style = style;
+          this._skipKerning = dynamicOptions.skipKerning ?? false;
+          this.resolution = dynamicOptions.resolution ?? 1;
+          this._padding = dynamicOptions.padding ?? 4;
+          if (dynamicOptions.textureStyle) {
+            this._textureStyle = dynamicOptions.textureStyle instanceof TextureStyle ? dynamicOptions.textureStyle : new TextureStyle(dynamicOptions.textureStyle);
+          }
+          this.fontMetrics = CanvasTextMetrics.measureFont(font);
+          this.lineHeight = style.lineHeight || this.fontMetrics.fontSize || style.fontSize;
+        }
+        ensureCharacters(chars) {
+          const charList = CanvasTextMetrics.graphemeSegmenter(chars).filter((char) => !this._currentChars.includes(char)).filter((char, index, self2) => self2.indexOf(char) === index);
+          if (!charList.length) return;
+          this._currentChars = [...this._currentChars, ...charList];
+          let pageData;
+          if (this._currentPageIndex === -1) {
+            pageData = this._nextPage();
+          } else {
+            pageData = this.pages[this._currentPageIndex];
+          }
+          let { canvas, context: context2 } = pageData.canvasAndContext;
+          let textureSource = pageData.texture.source;
+          const style = this._style;
+          let currentX = this._currentX;
+          let currentY = this._currentY;
+          let currentMaxCharHeight = this._currentMaxCharHeight;
+          const fontScale = this.baseRenderedFontSize / this.baseMeasurementFontSize;
+          const extraPadding = (style.dropShadow?.distance ?? 0) + (style._stroke?.width ?? 0);
+          const padding = this._padding + extraPadding;
+          let skipTexture = false;
+          const maxTextureWidth = canvas.width / this.resolution;
+          const maxTextureHeight = canvas.height / this.resolution;
+          for (let i2 = 0; i2 < charList.length; i2++) {
+            const char = charList[i2];
+            const metrics = CanvasTextMetrics.measureText(char, style, canvas, false);
+            metrics.lineHeight = metrics.height;
+            const width = metrics.width * fontScale;
+            const textureGlyphWidth = Math.ceil((style.fontStyle === "italic" ? 2 : 1) * width);
+            const height = metrics.height * fontScale;
+            const paddedWidth = textureGlyphWidth + padding * 2;
+            const paddedHeight = height + padding * 2;
+            skipTexture = false;
+            if (char !== "\n" && char !== "\r" && char !== "	" && char !== " ") {
+              skipTexture = true;
+              currentMaxCharHeight = Math.ceil(Math.max(paddedHeight, currentMaxCharHeight));
+            }
+            if (currentX + paddedWidth > maxTextureWidth) {
+              currentY += currentMaxCharHeight;
+              currentMaxCharHeight = paddedHeight;
+              currentX = 0;
+              if (currentY + currentMaxCharHeight > maxTextureHeight) {
+                textureSource.update();
+                const pageData2 = this._nextPage();
+                canvas = pageData2.canvasAndContext.canvas;
+                context2 = pageData2.canvasAndContext.context;
+                textureSource = pageData2.texture.source;
+                currentX = 0;
+                currentY = 0;
+                currentMaxCharHeight = 0;
+              }
+            }
+            const xAdvance = context2.measureText(char).width / fontScale;
+            this.chars[char] = {
+              id: char.codePointAt(0),
+              xOffset: -(padding / fontScale),
+              yOffset: -(padding / fontScale),
+              xAdvance,
+              kerning: {}
+            };
+            if (skipTexture) {
+              this._drawGlyph(
+                context2,
+                metrics,
+                currentX + padding,
+                currentY + padding,
+                fontScale,
+                style
+              );
+              const px = textureSource.width * fontScale;
+              const py = textureSource.height * fontScale;
+              const frame = new Rectangle(
+                currentX / px * textureSource.width,
+                currentY / py * textureSource.height,
+                paddedWidth / px * textureSource.width,
+                paddedHeight / py * textureSource.height
+              );
+              this.chars[char].texture = new Texture({
+                source: textureSource,
+                frame
+              });
+              currentX += Math.ceil(paddedWidth);
+            }
+          }
+          textureSource.update();
+          this._currentX = currentX;
+          this._currentY = currentY;
+          this._currentMaxCharHeight = currentMaxCharHeight;
+          if (!this._skipKerning) this._applyKerning(charList, context2, fontScale);
+        }
+        /**
+         * @deprecated since 8.0.0
+         * The map of base page textures (i.e., sheets of glyphs).
+         */
+        get pageTextures() {
+          deprecation(v8_0_0, "BitmapFont.pageTextures is deprecated, please use BitmapFont.pages instead.");
+          return this.pages;
+        }
+        _applyKerning(newChars, context2, fontScale) {
+          const measureCache = this._measureCache;
+          for (let i2 = 0; i2 < newChars.length; i2++) {
+            const first = newChars[i2];
+            for (let j2 = 0; j2 < this._currentChars.length; j2++) {
+              const second = this._currentChars[j2];
+              let c1 = measureCache[first];
+              if (!c1) c1 = measureCache[first] = context2.measureText(first).width;
+              let c2 = measureCache[second];
+              if (!c2) c2 = measureCache[second] = context2.measureText(second).width;
+              let total = context2.measureText(first + second).width;
+              let amount = total - (c1 + c2);
+              if (amount && this.chars[first]) {
+                this.chars[first].kerning[second] = amount / fontScale;
+              }
+              total = context2.measureText(first + second).width;
+              amount = total - (c1 + c2);
+              if (amount && this.chars[second]) {
+                this.chars[second].kerning[first] = amount / fontScale;
+              }
+            }
+          }
+        }
+        _nextPage() {
+          this._currentPageIndex++;
+          const textureResolution = this.resolution;
+          const canvasAndContext = CanvasPool.getOptimalCanvasAndContext(
+            this._textureSize,
+            this._textureSize,
+            textureResolution
+          );
+          this._setupContext(canvasAndContext.context, this._style, textureResolution);
+          const resolution = textureResolution * (this.baseRenderedFontSize / this.baseMeasurementFontSize);
+          const texture = new Texture({
+            source: new ImageSource({
+              resource: canvasAndContext.canvas,
+              resolution,
+              alphaMode: "premultiply-alpha-on-upload",
+              autoGenerateMipmaps: this._mipmap
+            })
+          });
+          if (this._textureStyle) {
+            texture.source.style = this._textureStyle;
+          }
+          const pageData = {
+            canvasAndContext,
+            texture
+          };
+          this.pages[this._currentPageIndex] = pageData;
+          return pageData;
+        }
+        // canvas style!
+        _setupContext(context2, style, resolution) {
+          style.fontSize = this.baseRenderedFontSize;
+          context2.scale(resolution, resolution);
+          context2.font = fontStringFromTextStyle(style);
+          style.fontSize = this.baseMeasurementFontSize;
+          context2.textBaseline = style.textBaseline;
+          const stroke = style._stroke;
+          const strokeThickness = stroke?.width ?? 0;
+          if (stroke) {
+            context2.lineWidth = strokeThickness;
+            context2.lineJoin = stroke.join;
+            context2.miterLimit = stroke.miterLimit;
+            context2.strokeStyle = getCanvasFillStyle(stroke, context2);
+          }
+          if (style._fill) {
+            context2.fillStyle = getCanvasFillStyle(style._fill, context2);
+          }
+          if (style.dropShadow) {
+            const shadowOptions = style.dropShadow;
+            const rgb = Color.shared.setValue(shadowOptions.color).toArray();
+            const dropShadowBlur = shadowOptions.blur * resolution;
+            const dropShadowDistance = shadowOptions.distance * resolution;
+            context2.shadowColor = `rgba(${rgb[0] * 255},${rgb[1] * 255},${rgb[2] * 255},${shadowOptions.alpha})`;
+            context2.shadowBlur = dropShadowBlur;
+            context2.shadowOffsetX = Math.cos(shadowOptions.angle) * dropShadowDistance;
+            context2.shadowOffsetY = Math.sin(shadowOptions.angle) * dropShadowDistance;
+          } else {
+            context2.shadowColor = "black";
+            context2.shadowBlur = 0;
+            context2.shadowOffsetX = 0;
+            context2.shadowOffsetY = 0;
+          }
+        }
+        _drawGlyph(context2, metrics, x2, y2, fontScale, style) {
+          const char = metrics.text;
+          const fontProperties = metrics.fontProperties;
+          const stroke = style._stroke;
+          const strokeThickness = (stroke?.width ?? 0) * fontScale;
+          const tx = x2 + strokeThickness / 2;
+          const ty = y2 - strokeThickness / 2;
+          const descent = fontProperties.descent * fontScale;
+          const lineHeight = metrics.lineHeight * fontScale;
+          let removeShadow = false;
+          if (style.stroke && strokeThickness) {
+            removeShadow = true;
+            context2.strokeText(char, tx, ty + lineHeight - descent);
+          }
+          const { shadowBlur, shadowOffsetX, shadowOffsetY } = context2;
+          if (style._fill) {
+            if (removeShadow) {
+              context2.shadowBlur = 0;
+              context2.shadowOffsetX = 0;
+              context2.shadowOffsetY = 0;
+            }
+            context2.fillText(char, tx, ty + lineHeight - descent);
+          }
+          if (removeShadow) {
+            context2.shadowBlur = shadowBlur;
+            context2.shadowOffsetX = shadowOffsetX;
+            context2.shadowOffsetY = shadowOffsetY;
+          }
+        }
+        destroy() {
+          super.destroy();
+          for (let i2 = 0; i2 < this.pages.length; i2++) {
+            const { canvasAndContext, texture } = this.pages[i2];
+            CanvasPool.returnCanvasAndContext(canvasAndContext);
+            texture.destroy(true);
+          }
+          this.pages = null;
+        }
+      };
+      _DynamicBitmapFont.defaultOptions = {
+        textureSize: 512,
+        style: new TextStyle(),
+        mipmap: true
+      };
+      DynamicBitmapFont = _DynamicBitmapFont;
+    }
+  });
+
+  // node_modules/pixi.js/lib/scene/text-bitmap/utils/getBitmapTextLayout.mjs
+  function getBitmapTextLayout(chars, style, font, trimEnd) {
+    const layoutData = {
+      width: 0,
+      height: 0,
+      offsetY: 0,
+      scale: style.fontSize / font.baseMeasurementFontSize,
+      lines: [{
+        width: 0,
+        charPositions: [],
+        spaceWidth: 0,
+        spacesIndex: [],
+        chars: []
+      }]
+    };
+    layoutData.offsetY = font.baseLineOffset;
+    let currentLine = layoutData.lines[0];
+    let previousChar = null;
+    let firstWord = true;
+    const currentWord = {
+      spaceWord: false,
+      width: 0,
+      start: 0,
+      index: 0,
+      // use index to not modify the array as we use it a lot!
+      positions: [],
+      chars: []
+    };
+    const scale = font.baseMeasurementFontSize / style.fontSize;
+    const adjustedLetterSpacing = style.letterSpacing * scale;
+    const adjustedWordWrapWidth = style.wordWrapWidth * scale;
+    const adjustedLineHeight = style.lineHeight ? style.lineHeight * scale : font.lineHeight;
+    const breakWords = style.wordWrap && style.breakWords;
+    const shouldCollapseSpaces = collapseSpaces(style.whiteSpace);
+    const shouldCollapseNewlines = collapseNewlines(style.whiteSpace);
+    if (shouldCollapseSpaces || shouldCollapseNewlines) {
+      const processed = [];
+      let prevWasBreakingSpace = shouldCollapseSpaces;
+      for (let c2 = 0; c2 < chars.length; c2++) {
+        let char = chars[c2];
+        if (char === "\r" || char === "\n") {
+          if (shouldCollapseNewlines) {
+            if (char === "\r" && chars[c2 + 1] === "\n") c2++;
+            char = " ";
+          } else {
+            if (shouldCollapseSpaces) prevWasBreakingSpace = true;
+            processed.push(char);
+            continue;
+          }
+        }
+        if (isBreakingSpace(char)) {
+          if (shouldCollapseSpaces && isCollapsibleSpace(char)) {
+            if (prevWasBreakingSpace) continue;
+            prevWasBreakingSpace = true;
+            processed.push(" ");
+          } else {
+            prevWasBreakingSpace = false;
+            processed.push(char);
+          }
+        } else {
+          prevWasBreakingSpace = false;
+          processed.push(char);
+        }
+      }
+      chars = processed;
+    }
+    const nextWord = (word) => {
+      const start = currentLine.width;
+      for (let j2 = 0; j2 < currentWord.index; j2++) {
+        const position = word.positions[j2];
+        currentLine.chars.push(word.chars[j2]);
+        currentLine.charPositions.push(position + start);
+      }
+      currentLine.width += word.width;
+      if (currentWord.index > 0 || !shouldCollapseSpaces) {
+        firstWord = false;
+      }
+      currentWord.width = 0;
+      currentWord.index = 0;
+      currentWord.chars.length = 0;
+    };
+    const nextLine = () => {
+      let index = currentLine.chars.length - 1;
+      if (trimEnd) {
+        let lastChar = currentLine.chars[index];
+        while (isCollapsibleSpace(lastChar)) {
+          currentLine.width -= font.chars[lastChar].xAdvance;
+          currentLine.spacesIndex.pop();
+          lastChar = currentLine.chars[--index];
+        }
+      }
+      layoutData.width = Math.max(layoutData.width, currentLine.width);
+      currentLine = {
+        width: 0,
+        charPositions: [],
+        chars: [],
+        spaceWidth: 0,
+        spacesIndex: []
+      };
+      firstWord = true;
+      layoutData.lines.push(currentLine);
+      layoutData.height += adjustedLineHeight;
+    };
+    const checkIsOverflow = (lineWidth) => lineWidth - adjustedLetterSpacing > adjustedWordWrapWidth;
+    for (let i2 = 0; i2 < chars.length + 1; i2++) {
+      let char;
+      const isEnd = i2 === chars.length;
+      if (!isEnd) {
+        char = chars[i2];
+      }
+      const charData = font.chars[char];
+      const isSpace = /(?:\s)/.test(char);
+      const isWordBreak = isSpace || char === "\r" || char === "\n" || isEnd;
+      if (isWordBreak) {
+        const addWordToNextLine = !firstWord && style.wordWrap && checkIsOverflow(currentLine.width + currentWord.width);
+        if (addWordToNextLine) {
+          nextLine();
+          nextWord(currentWord);
+          if (!isEnd) {
+            currentLine.charPositions.push(0);
+          }
+        } else {
+          currentWord.start = currentLine.width;
+          nextWord(currentWord);
+          if (!isEnd) {
+            currentLine.charPositions.push(0);
+          }
+        }
+        if (char === "\r" || char === "\n") {
+          nextLine();
+        } else if (!isEnd && charData) {
+          const spaceWidth = charData.xAdvance + (charData.kerning?.[previousChar] || 0) + adjustedLetterSpacing;
+          currentLine.width += spaceWidth;
+          currentLine.spaceWidth = spaceWidth;
+          currentLine.spacesIndex.push(currentLine.charPositions.length);
+          currentLine.chars.push(char);
+        }
+      } else if (charData) {
+        const kerning = charData.kerning?.[previousChar] || 0;
+        const nextCharWidth = charData.xAdvance + kerning + adjustedLetterSpacing;
+        const wordExceedsWrapWidth = breakWords && checkIsOverflow(currentWord.width + nextCharWidth);
+        if (wordExceedsWrapWidth) {
+          if (!firstWord) {
+            nextLine();
+          }
+          nextWord(currentWord);
+          nextLine();
+        }
+        currentWord.positions[currentWord.index++] = currentWord.width + kerning;
+        currentWord.chars.push(char);
+        currentWord.width += nextCharWidth;
+        if (isBreakAfterChar(char)) {
+          const addWordToNextLine = !firstWord && style.wordWrap && checkIsOverflow(currentLine.width + currentWord.width);
+          if (addWordToNextLine) {
+            nextLine();
+          }
+          nextWord(currentWord);
+        }
+      }
+      previousChar = char;
+    }
+    nextLine();
+    if (style.wordWrap && style.align !== "left") {
+      layoutData.width = Math.max(layoutData.width, adjustedWordWrapWidth);
+    }
+    if (style.align === "center") {
+      alignCenter(layoutData);
+    } else if (style.align === "right") {
+      alignRight(layoutData);
+    } else if (style.align === "justify") {
+      alignJustify(layoutData);
+    }
+    return layoutData;
+  }
+  function alignCenter(measurementData) {
+    for (let i2 = 0; i2 < measurementData.lines.length; i2++) {
+      const line = measurementData.lines[i2];
+      const offset = measurementData.width / 2 - line.width / 2;
+      for (let j2 = 0; j2 < line.charPositions.length; j2++) {
+        line.charPositions[j2] += offset;
+      }
+    }
+  }
+  function alignRight(measurementData) {
+    for (let i2 = 0; i2 < measurementData.lines.length; i2++) {
+      const line = measurementData.lines[i2];
+      const offset = measurementData.width - line.width;
+      for (let j2 = 0; j2 < line.charPositions.length; j2++) {
+        line.charPositions[j2] += offset;
+      }
+    }
+  }
+  function alignJustify(measurementData) {
+    const width = measurementData.width;
+    for (let i2 = 0; i2 < measurementData.lines.length - 2; i2++) {
+      const line = measurementData.lines[i2];
+      let indy = 0;
+      let spaceIndex = line.spacesIndex[indy++];
+      let offset = 0;
+      const totalSpaces = line.spacesIndex.length;
+      const newSpaceWidth = (width - line.width) / totalSpaces;
+      const spaceWidth = newSpaceWidth;
+      for (let j2 = 0; j2 < line.charPositions.length; j2++) {
+        if (j2 === spaceIndex) {
+          spaceIndex = line.spacesIndex[indy++];
+          offset += spaceWidth;
+        }
+        line.charPositions[j2] += offset;
+      }
+    }
+  }
+  var init_getBitmapTextLayout = __esm({
+    "node_modules/pixi.js/lib/scene/text-bitmap/utils/getBitmapTextLayout.mjs"() {
+      init_textTokenization();
+    }
+  });
+
+  // node_modules/pixi.js/lib/scene/text-bitmap/utils/resolveCharacters.mjs
+  function resolveCharacters(chars) {
+    if (chars === "") {
+      return [];
+    }
+    if (typeof chars === "string") {
+      chars = [chars];
+    }
+    const result = [];
+    for (let i2 = 0, j2 = chars.length; i2 < j2; i2++) {
+      const item = chars[i2];
+      if (Array.isArray(item)) {
+        if (item.length !== 2) {
+          throw new Error(`[BitmapFont]: Invalid character range length, expecting 2 got ${item.length}.`);
+        }
+        if (item[0].length === 0 || item[1].length === 0) {
+          throw new Error("[BitmapFont]: Invalid character delimiter.");
+        }
+        const startCode = item[0].charCodeAt(0);
+        const endCode = item[1].charCodeAt(0);
+        if (endCode < startCode) {
+          throw new Error("[BitmapFont]: Invalid character range.");
+        }
+        for (let i22 = startCode, j22 = endCode; i22 <= j22; i22++) {
+          result.push(String.fromCharCode(i22));
+        }
+      } else {
+        result.push(...Array.from(item));
+      }
+    }
+    if (result.length === 0) {
+      throw new Error("[BitmapFont]: Empty set when resolving characters.");
+    }
+    return result;
+  }
+  var init_resolveCharacters = __esm({
+    "node_modules/pixi.js/lib/scene/text-bitmap/utils/resolveCharacters.mjs"() {
+      "use strict";
+    }
+  });
+
+  // node_modules/pixi.js/lib/scene/text-bitmap/BitmapFontManager.mjs
+  var fontCount, BitmapFontManagerClass, BitmapFontManager;
+  var init_BitmapFontManager = __esm({
+    "node_modules/pixi.js/lib/scene/text-bitmap/BitmapFontManager.mjs"() {
+      init_tiny_lru();
+      init_Cache();
+      init_deprecation();
+      init_warn();
+      init_CanvasTextMetrics();
+      init_TextStyle();
+      init_DynamicBitmapFont();
+      init_getBitmapTextLayout();
+      init_resolveCharacters();
+      fontCount = 0;
+      BitmapFontManagerClass = class {
+        constructor() {
+          this.ALPHA = [["a", "z"], ["A", "Z"], " "];
+          this.NUMERIC = [["0", "9"]];
+          this.ALPHANUMERIC = [["a", "z"], ["A", "Z"], ["0", "9"], " "];
+          this.ASCII = [[" ", "~"]];
+          this.defaultOptions = {
+            chars: this.ALPHANUMERIC,
+            resolution: 1,
+            padding: 4,
+            skipKerning: false,
+            textureStyle: null
+          };
+          this.measureCache = lru(1e3);
+        }
+        /**
+         * Get a font for the specified text and style.
+         * @param text - The text to get the font for
+         * @param style - The style to use
+         */
+        getFont(text, style) {
+          let fontFamilyKey = `${style.fontFamily}-bitmap`;
+          let overrideFill = true;
+          if (Cache.has(fontFamilyKey)) {
+            const dynamicFont2 = Cache.get(fontFamilyKey);
+            dynamicFont2.ensureCharacters?.(text);
+            return dynamicFont2;
+          }
+          if (style._fill.fill && !style._stroke) {
+            fontFamilyKey += style._fill.fill.styleKey;
+            overrideFill = false;
+          } else if (style._stroke || style.dropShadow) {
+            fontFamilyKey = `${style.styleKey}-bitmap`;
+            overrideFill = false;
+          }
+          fontFamilyKey += `-${style.fontStyle}`;
+          fontFamilyKey += `-${style.fontVariant}`;
+          fontFamilyKey += `-${style.fontWeight}`;
+          if (!Cache.has(fontFamilyKey)) {
+            const styleCopy = Object.create(style);
+            styleCopy["_lineHeight"] = 0;
+            const fnt = new DynamicBitmapFont({
+              style: styleCopy,
+              overrideFill,
+              overrideSize: true,
+              ...this.defaultOptions
+            });
+            fontCount++;
+            if (fontCount > 50) {
+              warn("BitmapText", `You have dynamically created ${fontCount} bitmap fonts, this can be inefficient. Try pre installing your font styles using \`BitmapFont.install({name:"style1", style})\``);
+            }
+            fnt.once("destroy", () => {
+              fontCount--;
+              Cache.remove(fontFamilyKey);
+            });
+            Cache.set(
+              fontFamilyKey,
+              fnt
+            );
+          }
+          const dynamicFont = Cache.get(fontFamilyKey);
+          dynamicFont.ensureCharacters?.(text);
+          return dynamicFont;
+        }
+        /**
+         * Get the layout of a text for the specified style.
+         * @param text - The text to get the layout for
+         * @param style - The style to use
+         * @param trimEnd - Whether to ignore whitespaces at the end of each line
+         */
+        getLayout(text, style, trimEnd = true) {
+          const bitmapFont = this.getFont(text, style);
+          const id = `${text}-${style.styleKey}-${trimEnd}`;
+          if (this.measureCache.has(id)) {
+            return this.measureCache.get(id);
+          }
+          const segments = CanvasTextMetrics.graphemeSegmenter(text);
+          const layoutData = getBitmapTextLayout(segments, style, bitmapFont, trimEnd);
+          this.measureCache.set(id, layoutData);
+          return layoutData;
+        }
+        /**
+         * Measure the text using the specified style.
+         * @param text - The text to measure
+         * @param style - The style to use
+         * @param trimEnd - Whether to ignore whitespaces at the end of each line
+         */
+        measureText(text, style, trimEnd = true) {
+          return this.getLayout(text, style, trimEnd);
+        }
+        // eslint-disable-next-line max-len
+        install(...args) {
+          let options = args[0];
+          if (typeof options === "string") {
+            options = {
+              name: options,
+              style: args[1],
+              chars: args[2]?.chars,
+              resolution: args[2]?.resolution,
+              padding: args[2]?.padding,
+              skipKerning: args[2]?.skipKerning
+            };
+            deprecation(v8_0_0, "BitmapFontManager.install(name, style, options) is deprecated, use BitmapFontManager.install({name, style, ...options})");
+          }
+          const name = options?.name;
+          if (!name) {
+            throw new Error("[BitmapFontManager] Property `name` is required.");
+          }
+          options = { ...this.defaultOptions, ...options };
+          const textStyle = options.style;
+          const style = textStyle instanceof TextStyle ? textStyle : new TextStyle(textStyle);
+          const overrideFill = options.dynamicFill ?? this._canUseTintForStyle(style);
+          const font = new DynamicBitmapFont({
+            style,
+            overrideFill,
+            skipKerning: options.skipKerning,
+            padding: options.padding,
+            resolution: options.resolution,
+            overrideSize: false,
+            textureStyle: options.textureStyle
+          });
+          const flatChars = resolveCharacters(options.chars);
+          font.ensureCharacters(flatChars.join(""));
+          Cache.set(`${name}-bitmap`, font);
+          font.once("destroy", () => Cache.remove(`${name}-bitmap`));
+          return font;
+        }
+        /**
+         * Uninstalls a bitmap font from the cache.
+         * @param {string} name - The name of the bitmap font to uninstall.
+         */
+        uninstall(name) {
+          const cacheKey = `${name}-bitmap`;
+          const font = Cache.get(cacheKey);
+          if (font) {
+            font.destroy();
+          }
+        }
+        /**
+         * Determines if a style can use tinting instead of baking colors into the bitmap.
+         * Tinting is more efficient as it allows reusing the same bitmap with different colors.
+         * @param style - The text style to evaluate
+         * @returns true if the style can use tinting, false if colors must be baked in
+         * @private
+         */
+        _canUseTintForStyle(style) {
+          return !style._stroke && (!style.dropShadow || style.dropShadow.color === 0) && !style._fill.fill && style._fill.color === 16777215;
+        }
+      };
+      BitmapFontManager = new BitmapFontManagerClass();
+    }
+  });
+
+  // node_modules/pixi.js/lib/scene/text-bitmap/BitmapFont.mjs
+  var BitmapFont_exports = {};
+  __export(BitmapFont_exports, {
+    BitmapFont: () => BitmapFont
+  });
+  var BitmapFont;
+  var init_BitmapFont = __esm({
+    "node_modules/pixi.js/lib/scene/text-bitmap/BitmapFont.mjs"() {
+      init_groupD8();
+      init_Rectangle();
+      init_Texture();
+      init_AbstractBitmapFont();
+      init_BitmapFontManager();
+      BitmapFont = class extends AbstractBitmapFont {
+        constructor(options, url) {
+          super();
+          const { textures, data } = options;
+          Object.keys(data.pages).forEach((key) => {
+            const pageData = data.pages[parseInt(key, 10)];
+            const texture = textures[pageData.id];
+            this.pages.push({ texture });
+          });
+          Object.keys(data.chars).forEach((key) => {
+            const charData = data.chars[key];
+            const {
+              frame: textureFrame,
+              source: textureSource,
+              rotate: textureRotate
+            } = textures[charData.page];
+            const frame = groupD8.transformRectCoords(
+              charData,
+              textureFrame,
+              textureRotate,
+              new Rectangle()
+            );
+            const texture = new Texture({
+              frame,
+              orig: new Rectangle(0, 0, charData.width, charData.height),
+              source: textureSource,
+              rotate: textureRotate
+            });
+            this.chars[key] = {
+              id: key.codePointAt(0),
+              xOffset: charData.xOffset,
+              yOffset: charData.yOffset,
+              xAdvance: charData.xAdvance,
+              kerning: charData.kerning ?? {},
+              texture
+            };
+          });
+          this.baseRenderedFontSize = data.fontSize;
+          this.baseMeasurementFontSize = data.fontSize;
+          this.fontMetrics = {
+            ascent: 0,
+            descent: 0,
+            fontSize: data.fontSize
+          };
+          this.baseLineOffset = data.baseLineOffset;
+          this.lineHeight = data.lineHeight;
+          this.fontFamily = data.fontFamily;
+          this.distanceField = data.distanceField ?? {
+            type: "none",
+            range: 0
+          };
+          this.url = url;
+        }
+        /** Destroys the BitmapFont object. */
+        destroy() {
+          super.destroy();
+          for (let i2 = 0; i2 < this.pages.length; i2++) {
+            const { texture } = this.pages[i2];
+            texture.destroy(true);
+          }
+          this.pages = null;
+        }
+        /**
+         * Generates and installs a bitmap font with the specified options.
+         * The font will be cached and available for use in BitmapText objects.
+         * @param options - Setup options for font generation
+         * @returns Installed font instance
+         * @example
+         * ```ts
+         * // Install a basic font
+         * BitmapFont.install({
+         *     name: 'Title',
+         *     style: {
+         *         fontFamily: 'Arial',
+         *         fontSize: 32,
+         *         fill: '#ffffff'
+         *     }
+         * });
+         *
+         * // Install with advanced options
+         * BitmapFont.install({
+         *     name: 'Custom',
+         *     style: {
+         *         fontFamily: 'Arial',
+         *         fontSize: 24,
+         *         fill: '#00ff00',
+         *         stroke: { color: '#000000', width: 2 }
+         *     },
+         *     chars: [['a', 'z'], ['A', 'Z'], ['0', '9']],
+         *     resolution: 2,
+         *     padding: 4,
+         *     textureStyle: {
+         *         scaleMode: 'nearest'
+         *     }
+         * });
+         * ```
+         */
+        static install(options) {
+          BitmapFontManager.install(options);
+        }
+        /**
+         * Uninstalls a bitmap font from the cache.
+         * This frees up memory and resources associated with the font.
+         * @param name - The name of the bitmap font to uninstall
+         * @example
+         * ```ts
+         * // Remove a font when it's no longer needed
+         * BitmapFont.uninstall('MyCustomFont');
+         *
+         * // Clear multiple fonts
+         * ['Title', 'Heading', 'Body'].forEach(BitmapFont.uninstall);
+         * ```
+         */
+        static uninstall(name) {
+          BitmapFontManager.uninstall(name);
+        }
+      };
+    }
+  });
+
   // node_modules/pixi.js/lib/environment-browser/browserExt.mjs
   init_Extensions();
   var browserExt = {
@@ -41636,6 +42573,2194 @@ ${parts.join("\n")}
   var Application = _Application;
   extensions.handleByList(ExtensionType.Application, Application._plugins);
   extensions.add(ApplicationInitHook);
+
+  // node_modules/pixi.js/lib/assets/Assets.mjs
+  init_Extensions();
+
+  // node_modules/pixi.js/lib/scene/text-bitmap/asset/loadBitmapFont.mjs
+  init_LoaderParser();
+  init_copySearchParams();
+  init_adapter();
+  init_Extensions();
+  init_path();
+
+  // node_modules/pixi.js/lib/scene/text-bitmap/asset/bitmapFontTextParser.mjs
+  var bitmapFontTextParser = {
+    test(data) {
+      return typeof data === "string" && data.startsWith("info face=");
+    },
+    parse(txt) {
+      const items = txt.match(/^[a-z]+\s+.+$/gm);
+      const rawData = {
+        info: [],
+        common: [],
+        page: [],
+        char: [],
+        chars: [],
+        kerning: [],
+        kernings: [],
+        distanceField: []
+      };
+      for (const i2 in items) {
+        const name = items[i2].match(/^[a-z]+/gm)[0];
+        const attributeList = items[i2].match(/[a-zA-Z]+=([^\s"']+|"([^"]*)")/gm);
+        const itemData = {};
+        for (const i22 in attributeList) {
+          const split = attributeList[i22].split("=");
+          const key = split[0];
+          const strValue = split[1].replace(/"/gm, "");
+          const floatValue = parseFloat(strValue);
+          const value = isNaN(floatValue) ? strValue : floatValue;
+          itemData[key] = value;
+        }
+        rawData[name].push(itemData);
+      }
+      const font = {
+        chars: {},
+        pages: [],
+        lineHeight: 0,
+        fontSize: 0,
+        fontFamily: "",
+        distanceField: null,
+        baseLineOffset: 0
+      };
+      const [info] = rawData.info;
+      const [common] = rawData.common;
+      const [distanceField] = rawData.distanceField ?? [];
+      if (distanceField) {
+        font.distanceField = {
+          range: parseInt(distanceField.distanceRange, 10),
+          type: distanceField.fieldType
+        };
+      }
+      font.fontSize = parseInt(info.size, 10);
+      font.fontFamily = info.face;
+      font.lineHeight = parseInt(common.lineHeight, 10);
+      const page = rawData.page;
+      for (let i2 = 0; i2 < page.length; i2++) {
+        font.pages.push({
+          id: parseInt(page[i2].id, 10) || 0,
+          file: page[i2].file
+        });
+      }
+      const map = {};
+      font.baseLineOffset = font.lineHeight - parseInt(common.base, 10);
+      const char = rawData.char;
+      for (let i2 = 0; i2 < char.length; i2++) {
+        const charNode = char[i2];
+        const id = parseInt(charNode.id, 10);
+        let letter = charNode.letter ?? charNode.char ?? String.fromCharCode(id);
+        if (letter === "space") letter = " ";
+        map[id] = letter;
+        font.chars[letter] = {
+          id,
+          // texture deets..
+          page: parseInt(charNode.page, 10) || 0,
+          x: parseInt(charNode.x, 10),
+          y: parseInt(charNode.y, 10),
+          width: parseInt(charNode.width, 10),
+          height: parseInt(charNode.height, 10),
+          xOffset: parseInt(charNode.xoffset, 10),
+          yOffset: parseInt(charNode.yoffset, 10),
+          xAdvance: parseInt(charNode.xadvance, 10),
+          kerning: {}
+        };
+      }
+      const kerning = rawData.kerning || [];
+      for (let i2 = 0; i2 < kerning.length; i2++) {
+        const first = parseInt(kerning[i2].first, 10);
+        const second = parseInt(kerning[i2].second, 10);
+        const amount = parseInt(kerning[i2].amount, 10);
+        if (font.chars[map[second]]) font.chars[map[second]].kerning[map[first]] = amount;
+      }
+      return font;
+    }
+  };
+
+  // node_modules/pixi.js/lib/scene/text-bitmap/asset/bitmapFontXMLStringParser.mjs
+  init_adapter();
+
+  // node_modules/pixi.js/lib/scene/text-bitmap/asset/bitmapFontXMLParser.mjs
+  var bitmapFontXMLParser = {
+    test(data) {
+      const xml = data;
+      return typeof xml !== "string" && "getElementsByTagName" in xml && xml.getElementsByTagName("page").length && xml.getElementsByTagName("info")[0].getAttribute("face") !== null;
+    },
+    parse(xml) {
+      const data = {
+        chars: {},
+        pages: [],
+        lineHeight: 0,
+        fontSize: 0,
+        fontFamily: "",
+        distanceField: null,
+        baseLineOffset: 0
+      };
+      const info = xml.getElementsByTagName("info")[0];
+      const common = xml.getElementsByTagName("common")[0];
+      const distanceField = xml.getElementsByTagName("distanceField")[0];
+      if (distanceField) {
+        data.distanceField = {
+          type: distanceField.getAttribute("fieldType"),
+          range: parseInt(distanceField.getAttribute("distanceRange"), 10)
+        };
+      }
+      const page = xml.getElementsByTagName("page");
+      const char = xml.getElementsByTagName("char");
+      const kerning = xml.getElementsByTagName("kerning");
+      data.fontSize = parseInt(info.getAttribute("size"), 10);
+      data.fontFamily = info.getAttribute("face");
+      data.lineHeight = parseInt(common.getAttribute("lineHeight"), 10);
+      for (let i2 = 0; i2 < page.length; i2++) {
+        data.pages.push({
+          id: parseInt(page[i2].getAttribute("id"), 10) || 0,
+          file: page[i2].getAttribute("file")
+        });
+      }
+      const map = {};
+      data.baseLineOffset = data.lineHeight - parseInt(common.getAttribute("base"), 10);
+      for (let i2 = 0; i2 < char.length; i2++) {
+        const charNode = char[i2];
+        const id = parseInt(charNode.getAttribute("id"), 10);
+        let letter = charNode.getAttribute("letter") ?? charNode.getAttribute("char") ?? String.fromCharCode(id);
+        if (letter === "space") letter = " ";
+        map[id] = letter;
+        data.chars[letter] = {
+          id,
+          // texture deets..
+          page: parseInt(charNode.getAttribute("page"), 10) || 0,
+          x: parseInt(charNode.getAttribute("x"), 10),
+          y: parseInt(charNode.getAttribute("y"), 10),
+          width: parseInt(charNode.getAttribute("width"), 10),
+          height: parseInt(charNode.getAttribute("height"), 10),
+          // render deets..
+          xOffset: parseInt(charNode.getAttribute("xoffset"), 10),
+          yOffset: parseInt(charNode.getAttribute("yoffset"), 10),
+          // + baseLineOffset,
+          xAdvance: parseInt(charNode.getAttribute("xadvance"), 10),
+          kerning: {}
+        };
+      }
+      for (let i2 = 0; i2 < kerning.length; i2++) {
+        const first = parseInt(kerning[i2].getAttribute("first"), 10);
+        const second = parseInt(kerning[i2].getAttribute("second"), 10);
+        const amount = parseInt(kerning[i2].getAttribute("amount"), 10);
+        if (data.chars[map[second]]) data.chars[map[second]].kerning[map[first]] = amount;
+      }
+      return data;
+    }
+  };
+
+  // node_modules/pixi.js/lib/scene/text-bitmap/asset/bitmapFontXMLStringParser.mjs
+  var bitmapFontXMLStringParser = {
+    test(data) {
+      if (typeof data === "string" && data.match(/<font(\s|>)/)) {
+        return bitmapFontXMLParser.test(DOMAdapter.get().parseXML(data));
+      }
+      return false;
+    },
+    parse(data) {
+      return bitmapFontXMLParser.parse(DOMAdapter.get().parseXML(data));
+    }
+  };
+
+  // node_modules/pixi.js/lib/scene/text-bitmap/asset/loadBitmapFont.mjs
+  var validExtensions = [".xml", ".fnt"];
+  var bitmapFontCachePlugin = {
+    extension: {
+      type: ExtensionType.CacheParser,
+      name: "cacheBitmapFont"
+    },
+    test: (asset) => !!asset?.pages && !!asset?.chars && typeof asset?.fontFamily === "string" && asset.fontFamily !== "",
+    getCacheableAssets(keys, asset) {
+      const out2 = {};
+      keys.forEach((key) => {
+        out2[key] = asset;
+        out2[`${key}-bitmap`] = asset;
+      });
+      out2[`${asset.fontFamily}-bitmap`] = asset;
+      return out2;
+    }
+  };
+  var loadBitmapFont = {
+    extension: {
+      type: ExtensionType.LoadParser,
+      priority: LoaderParserPriority.Normal
+    },
+    /** used for deprecation purposes */
+    name: "loadBitmapFont",
+    id: "bitmap-font",
+    test(url) {
+      return validExtensions.includes(path.extname(url).toLowerCase());
+    },
+    async testParse(data) {
+      return bitmapFontTextParser.test(data) || bitmapFontXMLStringParser.test(data);
+    },
+    async parse(asset, data, loader) {
+      const bitmapFontData = bitmapFontTextParser.test(asset) ? bitmapFontTextParser.parse(asset) : bitmapFontXMLStringParser.parse(asset);
+      const { src } = data;
+      const { pages } = bitmapFontData;
+      const textureUrls = [];
+      const textureOptions = bitmapFontData.distanceField ? {
+        scaleMode: "linear",
+        alphaMode: "premultiply-alpha-on-upload",
+        autoGenerateMipmaps: false,
+        resolution: 1
+      } : {};
+      for (let i2 = 0; i2 < pages.length; ++i2) {
+        const pageFile = pages[i2].file;
+        let imagePath = path.join(path.dirname(src), pageFile);
+        imagePath = copySearchParams(imagePath, src);
+        textureUrls.push({
+          src: imagePath,
+          data: textureOptions
+        });
+      }
+      const [loadedTextures, { BitmapFont: BitmapFont2 }] = await Promise.all([
+        loader.load(textureUrls),
+        Promise.resolve().then(() => (init_BitmapFont(), BitmapFont_exports))
+      ]);
+      const textures = textureUrls.map((url) => loadedTextures[url.src]);
+      const bitmapFont = new BitmapFont2({
+        data: bitmapFontData,
+        textures
+      }, src);
+      return bitmapFont;
+    },
+    async load(url, _options) {
+      const response = await DOMAdapter.get().fetch(url);
+      return await response.text();
+    },
+    async unload(bitmapFont, _resolvedAsset, loader) {
+      await Promise.all(bitmapFont.pages.map((page) => loader.unload(page.texture.source._sourceOrigin)));
+      bitmapFont.destroy();
+    }
+  };
+
+  // node_modules/pixi.js/lib/assets/Assets.mjs
+  init_warn();
+
+  // node_modules/pixi.js/lib/assets/BackgroundLoader.mjs
+  var BackgroundLoader = class {
+    /**
+     * @param loader
+     * @param verbose - should the loader log to the console
+     */
+    constructor(loader, verbose = false) {
+      this._loader = loader;
+      this._assetList = [];
+      this._isLoading = false;
+      this._maxConcurrent = 1;
+      this.verbose = verbose;
+    }
+    /**
+     * Adds assets to the background loading queue. Assets are loaded one at a time to minimize
+     * performance impact.
+     * @param assetUrls - Array of resolved assets to load in the background
+     * @example
+     * ```ts
+     * // Add assets to background load queue
+     * backgroundLoader.add([
+     *     { src: 'images/level1/bg.png' },
+     *     { src: 'images/level1/characters.json' }
+     * ]);
+     *
+     * // Assets will load sequentially in the background
+     * // The loader automatically pauses when high-priority loads occur
+     * // e.g. Assets.load() is called
+     * ```
+     * @remarks
+     * - Assets are loaded one at a time to minimize performance impact
+     * - Loading automatically pauses when Assets.load() is called
+     * - No progress tracking is available for background loading
+     * - Assets are cached as they complete loading
+     * @internal
+     */
+    add(assetUrls) {
+      assetUrls.forEach((a2) => {
+        this._assetList.push(a2);
+      });
+      if (this.verbose) {
+        console.log("[BackgroundLoader] assets: ", this._assetList);
+      }
+      if (this._isActive && !this._isLoading) {
+        void this._next();
+      }
+    }
+    /**
+     * Loads the next set of assets. Will try to load as many assets as it can at the same time.
+     *
+     * The max assets it will try to load at one time will be 4.
+     */
+    async _next() {
+      if (this._assetList.length && this._isActive) {
+        this._isLoading = true;
+        const toLoad = [];
+        const toLoadAmount = Math.min(this._assetList.length, this._maxConcurrent);
+        for (let i2 = 0; i2 < toLoadAmount; i2++) {
+          toLoad.push(this._assetList.pop());
+        }
+        await this._loader.load(toLoad);
+        this._isLoading = false;
+        void this._next();
+      }
+    }
+    /**
+     * Controls the active state of the background loader. When active, the loader will
+     * continue processing its queue. When inactive, loading is paused.
+     * @returns Whether the background loader is currently active
+     * @example
+     * ```ts
+     * // Pause background loading
+     * backgroundLoader.active = false;
+     *
+     * // Resume background loading
+     * backgroundLoader.active = true;
+     *
+     * // Check current state
+     * console.log(backgroundLoader.active); // true/false
+     *
+     * // Common use case: Pause during intensive operations
+     * backgroundLoader.active = false;  // Pause background loading
+     * ... // Perform high-priority tasks
+     * backgroundLoader.active = true;   // Resume background loading
+     * ```
+     * @remarks
+     * - Setting to true resumes loading immediately
+     * - Setting to false pauses after current asset completes
+     * - Background loading is automatically paused during `Assets.load()`
+     * - Assets already being loaded will complete even when set to false
+     */
+    get active() {
+      return this._isActive;
+    }
+    set active(value) {
+      if (this._isActive === value) return;
+      this._isActive = value;
+      if (value && !this._isLoading) {
+        void this._next();
+      }
+    }
+  };
+
+  // node_modules/pixi.js/lib/assets/Assets.mjs
+  init_Cache();
+
+  // node_modules/pixi.js/lib/assets/cache/parsers/cacheTextureArray.mjs
+  init_Extensions();
+  init_Texture();
+  var cacheTextureArray = {
+    extension: {
+      type: ExtensionType.CacheParser,
+      name: "cacheTextureArray"
+    },
+    test: (asset) => Array.isArray(asset) && asset.every((t2) => t2 instanceof Texture),
+    getCacheableAssets: (keys, asset) => {
+      const out2 = {};
+      keys.forEach((key) => {
+        asset.forEach((item, i2) => {
+          out2[key + (i2 === 0 ? "" : i2 + 1)] = item;
+        });
+      });
+      return out2;
+    }
+  };
+
+  // node_modules/pixi.js/lib/assets/detections/parsers/detectAvif.mjs
+  init_Extensions();
+
+  // node_modules/pixi.js/lib/assets/detections/utils/testImageFormat.mjs
+  async function testImageFormat(imageData) {
+    if ("Image" in globalThis) {
+      return new Promise((resolve) => {
+        const image = new Image();
+        image.onload = () => {
+          resolve(true);
+        };
+        image.onerror = () => {
+          resolve(false);
+        };
+        image.src = imageData;
+      });
+    }
+    if ("createImageBitmap" in globalThis && "fetch" in globalThis) {
+      try {
+        const blob = await (await fetch(imageData)).blob();
+        await createImageBitmap(blob);
+      } catch (_e) {
+        return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  // node_modules/pixi.js/lib/assets/detections/parsers/detectAvif.mjs
+  var detectAvif = {
+    extension: {
+      type: ExtensionType.DetectionParser,
+      priority: 1
+    },
+    test: async () => testImageFormat(
+      // eslint-disable-next-line max-len
+      "data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAAGF2aWZtaWYxbWlhZk1BMUIAAADybWV0YQAAAAAAAAAoaGRscgAAAAAAAAAAcGljdAAAAAAAAAAAAAAAAGxpYmF2aWYAAAAADnBpdG0AAAAAAAEAAAAeaWxvYwAAAABEAAABAAEAAAABAAABGgAAAB0AAAAoaWluZgAAAAAAAQAAABppbmZlAgAAAAABAABhdjAxQ29sb3IAAAAAamlwcnAAAABLaXBjbwAAABRpc3BlAAAAAAAAAAIAAAACAAAAEHBpeGkAAAAAAwgICAAAAAxhdjFDgQ0MAAAAABNjb2xybmNseAACAAIAAYAAAAAXaXBtYQAAAAAAAAABAAEEAQKDBAAAACVtZGF0EgAKCBgANogQEAwgMg8f8D///8WfhwB8+ErK42A="
+    ),
+    add: async (formats) => [...formats, "avif"],
+    remove: async (formats) => formats.filter((f2) => f2 !== "avif")
+  };
+
+  // node_modules/pixi.js/lib/assets/detections/parsers/detectDefaults.mjs
+  init_Extensions();
+  var imageFormats = ["png", "jpg", "jpeg"];
+  var detectDefaults = {
+    extension: {
+      type: ExtensionType.DetectionParser,
+      priority: -1
+    },
+    test: () => Promise.resolve(true),
+    add: async (formats) => [...formats, ...imageFormats],
+    remove: async (formats) => formats.filter((f2) => !imageFormats.includes(f2))
+  };
+
+  // node_modules/pixi.js/lib/assets/detections/parsers/detectMp4.mjs
+  init_Extensions();
+
+  // node_modules/pixi.js/lib/assets/detections/utils/testVideoFormat.mjs
+  var inWorker = "WorkerGlobalScope" in globalThis && globalThis instanceof globalThis.WorkerGlobalScope;
+  function testVideoFormat(mimeType) {
+    if (inWorker) {
+      return false;
+    }
+    const video = document.createElement("video");
+    return video.canPlayType(mimeType) !== "";
+  }
+
+  // node_modules/pixi.js/lib/assets/detections/parsers/detectMp4.mjs
+  var detectMp4 = {
+    extension: {
+      type: ExtensionType.DetectionParser,
+      priority: 0
+    },
+    test: async () => testVideoFormat("video/mp4"),
+    add: async (formats) => [...formats, "mp4", "m4v"],
+    remove: async (formats) => formats.filter((f2) => f2 !== "mp4" && f2 !== "m4v")
+  };
+
+  // node_modules/pixi.js/lib/assets/detections/parsers/detectOgv.mjs
+  init_Extensions();
+  var detectOgv = {
+    extension: {
+      type: ExtensionType.DetectionParser,
+      priority: 0
+    },
+    test: async () => testVideoFormat("video/ogg"),
+    add: async (formats) => [...formats, "ogv"],
+    remove: async (formats) => formats.filter((f2) => f2 !== "ogv")
+  };
+
+  // node_modules/pixi.js/lib/assets/detections/parsers/detectWebm.mjs
+  init_Extensions();
+  var detectWebm = {
+    extension: {
+      type: ExtensionType.DetectionParser,
+      priority: 0
+    },
+    test: async () => testVideoFormat("video/webm"),
+    add: async (formats) => [...formats, "webm"],
+    remove: async (formats) => formats.filter((f2) => f2 !== "webm")
+  };
+
+  // node_modules/pixi.js/lib/assets/detections/parsers/detectWebp.mjs
+  init_Extensions();
+  var detectWebp = {
+    extension: {
+      type: ExtensionType.DetectionParser,
+      priority: 0
+    },
+    test: async () => testImageFormat(
+      "data:image/webp;base64,UklGRh4AAABXRUJQVlA4TBEAAAAvAAAAAAfQ//73v/+BiOh/AAA="
+    ),
+    add: async (formats) => [...formats, "webp"],
+    remove: async (formats) => formats.filter((f2) => f2 !== "webp")
+  };
+
+  // node_modules/pixi.js/lib/assets/loader/Loader.mjs
+  init_warn();
+  init_path();
+  init_convertToList();
+  init_isSingleItem();
+  var _Loader = class _Loader2 {
+    constructor() {
+      this.loadOptions = { ..._Loader2.defaultOptions };
+      this._parsers = [];
+      this._parsersValidated = false;
+      this.parsers = new Proxy(this._parsers, {
+        set: (target, key, value) => {
+          this._parsersValidated = false;
+          target[key] = value;
+          return true;
+        }
+      });
+      this.promiseCache = {};
+    }
+    /** function used for testing */
+    reset() {
+      this._parsersValidated = false;
+      this.promiseCache = {};
+    }
+    /**
+     * Used internally to generate a promise for the asset to be loaded.
+     * @param url - The URL to be loaded
+     * @param data - any custom additional information relevant to the asset being loaded
+     * @returns - a promise that will resolve to an Asset for example a Texture of a JSON object
+     */
+    _getLoadPromiseAndParser(url, data) {
+      const result = {
+        promise: null,
+        parser: null
+      };
+      result.promise = (async () => {
+        let asset = null;
+        let parser = null;
+        if (data.parser || data.loadParser) {
+          parser = this._parserHash[data.parser || data.loadParser];
+          if (data.loadParser) {
+            warn(
+              `[Assets] "loadParser" is deprecated, use "parser" instead for ${url}`
+            );
+          }
+          if (!parser) {
+            warn(
+              `[Assets] specified load parser "${data.parser || data.loadParser}" not found while loading ${url}`
+            );
+          }
+        }
+        if (!parser) {
+          for (let i2 = 0; i2 < this.parsers.length; i2++) {
+            const parserX = this.parsers[i2];
+            if (parserX.load && parserX.test?.(url, data, this)) {
+              parser = parserX;
+              break;
+            }
+          }
+          if (!parser) {
+            warn(`[Assets] ${url} could not be loaded as we don't know how to parse it, ensure the correct parser has been added`);
+            return null;
+          }
+        }
+        asset = await parser.load(url, data, this);
+        result.parser = parser;
+        for (let i2 = 0; i2 < this.parsers.length; i2++) {
+          const parser2 = this.parsers[i2];
+          if (parser2.parse) {
+            if (parser2.parse && await parser2.testParse?.(asset, data, this)) {
+              asset = await parser2.parse(asset, data, this) || asset;
+              result.parser = parser2;
+            }
+          }
+        }
+        return asset;
+      })();
+      return result;
+    }
+    async load(assetsToLoadIn, onProgressOrOptions) {
+      if (!this._parsersValidated) {
+        this._validateParsers();
+      }
+      const options = typeof onProgressOrOptions === "function" ? { ..._Loader2.defaultOptions, ...this.loadOptions, onProgress: onProgressOrOptions } : { ..._Loader2.defaultOptions, ...this.loadOptions, ...onProgressOrOptions || {} };
+      const { onProgress, onError, strategy, retryCount, retryDelay } = options;
+      let count2 = 0;
+      const assets = {};
+      const singleAsset = isSingleItem(assetsToLoadIn);
+      const assetsToLoad = convertToList(assetsToLoadIn, (item) => ({
+        alias: [item],
+        src: item,
+        data: {}
+      }));
+      const total = assetsToLoad.reduce((sum, asset) => sum + (asset.progressSize || 1), 0);
+      const promises = assetsToLoad.map(async (asset) => {
+        const url = path.toAbsolute(asset.src);
+        if (assets[asset.src]) return;
+        await this._loadAssetWithRetry(url, asset, { onProgress, onError, strategy, retryCount, retryDelay }, assets);
+        count2 += asset.progressSize || 1;
+        if (onProgress) onProgress(count2 / total);
+      });
+      await Promise.all(promises);
+      return singleAsset ? assets[assetsToLoad[0].src] : assets;
+    }
+    /**
+     * Unloads one or more assets. Any unloaded assets will be destroyed, freeing up memory for your app.
+     * The parser that created the asset, will be the one that unloads it.
+     * @example
+     * // Single asset:
+     * const asset = await Loader.load('cool.png');
+     *
+     * await Loader.unload('cool.png');
+     *
+     * console.log(asset.destroyed); // true
+     * @param assetsToUnloadIn - urls that you want to unload, or a single one!
+     */
+    async unload(assetsToUnloadIn) {
+      const assetsToUnload = convertToList(assetsToUnloadIn, (item) => ({
+        alias: [item],
+        src: item
+      }));
+      const promises = assetsToUnload.map(async (asset) => {
+        const url = path.toAbsolute(asset.src);
+        const loadPromise = this.promiseCache[url];
+        if (loadPromise) {
+          const loadedAsset = await loadPromise.promise;
+          delete this.promiseCache[url];
+          await loadPromise.parser?.unload?.(loadedAsset, asset, this);
+        }
+      });
+      await Promise.all(promises);
+    }
+    /** validates our parsers, right now it only checks for name conflicts but we can add more here as required! */
+    _validateParsers() {
+      this._parsersValidated = true;
+      this._parserHash = this._parsers.filter((parser) => parser.name || parser.id).reduce((hash, parser) => {
+        if (!parser.name && !parser.id) {
+          warn(`[Assets] parser should have an id`);
+        } else if (hash[parser.name] || hash[parser.id]) {
+          warn(`[Assets] parser id conflict "${parser.id}"`);
+        }
+        hash[parser.name] = parser;
+        if (parser.id) hash[parser.id] = parser;
+        return hash;
+      }, {});
+    }
+    async _loadAssetWithRetry(url, asset, options, assets) {
+      let attempt = 0;
+      const { onError, strategy, retryCount, retryDelay } = options;
+      const wait = (ms) => new Promise((r2) => setTimeout(r2, ms));
+      while (true) {
+        try {
+          if (!this.promiseCache[url]) {
+            this.promiseCache[url] = this._getLoadPromiseAndParser(url, asset);
+          }
+          assets[asset.src] = await this.promiseCache[url].promise;
+          return;
+        } catch (e2) {
+          delete this.promiseCache[url];
+          delete assets[asset.src];
+          attempt++;
+          const isLast = strategy !== "retry" || attempt > retryCount;
+          if (strategy === "retry" && !isLast) {
+            if (onError) onError(e2, asset);
+            await wait(retryDelay);
+            continue;
+          }
+          if (strategy === "skip") {
+            if (onError) onError(e2, asset);
+            return;
+          }
+          if (onError) onError(e2, asset);
+          const error = new Error(`[Loader.load] Failed to load ${url}.
+${e2}`);
+          if (e2 instanceof Error && e2.stack) {
+            error.stack = e2.stack;
+          }
+          throw error;
+        }
+      }
+    }
+  };
+  _Loader.defaultOptions = {
+    onProgress: void 0,
+    onError: void 0,
+    strategy: "throw",
+    retryCount: 3,
+    retryDelay: 250
+  };
+  var Loader = _Loader;
+
+  // node_modules/pixi.js/lib/assets/loader/parsers/loadJson.mjs
+  init_adapter();
+  init_Extensions();
+
+  // node_modules/pixi.js/lib/assets/utils/checkDataUrl.mjs
+  function checkDataUrl(url, mimes) {
+    if (Array.isArray(mimes)) {
+      for (const mime of mimes) {
+        if (url.startsWith(`data:${mime}`)) return true;
+      }
+      return false;
+    }
+    return url.startsWith(`data:${mimes}`);
+  }
+
+  // node_modules/pixi.js/lib/assets/utils/checkExtension.mjs
+  init_path();
+  function checkExtension(url, extension) {
+    const tempURL = url.split("?")[0];
+    const ext = path.extname(tempURL).toLowerCase();
+    if (Array.isArray(extension)) {
+      return extension.includes(ext);
+    }
+    return ext === extension;
+  }
+
+  // node_modules/pixi.js/lib/assets/loader/parsers/loadJson.mjs
+  init_LoaderParser();
+  var validJSONExtension = ".json";
+  var validJSONMIME = "application/json";
+  var loadJson = {
+    extension: {
+      type: ExtensionType.LoadParser,
+      priority: LoaderParserPriority.Low
+    },
+    /** used for deprecation purposes */
+    name: "loadJson",
+    id: "json",
+    test(url) {
+      return checkDataUrl(url, validJSONMIME) || checkExtension(url, validJSONExtension);
+    },
+    async load(url) {
+      const response = await DOMAdapter.get().fetch(url);
+      const json = await response.json();
+      return json;
+    }
+  };
+
+  // node_modules/pixi.js/lib/assets/loader/parsers/loadTxt.mjs
+  init_adapter();
+  init_Extensions();
+  init_LoaderParser();
+  var validTXTExtension = ".txt";
+  var validTXTMIME = "text/plain";
+  var loadTxt = {
+    /** used for deprecation purposes */
+    name: "loadTxt",
+    id: "text",
+    extension: {
+      type: ExtensionType.LoadParser,
+      priority: LoaderParserPriority.Low,
+      name: "loadTxt"
+    },
+    test(url) {
+      return checkDataUrl(url, validTXTMIME) || checkExtension(url, validTXTExtension);
+    },
+    async load(url) {
+      const response = await DOMAdapter.get().fetch(url);
+      const txt = await response.text();
+      return txt;
+    }
+  };
+
+  // node_modules/pixi.js/lib/assets/loader/parsers/loadWebFont.mjs
+  init_adapter();
+  init_Extensions();
+  init_warn();
+  init_path();
+  init_Cache();
+  init_LoaderParser();
+  var validWeights = [
+    "normal",
+    "bold",
+    "100",
+    "200",
+    "300",
+    "400",
+    "500",
+    "600",
+    "700",
+    "800",
+    "900"
+  ];
+  var validFontExtensions = [".ttf", ".otf", ".woff", ".woff2"];
+  var validFontMIMEs = [
+    "font/ttf",
+    "font/otf",
+    "font/woff",
+    "font/woff2"
+  ];
+  var CSS_IDENT_TOKEN_REGEX = /^(--|-?[A-Z_])[0-9A-Z_-]*$/i;
+  function getFontFamilyName(url) {
+    const ext = path.extname(url);
+    const name = path.basename(url, ext);
+    const nameWithSpaces = name.replace(/(-|_)/g, " ");
+    const nameTokens = nameWithSpaces.toLowerCase().split(" ").map((word) => word.charAt(0).toUpperCase() + word.slice(1));
+    let valid = nameTokens.length > 0;
+    for (const token of nameTokens) {
+      if (!token.match(CSS_IDENT_TOKEN_REGEX)) {
+        valid = false;
+        break;
+      }
+    }
+    let fontFamilyName = nameTokens.join(" ");
+    if (!valid) {
+      fontFamilyName = `"${fontFamilyName.replace(/[\\"]/g, "\\$&")}"`;
+    }
+    return fontFamilyName;
+  }
+  var validURICharactersRegex = /^[0-9A-Za-z%:/?#\[\]@!\$&'()\*\+,;=\-._~]*$/;
+  function encodeURIWhenNeeded(uri) {
+    if (validURICharactersRegex.test(uri)) {
+      return uri;
+    }
+    return encodeURI(uri);
+  }
+  var loadWebFont = {
+    extension: {
+      type: ExtensionType.LoadParser,
+      priority: LoaderParserPriority.Low
+    },
+    /** used for deprecation purposes */
+    name: "loadWebFont",
+    id: "web-font",
+    test(url) {
+      return checkDataUrl(url, validFontMIMEs) || checkExtension(url, validFontExtensions);
+    },
+    async load(url, options) {
+      const fonts = DOMAdapter.get().getFontFaceSet();
+      if (fonts) {
+        const fontFaces = [];
+        const name = options.data?.family ?? getFontFamilyName(url);
+        const weights = options.data?.weights?.filter((weight) => validWeights.includes(weight)) ?? ["normal"];
+        const data = options.data ?? {};
+        for (let i2 = 0; i2 < weights.length; i2++) {
+          const weight = weights[i2];
+          const font = new FontFace(name, `url('${encodeURIWhenNeeded(url)}')`, {
+            ...data,
+            weight
+          });
+          await font.load();
+          fonts.add(font);
+          fontFaces.push(font);
+        }
+        if (Cache.has(`${name}-and-url`)) {
+          const cached = Cache.get(`${name}-and-url`);
+          cached.entries.push({ url, faces: fontFaces });
+        } else {
+          Cache.set(`${name}-and-url`, {
+            entries: [{ url, faces: fontFaces }]
+          });
+        }
+        return fontFaces.length === 1 ? fontFaces[0] : fontFaces;
+      }
+      warn("[loadWebFont] FontFace API is not supported. Skipping loading font");
+      return null;
+    },
+    unload(font) {
+      const fonts = Array.isArray(font) ? font : [font];
+      const fontFamily = fonts[0].family;
+      const cached = Cache.get(`${fontFamily}-and-url`);
+      const entry = cached.entries.find((f2) => f2.faces.some((t2) => fonts.indexOf(t2) !== -1));
+      entry.faces = entry.faces.filter((f2) => fonts.indexOf(f2) === -1);
+      if (entry.faces.length === 0) {
+        cached.entries = cached.entries.filter((f2) => f2 !== entry);
+      }
+      fonts.forEach((t2) => {
+        DOMAdapter.get().getFontFaceSet().delete(t2);
+      });
+      if (cached.entries.length === 0) {
+        Cache.remove(`${fontFamily}-and-url`);
+      }
+    }
+  };
+
+  // node_modules/pixi.js/lib/assets/loader/parsers/textures/loadSVG.mjs
+  init_adapter();
+  init_Extensions();
+  init_ImageSource();
+  init_GraphicsContext();
+
+  // node_modules/pixi.js/lib/utils/network/getResolutionOfUrl.mjs
+  init_Resolver();
+  function getResolutionOfUrl(url, defaultValue2 = 1) {
+    const resolution = Resolver.RETINA_PREFIX?.exec(url);
+    if (resolution) {
+      return parseFloat(resolution[1]);
+    }
+    return defaultValue2;
+  }
+
+  // node_modules/pixi.js/lib/assets/loader/parsers/textures/loadSVG.mjs
+  init_LoaderParser();
+
+  // node_modules/pixi.js/lib/assets/loader/parsers/textures/utils/createTexture.mjs
+  init_Texture();
+  init_warn();
+  init_Cache();
+  function createTexture(source3, loader, url) {
+    source3.label = url;
+    source3._sourceOrigin = url;
+    const texture = new Texture({
+      source: source3,
+      label: url
+    });
+    const unload = () => {
+      delete loader.promiseCache[url];
+      if (Cache.has(url)) {
+        Cache.remove(url);
+      }
+    };
+    texture.source.once("destroy", () => {
+      if (loader.promiseCache[url]) {
+        warn("[Assets] A TextureSource managed by Assets was destroyed instead of unloaded! Use Assets.unload() instead of destroying the TextureSource.");
+        unload();
+      }
+    });
+    texture.once("destroy", () => {
+      if (!source3.destroyed) {
+        warn("[Assets] A Texture managed by Assets was destroyed instead of unloaded! Use Assets.unload() instead of destroying the Texture.");
+        unload();
+      }
+    });
+    return texture;
+  }
+
+  // node_modules/pixi.js/lib/assets/loader/parsers/textures/loadSVG.mjs
+  var validSVGExtension = ".svg";
+  var validSVGMIME = "image/svg+xml";
+  var loadSvg = {
+    extension: {
+      type: ExtensionType.LoadParser,
+      priority: LoaderParserPriority.Low,
+      name: "loadSVG"
+    },
+    /** used for deprecation purposes */
+    name: "loadSVG",
+    id: "svg",
+    config: {
+      crossOrigin: "anonymous",
+      parseAsGraphicsContext: false
+    },
+    test(url) {
+      return checkDataUrl(url, validSVGMIME) || checkExtension(url, validSVGExtension);
+    },
+    async load(url, asset, loader) {
+      if (asset.data?.parseAsGraphicsContext ?? this.config.parseAsGraphicsContext) {
+        return loadAsGraphics(url);
+      }
+      return loadAsTexture(url, asset, loader, this.config.crossOrigin);
+    },
+    unload(asset) {
+      asset.destroy(true);
+    }
+  };
+  async function loadAsTexture(url, asset, loader, crossOrigin2) {
+    const response = await DOMAdapter.get().fetch(url);
+    const image = DOMAdapter.get().createImage();
+    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(await response.text())}`;
+    image.crossOrigin = crossOrigin2;
+    await image.decode();
+    const width = asset.data?.width ?? image.width;
+    const height = asset.data?.height ?? image.height;
+    const resolution = asset.data?.resolution || getResolutionOfUrl(url);
+    const canvasWidth = Math.ceil(width * resolution);
+    const canvasHeight = Math.ceil(height * resolution);
+    const canvas = DOMAdapter.get().createCanvas(canvasWidth, canvasHeight);
+    const context2 = canvas.getContext("2d");
+    context2.imageSmoothingEnabled = true;
+    context2.imageSmoothingQuality = "high";
+    context2.drawImage(image, 0, 0, width * resolution, height * resolution);
+    const { parseAsGraphicsContext: _p, ...rest } = asset.data ?? {};
+    const base = new ImageSource({
+      resource: canvas,
+      alphaMode: "premultiply-alpha-on-upload",
+      resolution,
+      ...rest
+    });
+    return createTexture(base, loader, url);
+  }
+  async function loadAsGraphics(url) {
+    const response = await DOMAdapter.get().fetch(url);
+    const svgSource = await response.text();
+    const context2 = new GraphicsContext();
+    context2.svg(svgSource);
+    return context2;
+  }
+
+  // node_modules/pixi.js/lib/assets/loader/parsers/textures/loadTextures.mjs
+  init_adapter();
+  init_Extensions();
+  init_ImageSource();
+
+  // node_modules/pixi.js/lib/_virtual/checkImageBitmap.worker.mjs
+  var WORKER_CODE = `(function () {
+    'use strict';
+
+    const WHITE_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=";
+    async function checkImageBitmap() {
+      try {
+        if (typeof createImageBitmap !== "function") return false;
+        const response = await fetch(WHITE_PNG);
+        const imageBlob = await response.blob();
+        const imageBitmap = await createImageBitmap(imageBlob);
+        return imageBitmap.width === 1 && imageBitmap.height === 1;
+      } catch (_e) {
+        return false;
+      }
+    }
+    void checkImageBitmap().then((result) => {
+      self.postMessage(result);
+    });
+
+})();
+`;
+  var WORKER_URL = null;
+  var WorkerInstance = class {
+    constructor() {
+      if (!WORKER_URL) {
+        WORKER_URL = URL.createObjectURL(new Blob([WORKER_CODE], { type: "application/javascript" }));
+      }
+      this.worker = new Worker(WORKER_URL);
+    }
+  };
+  WorkerInstance.revokeObjectURL = function revokeObjectURL() {
+    if (WORKER_URL) {
+      URL.revokeObjectURL(WORKER_URL);
+      WORKER_URL = null;
+    }
+  };
+
+  // node_modules/pixi.js/lib/_virtual/loadImageBitmap.worker.mjs
+  var WORKER_CODE2 = '(function () {\n    \'use strict\';\n\n    async function loadImageBitmap(url, alphaMode) {\n      const response = await fetch(url);\n      if (!response.ok) {\n        throw new Error(`[WorkerManager.loadImageBitmap] Failed to fetch ${url}: ${response.status} ${response.statusText}`);\n      }\n      const imageBlob = await response.blob();\n      return alphaMode === "premultiplied-alpha" ? createImageBitmap(imageBlob, { premultiplyAlpha: "none" }) : createImageBitmap(imageBlob);\n    }\n    self.onmessage = async (event) => {\n      try {\n        const imageBitmap = await loadImageBitmap(event.data.data[0], event.data.data[1]);\n        self.postMessage({\n          data: imageBitmap,\n          uuid: event.data.uuid,\n          id: event.data.id\n        }, [imageBitmap]);\n      } catch (e) {\n        self.postMessage({\n          error: e,\n          uuid: event.data.uuid,\n          id: event.data.id\n        });\n      }\n    };\n\n})();\n';
+  var WORKER_URL2 = null;
+  var WorkerInstance2 = class {
+    constructor() {
+      if (!WORKER_URL2) {
+        WORKER_URL2 = URL.createObjectURL(new Blob([WORKER_CODE2], { type: "application/javascript" }));
+      }
+      this.worker = new Worker(WORKER_URL2);
+    }
+  };
+  WorkerInstance2.revokeObjectURL = function revokeObjectURL2() {
+    if (WORKER_URL2) {
+      URL.revokeObjectURL(WORKER_URL2);
+      WORKER_URL2 = null;
+    }
+  };
+
+  // node_modules/pixi.js/lib/assets/loader/workers/WorkerManager.mjs
+  var UUID = 0;
+  var MAX_WORKERS;
+  var WorkerManagerClass = class {
+    constructor() {
+      this._initialized = false;
+      this._createdWorkers = 0;
+      this._workerPool = [];
+      this._queue = [];
+      this._resolveHash = {};
+    }
+    /**
+     * Checks if ImageBitmap is supported in the current environment.
+     *
+     * This method uses a dedicated worker to test ImageBitmap support
+     * and caches the result for subsequent calls.
+     * @returns Promise that resolves to true if ImageBitmap is supported, false otherwise
+     */
+    isImageBitmapSupported() {
+      if (this._isImageBitmapSupported !== void 0) return this._isImageBitmapSupported;
+      this._isImageBitmapSupported = new Promise((resolve) => {
+        const { worker } = new WorkerInstance();
+        worker.addEventListener("message", (event) => {
+          worker.terminate();
+          WorkerInstance.revokeObjectURL();
+          resolve(event.data);
+        });
+      });
+      return this._isImageBitmapSupported;
+    }
+    /**
+     * Loads an image as an ImageBitmap using a web worker.
+     * @param src - The source URL or path of the image to load
+     * @param asset - Optional resolved asset containing additional texture source options
+     * @returns Promise that resolves to the loaded ImageBitmap
+     * @example
+     * ```typescript
+     * const bitmap = await WorkerManager.loadImageBitmap('image.png');
+     * const bitmapWithOptions = await WorkerManager.loadImageBitmap('image.png', asset);
+     * ```
+     */
+    loadImageBitmap(src, asset) {
+      return this._run("loadImageBitmap", [src, asset?.data?.alphaMode]);
+    }
+    /**
+     * Initializes the worker pool if not already initialized.
+     * Currently a no-op but reserved for future initialization logic.
+     */
+    async _initWorkers() {
+      if (this._initialized) return;
+      this._initialized = true;
+    }
+    /**
+     * Gets an available worker from the pool or creates a new one if needed.
+     *
+     * Workers are created up to the MAX_WORKERS limit (based on navigator.hardwareConcurrency).
+     * Each worker is configured with a message handler for processing results.
+     * @returns Available worker or undefined if pool is at capacity and no workers are free
+     */
+    _getWorker() {
+      if (MAX_WORKERS === void 0) {
+        MAX_WORKERS = navigator.hardwareConcurrency || 4;
+      }
+      let worker = this._workerPool.pop();
+      if (!worker && this._createdWorkers < MAX_WORKERS) {
+        this._createdWorkers++;
+        worker = new WorkerInstance2().worker;
+        worker.addEventListener("message", (event) => {
+          this._complete(event.data);
+          this._returnWorker(event.target);
+          this._next();
+        });
+      }
+      return worker;
+    }
+    /**
+     * Returns a worker to the pool after completing a task.
+     * @param worker - The worker to return to the pool
+     */
+    _returnWorker(worker) {
+      this._workerPool.push(worker);
+    }
+    /**
+     * Handles completion of a worker task by resolving or rejecting the corresponding promise.
+     * @param data - Result data from the worker containing uuid, data, and optional error
+     */
+    _complete(data) {
+      if (!this._resolveHash[data.uuid]) {
+        return;
+      }
+      if (data.error !== void 0) {
+        this._resolveHash[data.uuid].reject(data.error);
+      } else {
+        this._resolveHash[data.uuid].resolve(data.data);
+      }
+      delete this._resolveHash[data.uuid];
+    }
+    /**
+     * Executes a task using the worker pool system.
+     *
+     * Queues the task and processes it when a worker becomes available.
+     * @param id - Identifier for the type of task to run
+     * @param args - Arguments to pass to the worker
+     * @returns Promise that resolves with the worker's result
+     */
+    async _run(id, args) {
+      await this._initWorkers();
+      const promise2 = new Promise((resolve, reject) => {
+        this._queue.push({ id, arguments: args, resolve, reject });
+      });
+      this._next();
+      return promise2;
+    }
+    /**
+     * Processes the next item in the queue if workers are available.
+     *
+     * This method is called after worker initialization and when workers
+     * complete tasks to continue processing the queue.
+     */
+    _next() {
+      if (!this._queue.length) return;
+      const worker = this._getWorker();
+      if (!worker) {
+        return;
+      }
+      const toDo = this._queue.pop();
+      const id = toDo.id;
+      this._resolveHash[UUID] = { resolve: toDo.resolve, reject: toDo.reject };
+      worker.postMessage({
+        data: toDo.arguments,
+        uuid: UUID++,
+        id
+      });
+    }
+    /**
+     * Resets the worker manager, terminating all workers and clearing the queue.
+     *
+     * This method:
+     * - Terminates all active workers
+     * - Rejects all pending promises with an error
+     * - Clears all internal state
+     * - Resets initialization flags
+     *
+     * This should be called when the worker manager is no longer needed
+     * to prevent memory leaks and ensure proper cleanup.
+     * @example
+     * ```typescript
+     * // Clean up when shutting down
+     * WorkerManager.reset();
+     * ```
+     */
+    reset() {
+      this._workerPool.forEach((worker) => worker.terminate());
+      this._workerPool.length = 0;
+      Object.values(this._resolveHash).forEach(({ reject }) => {
+        reject?.(new Error("WorkerManager has been reset before completion"));
+      });
+      this._resolveHash = {};
+      this._queue.length = 0;
+      this._initialized = false;
+      this._createdWorkers = 0;
+    }
+  };
+  var WorkerManager = new WorkerManagerClass();
+
+  // node_modules/pixi.js/lib/assets/loader/parsers/textures/loadTextures.mjs
+  init_LoaderParser();
+  var validImageExtensions = [".jpeg", ".jpg", ".png", ".webp", ".avif"];
+  var validImageMIMEs = [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/avif"
+  ];
+  async function loadImageBitmap(url, asset) {
+    const response = await DOMAdapter.get().fetch(url);
+    if (!response.ok) {
+      throw new Error(`[loadImageBitmap] Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+    }
+    const imageBlob = await response.blob();
+    return asset?.data?.alphaMode === "premultiplied-alpha" ? createImageBitmap(imageBlob, { premultiplyAlpha: "none" }) : createImageBitmap(imageBlob);
+  }
+  var loadTextures = {
+    /** used for deprecation purposes */
+    name: "loadTextures",
+    id: "texture",
+    extension: {
+      type: ExtensionType.LoadParser,
+      priority: LoaderParserPriority.High,
+      name: "loadTextures"
+    },
+    config: {
+      preferWorkers: true,
+      preferCreateImageBitmap: true,
+      crossOrigin: "anonymous"
+    },
+    test(url) {
+      return checkDataUrl(url, validImageMIMEs) || checkExtension(url, validImageExtensions);
+    },
+    async load(url, asset, loader) {
+      let src = null;
+      if (globalThis.createImageBitmap && this.config.preferCreateImageBitmap) {
+        if (this.config.preferWorkers && await WorkerManager.isImageBitmapSupported()) {
+          src = await WorkerManager.loadImageBitmap(url, asset);
+        } else {
+          src = await loadImageBitmap(url, asset);
+        }
+      } else {
+        src = await new Promise((resolve, reject) => {
+          src = DOMAdapter.get().createImage();
+          src.crossOrigin = this.config.crossOrigin;
+          src.src = url;
+          if (src.complete) {
+            resolve(src);
+          } else {
+            src.onload = () => {
+              resolve(src);
+            };
+            src.onerror = reject;
+          }
+        });
+      }
+      const base = new ImageSource({
+        resource: src,
+        alphaMode: "premultiply-alpha-on-upload",
+        resolution: asset.data?.resolution || getResolutionOfUrl(url),
+        ...asset.data
+      });
+      return createTexture(base, loader, url);
+    },
+    unload(texture) {
+      texture.destroy(true);
+    }
+  };
+
+  // node_modules/pixi.js/lib/assets/loader/parsers/textures/loadVideoTextures.mjs
+  init_Extensions();
+  init_VideoSource();
+  init_detectVideoAlphaMode();
+  var potentialVideoExtensions = [".mp4", ".m4v", ".webm", ".ogg", ".ogv", ".h264", ".avi", ".mov"];
+  var validVideoExtensions;
+  var validVideoMIMEs;
+  function crossOrigin(element, url, crossorigin) {
+    if (crossorigin === void 0 && !url.startsWith("data:")) {
+      element.crossOrigin = determineCrossOrigin(url);
+    } else if (crossorigin !== false) {
+      element.crossOrigin = typeof crossorigin === "string" ? crossorigin : "anonymous";
+    }
+  }
+  function preloadVideo(element) {
+    return new Promise((resolve, reject) => {
+      element.addEventListener("canplaythrough", loaded);
+      element.addEventListener("error", error);
+      element.load();
+      function loaded() {
+        cleanup();
+        resolve();
+      }
+      function error(err) {
+        cleanup();
+        reject(err);
+      }
+      function cleanup() {
+        element.removeEventListener("canplaythrough", loaded);
+        element.removeEventListener("error", error);
+      }
+    });
+  }
+  function determineCrossOrigin(url, loc = globalThis.location) {
+    if (url.startsWith("data:")) {
+      return "";
+    }
+    loc || (loc = globalThis.location);
+    const parsedUrl = new URL(url, document.baseURI);
+    if (parsedUrl.hostname !== loc.hostname || parsedUrl.port !== loc.port || parsedUrl.protocol !== loc.protocol) {
+      return "anonymous";
+    }
+    return "";
+  }
+  function getBrowserSupportedVideoExtensions() {
+    const supportedExtensions = [];
+    const supportedMimes = [];
+    for (const ext of potentialVideoExtensions) {
+      const mimeType = VideoSource.MIME_TYPES[ext.substring(1)] || `video/${ext.substring(1)}`;
+      if (testVideoFormat(mimeType)) {
+        supportedExtensions.push(ext);
+        if (!supportedMimes.includes(mimeType)) {
+          supportedMimes.push(mimeType);
+        }
+      }
+    }
+    return {
+      validVideoExtensions: supportedExtensions,
+      validVideoMime: supportedMimes
+    };
+  }
+  var loadVideoTextures = {
+    /** used for deprecation purposes */
+    name: "loadVideo",
+    id: "video",
+    extension: {
+      type: ExtensionType.LoadParser,
+      name: "loadVideo"
+    },
+    test(url) {
+      if (!validVideoExtensions || !validVideoMIMEs) {
+        const { validVideoExtensions: ve, validVideoMime: vm } = getBrowserSupportedVideoExtensions();
+        validVideoExtensions = ve;
+        validVideoMIMEs = vm;
+      }
+      const isValidDataUrl = checkDataUrl(url, validVideoMIMEs);
+      const isValidExtension = checkExtension(url, validVideoExtensions);
+      return isValidDataUrl || isValidExtension;
+    },
+    async load(url, asset, loader) {
+      const options = {
+        ...VideoSource.defaultOptions,
+        resolution: asset.data?.resolution || getResolutionOfUrl(url),
+        alphaMode: asset.data?.alphaMode || await detectVideoAlphaMode(),
+        ...asset.data
+      };
+      const videoElement = document.createElement("video");
+      const attributeMap = {
+        preload: options.autoLoad !== false ? "auto" : void 0,
+        "webkit-playsinline": options.playsinline !== false ? "" : void 0,
+        playsinline: options.playsinline !== false ? "" : void 0,
+        muted: options.muted === true ? "" : void 0,
+        loop: options.loop === true ? "" : void 0,
+        autoplay: options.autoPlay !== false ? "" : void 0
+      };
+      Object.keys(attributeMap).forEach((key) => {
+        const value = attributeMap[key];
+        if (value !== void 0) videoElement.setAttribute(key, value);
+      });
+      if (options.muted === true) {
+        videoElement.muted = true;
+      }
+      crossOrigin(videoElement, url, options.crossorigin);
+      const sourceElement = document.createElement("source");
+      let mime;
+      if (options.mime) {
+        mime = options.mime;
+      } else if (url.startsWith("data:")) {
+        mime = url.slice(5, url.indexOf(";"));
+      } else if (!url.startsWith("blob:")) {
+        const ext = url.split("?")[0].slice(url.lastIndexOf(".") + 1).toLowerCase();
+        mime = VideoSource.MIME_TYPES[ext] || `video/${ext}`;
+      }
+      sourceElement.src = url;
+      if (mime) {
+        sourceElement.type = mime;
+      }
+      return new Promise((resolve, reject) => {
+        if (options.preload && !options.autoPlay) {
+          videoElement.load();
+        }
+        videoElement.addEventListener("canplay", onCanPlay);
+        videoElement.addEventListener("error", onError);
+        sourceElement.addEventListener("error", onError);
+        videoElement.appendChild(sourceElement);
+        async function onCanPlay() {
+          const base = new VideoSource({ ...options, resource: videoElement });
+          cleanup();
+          if (asset.data.preload) {
+            await preloadVideo(videoElement);
+          }
+          resolve(createTexture(base, loader, url));
+        }
+        function onError(event) {
+          cleanup();
+          reject(event);
+        }
+        function cleanup() {
+          videoElement.removeEventListener("canplay", onCanPlay);
+          videoElement.removeEventListener("error", onError);
+          sourceElement.removeEventListener("error", onError);
+        }
+      });
+    },
+    unload(texture) {
+      texture.destroy(true);
+    }
+  };
+
+  // node_modules/pixi.js/lib/assets/resolver/parsers/resolveJsonUrl.mjs
+  init_Extensions();
+  init_Resolver();
+
+  // node_modules/pixi.js/lib/assets/resolver/parsers/resolveTextureUrl.mjs
+  init_Extensions();
+  init_Resolver();
+  var resolveTextureUrl = {
+    extension: {
+      type: ExtensionType.ResolveParser,
+      name: "resolveTexture"
+    },
+    test: loadTextures.test,
+    parse: (value) => ({
+      resolution: parseFloat(Resolver.RETINA_PREFIX.exec(value)?.[1] ?? "1"),
+      format: value.split(".").pop(),
+      src: value
+    })
+  };
+
+  // node_modules/pixi.js/lib/assets/resolver/parsers/resolveJsonUrl.mjs
+  var resolveJsonUrl = {
+    extension: {
+      type: ExtensionType.ResolveParser,
+      priority: -2,
+      name: "resolveJson"
+    },
+    test: (value) => Resolver.RETINA_PREFIX.test(value) && value.endsWith(".json"),
+    parse: resolveTextureUrl.parse
+  };
+
+  // node_modules/pixi.js/lib/assets/Assets.mjs
+  init_Resolver();
+  init_convertToList();
+  init_isSingleItem();
+  var AssetsClass = class {
+    constructor() {
+      this._detections = [];
+      this._initialized = false;
+      this.resolver = new Resolver();
+      this.loader = new Loader();
+      this.cache = Cache;
+      this._backgroundLoader = new BackgroundLoader(this.loader);
+      this._backgroundLoader.active = true;
+      this.reset();
+    }
+    /**
+     * Initializes the Assets class with configuration options. While not required,
+     * calling this before loading assets is recommended to set up default behaviors.
+     * @param options - Configuration options for the Assets system
+     * @example
+     * ```ts
+     * // Basic initialization (optional as Assets.load will call this automatically)
+     * await Assets.init();
+     *
+     * // With CDN configuration
+     * await Assets.init({
+     *     basePath: 'https://my-cdn.com/assets/',
+     *     defaultSearchParams: { version: '1.0.0' }
+     * });
+     *
+     * // With manifest and preferences
+     * await Assets.init({
+     *     manifest: {
+     *         bundles: [{
+     *             name: 'game-screen',
+     *             assets: [
+     *                 {
+     *                     alias: 'hero',
+     *                     src: 'hero.{png,webp}',
+     *                     data: { scaleMode: SCALE_MODES.NEAREST }
+     *                 },
+     *                 {
+     *                     alias: 'map',
+     *                     src: 'map.json'
+     *                 }
+     *             ]
+     *         }]
+     *     },
+     *     // Optimize for device capabilities
+     *     texturePreference: {
+     *         resolution: window.devicePixelRatio,
+     *         format: ['webp', 'png']
+     *     },
+     *     // Set global preferences
+     *     preferences: {
+     *         crossOrigin: 'anonymous',
+     *     }
+     * });
+     *
+     * // Load assets after initialization
+     * const heroTexture = await Assets.load('hero');
+     * ```
+     * @remarks
+     * - Can be called only once; subsequent calls will be ignored with a warning
+     * - Format detection runs automatically unless `skipDetections` is true
+     * - The manifest can be a URL to a JSON file or an inline object
+     * @see {@link AssetInitOptions} For all available initialization options
+     * @see {@link AssetsManifest} For manifest format details
+     */
+    async init(options = {}) {
+      if (this._initialized) {
+        warn("[Assets]AssetManager already initialized, did you load before calling this Assets.init()?");
+        return;
+      }
+      this._initialized = true;
+      if (options.defaultSearchParams) {
+        this.resolver.setDefaultSearchParams(options.defaultSearchParams);
+      }
+      if (options.basePath) {
+        this.resolver.basePath = options.basePath;
+      }
+      if (options.bundleIdentifier) {
+        this.resolver.setBundleIdentifier(options.bundleIdentifier);
+      }
+      if (options.manifest) {
+        let manifest = options.manifest;
+        if (typeof manifest === "string") {
+          manifest = await this.load(manifest);
+        }
+        this.resolver.addManifest(manifest);
+      }
+      const resolutionPref = options.texturePreference?.resolution ?? 1;
+      const resolution = typeof resolutionPref === "number" ? [resolutionPref] : resolutionPref;
+      const formats = await this._detectFormats({
+        preferredFormats: options.texturePreference?.format,
+        skipDetections: options.skipDetections,
+        detections: this._detections
+      });
+      this.resolver.prefer({
+        params: {
+          format: formats,
+          resolution
+        }
+      });
+      if (options.preferences) {
+        this.setPreferences(options.preferences);
+      }
+      if (options.loadOptions) {
+        this.loader.loadOptions = {
+          ...this.loader.loadOptions,
+          ...options.loadOptions
+        };
+      }
+    }
+    /**
+     * Registers assets with the Assets resolver. This method maps keys (aliases) to asset sources,
+     * allowing you to load assets using friendly names instead of direct URLs.
+     * @param assets - The unresolved assets to add to the resolver
+     * @example
+     * ```ts
+     * // Basic usage - single asset
+     * Assets.add({
+     *     alias: 'myTexture',
+     *     src: 'assets/texture.png'
+     * });
+     * const texture = await Assets.load('myTexture');
+     *
+     * // Multiple aliases for the same asset
+     * Assets.add({
+     *     alias: ['hero', 'player'],
+     *     src: 'hero.png'
+     * });
+     * const hero1 = await Assets.load('hero');
+     * const hero2 = await Assets.load('player'); // Same texture
+     *
+     * // Multiple format support
+     * Assets.add({
+     *     alias: 'character',
+     *     src: 'character.{webp,png}' // Will choose best format
+     * });
+     * Assets.add({
+     *     alias: 'character',
+     *     src: ['character.webp', 'character.png'], // Explicitly specify formats
+     * });
+     *
+     * // With texture options
+     * Assets.add({
+     *     alias: 'sprite',
+     *     src: 'sprite.png',
+     *     data: { scaleMode: 'nearest' }
+     * });
+     *
+     * // Multiple assets at once
+     * Assets.add([
+     *     { alias: 'bg', src: 'background.png' },
+     *     { alias: 'music', src: 'music.mp3' },
+     *     { alias: 'spritesheet', src: 'sheet.json', data: { ignoreMultiPack: false } }
+     * ]);
+     * ```
+     * @remarks
+     * - Assets are resolved when loaded, not when added
+     * - Multiple formats use the best available format for the browser
+     * - Adding with same alias overwrites previous definition
+     * - The `data` property is passed to the asset loader
+     * @see {@link Resolver} For details on asset resolution
+     * @see {@link LoaderParser} For asset-specific data options
+     * @advanced
+     */
+    add(assets) {
+      this.resolver.add(assets);
+    }
+    async load(urls, onProgress) {
+      if (!this._initialized) {
+        await this.init();
+      }
+      const singleAsset = isSingleItem(urls);
+      const urlArray = convertToList(urls).map((url) => {
+        if (typeof url !== "string") {
+          const aliases = this.resolver.getAlias(url);
+          if (aliases.some((alias) => !this.resolver.hasKey(alias))) {
+            this.add(url);
+          }
+          return Array.isArray(aliases) ? aliases[0] : aliases;
+        }
+        if (!this.resolver.hasKey(url)) this.add({ alias: url, src: url });
+        return url;
+      });
+      const resolveResults = this.resolver.resolve(urlArray);
+      const out2 = await this._mapLoadToResolve(resolveResults, onProgress);
+      return singleAsset ? out2[urlArray[0]] : out2;
+    }
+    /**
+     * Registers a bundle of assets that can be loaded as a group. Bundles are useful for organizing
+     * assets into logical groups, such as game levels or UI screens.
+     * @param bundleId - Unique identifier for the bundle
+     * @param assets - Assets to include in the bundle
+     * @example
+     * ```ts
+     * // Add a bundle using array format
+     * Assets.addBundle('animals', [
+     *     { alias: 'bunny', src: 'bunny.png' },
+     *     { alias: 'chicken', src: 'chicken.png' },
+     *     { alias: 'thumper', src: 'thumper.png' },
+     * ]);
+     *
+     * // Add a bundle using object format
+     * Assets.addBundle('animals', {
+     *     bunny: 'bunny.png',
+     *     chicken: 'chicken.png',
+     *     thumper: 'thumper.png',
+     * });
+     *
+     * // Add a bundle with advanced options
+     * Assets.addBundle('ui', [
+     *     {
+     *         alias: 'button',
+     *         src: 'button.{webp,png}',
+     *         data: { scaleMode: 'nearest' }
+     *     },
+     *     {
+     *         alias: ['logo', 'brand'],  // Multiple aliases
+     *         src: 'logo.svg',
+     *         data: { resolution: 2 }
+     *     }
+     * ]);
+     *
+     * // Load the bundle
+     * await Assets.loadBundle('animals');
+     *
+     * // Use the loaded assets
+     * const bunny = Sprite.from('bunny');
+     * const chicken = Sprite.from('chicken');
+     * ```
+     * @remarks
+     * - Bundle IDs must be unique
+     * - Assets in bundles are not loaded until `loadBundle` is called
+     * - Bundles can be background loaded using `backgroundLoadBundle`
+     * - Assets in bundles can be loaded individually using their aliases
+     * @see {@link Assets.loadBundle} For loading bundles
+     * @see {@link Assets.backgroundLoadBundle} For background loading bundles
+     * @see {@link Assets.unloadBundle} For unloading bundles
+     * @see {@link AssetsManifest} For manifest format details
+     */
+    addBundle(bundleId, assets) {
+      this.resolver.addBundle(bundleId, assets);
+    }
+    /**
+     * Loads a bundle or multiple bundles of assets. Bundles are collections of related assets
+     * that can be loaded together.
+     * @param bundleIds - Single bundle ID or array of bundle IDs to load
+     * @param onProgress - Optional callback for load progress (0.0 to 1.0)
+     * @returns Promise that resolves with the loaded bundle assets
+     * @example
+     * ```ts
+     * // Define bundles in your manifest
+     * const manifest = {
+     *     bundles: [
+     *         {
+     *             name: 'load-screen',
+     *             assets: [
+     *                 {
+     *                     alias: 'background',
+     *                     src: 'sunset.png',
+     *                 },
+     *                 {
+     *                     alias: 'bar',
+     *                     src: 'load-bar.{png,webp}', // use an array of individual assets
+     *                 },
+     *             ],
+     *         },
+     *         {
+     *             name: 'game-screen',
+     *             assets: [
+     *                 {
+     *                     alias: 'character',
+     *                     src: 'robot.png',
+     *                 },
+     *                 {
+     *                     alias: 'enemy',
+     *                     src: 'bad-guy.png',
+     *                 },
+     *             ],
+     *         },
+     *     ]
+     * };
+     *
+     * // Initialize with manifest
+     * await Assets.init({ manifest });
+     *
+     * // Or add bundles programmatically
+     * Assets.addBundle('load-screen', [...]);
+     * Assets.loadBundle('load-screen');
+     *
+     * // Load a single bundle
+     * await Assets.loadBundle('load-screen');
+     * const bg = Sprite.from('background'); // Uses alias from bundle
+     *
+     * // Load multiple bundles
+     * await Assets.loadBundle([
+     *     'load-screen',
+     *     'game-screen'
+     * ]);
+     *
+     * // Load with progress tracking
+     * await Assets.loadBundle('game-screen', (progress) => {
+     *     console.log(`Loading: ${Math.round(progress * 100)}%`);
+     * });
+     * ```
+     * @remarks
+     * - Bundle assets are cached automatically
+     * - Bundles can be pre-loaded using `backgroundLoadBundle`
+     * - Assets in bundles can be accessed by their aliases
+     * - Progress callback receives values from 0.0 to 1.0
+     * @throws {Error} If the bundle ID doesn't exist in the manifest
+     * @see {@link Assets.addBundle} For adding bundles programmatically
+     * @see {@link Assets.backgroundLoadBundle} For background loading bundles
+     * @see {@link Assets.unloadBundle} For unloading bundles
+     * @see {@link AssetsManifest} For manifest format details
+     */
+    async loadBundle(bundleIds, onProgress) {
+      if (!this._initialized) {
+        await this.init();
+      }
+      let singleAsset = false;
+      if (typeof bundleIds === "string") {
+        singleAsset = true;
+        bundleIds = [bundleIds];
+      }
+      const resolveResults = this.resolver.resolveBundle(bundleIds);
+      const out2 = {};
+      const keys = Object.keys(resolveResults);
+      let total = 0;
+      const counts = [];
+      const _onProgress = () => {
+        onProgress?.(counts.reduce((a2, b2) => a2 + b2, 0) / total);
+      };
+      const promises = keys.map((bundleId, i2) => {
+        const resolveResult = resolveResults[bundleId];
+        const values = Object.values(resolveResult);
+        const totalAssetsToLoad = [...new Set(values.flat())];
+        const progressSize = totalAssetsToLoad.reduce((sum, asset) => sum + (asset.progressSize || 1), 0);
+        counts.push(0);
+        total += progressSize;
+        return this._mapLoadToResolve(resolveResult, (e2) => {
+          counts[i2] = e2 * progressSize;
+          _onProgress();
+        }).then((resolveResult2) => {
+          out2[bundleId] = resolveResult2;
+        });
+      });
+      await Promise.all(promises);
+      return singleAsset ? out2[bundleIds[0]] : out2;
+    }
+    /**
+     * Initiates background loading of assets. This allows assets to be loaded passively while other operations
+     * continue, making them instantly available when needed later.
+     *
+     * Background loading is useful for:
+     * - Preloading game levels while in a menu
+     * - Loading non-critical assets during gameplay
+     * - Reducing visible loading screens
+     * @param urls - Single URL/alias or array of URLs/aliases to load in the background
+     * @example
+     * ```ts
+     * // Basic background loading
+     * Assets.backgroundLoad('images/level2-assets.png');
+     *
+     * // Background load multiple assets
+     * Assets.backgroundLoad([
+     *     'images/sprite1.png',
+     *     'images/sprite2.png',
+     *     'images/background.png'
+     * ]);
+     *
+     * // Later, when you need the assets
+     * const textures = await Assets.load([
+     *     'images/sprite1.png',
+     *     'images/sprite2.png'
+     * ]); // Resolves immediately if background loading completed
+     * ```
+     * @remarks
+     * - Background loading happens one asset at a time to avoid blocking the main thread
+     * - Loading can be interrupted safely by calling `Assets.load()`
+     * - Assets are cached as they complete loading
+     * - No progress tracking is available for background loading
+     */
+    async backgroundLoad(urls) {
+      if (!this._initialized) {
+        await this.init();
+      }
+      if (typeof urls === "string") {
+        urls = [urls];
+      }
+      const resolveResults = this.resolver.resolve(urls);
+      this._backgroundLoader.add(Object.values(resolveResults));
+    }
+    /**
+     * Initiates background loading of asset bundles. Similar to backgroundLoad but works with
+     * predefined bundles of assets.
+     *
+     * Perfect for:
+     * - Preloading level bundles during gameplay
+     * - Loading UI assets during splash screens
+     * - Preparing assets for upcoming game states
+     * @param bundleIds - Single bundle ID or array of bundle IDs to load in the background
+     * @example
+     * ```ts
+     * // Define bundles in your manifest
+     * await Assets.init({
+     *     manifest: {
+     *         bundles: [
+     *             {
+     *               name: 'home',
+     *               assets: [
+     *                 {
+     *                     alias: 'background',
+     *                     src: 'images/home-bg.png',
+     *                 },
+     *                 {
+     *                     alias: 'logo',
+     *                     src: 'images/logo.png',
+     *                 }
+     *              ]
+     *            },
+     *            {
+     *             name: 'level-1',
+     *             assets: [
+     *                 {
+     *                     alias: 'background',
+     *                     src: 'images/level1/bg.png',
+     *                 },
+     *                 {
+     *                     alias: 'sprites',
+     *                     src: 'images/level1/sprites.json'
+     *                 }
+     *             ]
+     *         }]
+     *     }
+     * });
+     *
+     * // Load the home screen assets right away
+     * await Assets.loadBundle('home');
+     * showHomeScreen();
+     *
+     * // Start background loading while showing home screen
+     * Assets.backgroundLoadBundle('level-1');
+     *
+     * // When player starts level, load completes faster
+     * await Assets.loadBundle('level-1');
+     * hideHomeScreen();
+     * startLevel();
+     * ```
+     * @remarks
+     * - Bundle assets are loaded one at a time
+     * - Loading can be interrupted safely by calling `Assets.loadBundle()`
+     * - Assets are cached as they complete loading
+     * - Requires bundles to be registered via manifest or `addBundle`
+     * @see {@link Assets.addBundle} For adding bundles programmatically
+     * @see {@link Assets.loadBundle} For immediate bundle loading
+     * @see {@link AssetsManifest} For manifest format details
+     */
+    async backgroundLoadBundle(bundleIds) {
+      if (!this._initialized) {
+        await this.init();
+      }
+      if (typeof bundleIds === "string") {
+        bundleIds = [bundleIds];
+      }
+      const resolveResults = this.resolver.resolveBundle(bundleIds);
+      Object.values(resolveResults).forEach((resolveResult) => {
+        this._backgroundLoader.add(Object.values(resolveResult));
+      });
+    }
+    /**
+     * Only intended for development purposes.
+     * This will wipe the resolver and caches.
+     * You will need to reinitialize the Asset
+     * @internal
+     */
+    reset() {
+      this.resolver.reset();
+      this.loader.reset();
+      this.cache.reset();
+      this._initialized = false;
+    }
+    get(keys) {
+      if (typeof keys === "string") {
+        return Cache.get(keys);
+      }
+      const assets = {};
+      for (let i2 = 0; i2 < keys.length; i2++) {
+        assets[i2] = Cache.get(keys[i2]);
+      }
+      return assets;
+    }
+    /**
+     * helper function to map resolved assets back to loaded assets
+     * @param resolveResults - the resolve results from the resolver
+     * @param progressOrLoadOptions - the progress callback or load options
+     */
+    async _mapLoadToResolve(resolveResults, progressOrLoadOptions) {
+      const resolveArray = [...new Set(Object.values(resolveResults))];
+      this._backgroundLoader.active = false;
+      const loadedAssets = await this.loader.load(resolveArray, progressOrLoadOptions);
+      this._backgroundLoader.active = true;
+      const out2 = {};
+      resolveArray.forEach((resolveResult) => {
+        const asset = loadedAssets[resolveResult.src];
+        const keys = [resolveResult.src];
+        if (resolveResult.alias) {
+          keys.push(...resolveResult.alias);
+        }
+        keys.forEach((key) => {
+          out2[key] = asset;
+        });
+        Cache.set(keys, asset);
+      });
+      return out2;
+    }
+    /**
+     * Unloads assets and releases them from memory. This method ensures proper cleanup of
+     * loaded assets when they're no longer needed.
+     * @param urls - Single URL/alias or array of URLs/aliases to unload
+     * @example
+     * ```ts
+     * // Unload a single asset
+     * await Assets.unload('images/sprite.png');
+     *
+     * // Unload using an alias
+     * await Assets.unload('hero'); // Unloads the asset registered with 'hero' alias
+     *
+     * // Unload multiple assets
+     * await Assets.unload([
+     *     'images/background.png',
+     *     'images/character.png',
+     *     'hero'
+     * ]);
+     *
+     * // Unload and handle creation of new instances
+     * await Assets.unload('hero');
+     * const newHero = await Assets.load('hero'); // Will load fresh from source
+     * ```
+     * @remarks
+     * > [!WARNING]
+     * > Make sure assets aren't being used before unloading:
+     * > - Remove sprites using the texture
+     * > - Clear any references to the asset
+     * > - Textures will be destroyed and can't be used after unloading
+     * @throws {Error} If the asset is not found in cache
+     */
+    async unload(urls) {
+      if (!this._initialized) {
+        await this.init();
+      }
+      const urlArray = convertToList(urls).map((url) => typeof url !== "string" ? url.src : url);
+      const resolveResults = this.resolver.resolve(urlArray);
+      await this._unloadFromResolved(resolveResults);
+    }
+    /**
+     * Unloads all assets in a bundle. Use this to free memory when a bundle's assets
+     * are no longer needed, such as when switching game levels.
+     * @param bundleIds - Single bundle ID or array of bundle IDs to unload
+     * @example
+     * ```ts
+     * // Define and load a bundle
+     * Assets.addBundle('level-1', {
+     *     background: 'level1/bg.png',
+     *     sprites: 'level1/sprites.json',
+     *     music: 'level1/music.mp3'
+     * });
+     *
+     * // Load the bundle
+     * const level1 = await Assets.loadBundle('level-1');
+     *
+     * // Use the assets
+     * const background = Sprite.from(level1.background);
+     *
+     * // When done with the level, unload everything
+     * await Assets.unloadBundle('level-1');
+     * // background sprite is now invalid!
+     *
+     * // Unload multiple bundles
+     * await Assets.unloadBundle([
+     *     'level-1',
+     *     'level-2',
+     *     'ui-elements'
+     * ]);
+     * ```
+     * @remarks
+     * > [!WARNING]
+     * > - All assets in the bundle will be destroyed
+     * > - Bundle needs to be reloaded to use assets again
+     * > - Make sure no sprites or other objects are using the assets
+     * @throws {Error} If the bundle is not found
+     * @see {@link Assets.addBundle} For adding bundles
+     * @see {@link Assets.loadBundle} For loading bundles
+     */
+    async unloadBundle(bundleIds) {
+      if (!this._initialized) {
+        await this.init();
+      }
+      bundleIds = convertToList(bundleIds);
+      const resolveResults = this.resolver.resolveBundle(bundleIds);
+      const promises = Object.keys(resolveResults).map((bundleId) => this._unloadFromResolved(resolveResults[bundleId]));
+      await Promise.all(promises);
+    }
+    async _unloadFromResolved(resolveResult) {
+      const resolveArray = Object.values(resolveResult);
+      resolveArray.forEach((resolveResult2) => {
+        Cache.remove(resolveResult2.src);
+      });
+      await this.loader.unload(resolveArray);
+    }
+    /**
+     * Detects the supported formats for the browser, and returns an array of supported formats, respecting
+     * the users preferred formats order.
+     * @param options - the options to use when detecting formats
+     * @param options.preferredFormats - the preferred formats to use
+     * @param options.skipDetections - if we should skip the detections altogether
+     * @param options.detections - the detections to use
+     * @returns - the detected formats
+     */
+    async _detectFormats(options) {
+      let formats = [];
+      if (options.preferredFormats) {
+        formats = Array.isArray(options.preferredFormats) ? options.preferredFormats : [options.preferredFormats];
+      }
+      for (const detection of options.detections) {
+        if (options.skipDetections || await detection.test()) {
+          formats = await detection.add(formats);
+        } else if (!options.skipDetections) {
+          formats = await detection.remove(formats);
+        }
+      }
+      formats = formats.filter((format, index) => formats.indexOf(format) === index);
+      return formats;
+    }
+    /**
+     * All the detection parsers currently added to the Assets class.
+     * @advanced
+     */
+    get detections() {
+      return this._detections;
+    }
+    /**
+     * Sets global preferences for asset loading behavior. This method configures how assets
+     * are loaded and processed across all parsers.
+     * @param preferences - Asset loading preferences
+     * @example
+     * ```ts
+     * // Basic preferences
+     * Assets.setPreferences({
+     *     crossOrigin: 'anonymous',
+     *     parseAsGraphicsContext: false
+     * });
+     * ```
+     * @remarks
+     * Preferences are applied to all compatible parsers and affect future asset loading.
+     * Common preferences include:
+     * - `crossOrigin`: CORS setting for loaded assets
+     * - `preferWorkers`: Whether to use web workers for loading textures
+     * - `preferCreateImageBitmap`: Use `createImageBitmap` for texture creation. Turning this off will use the `Image` constructor instead.
+     * @see {@link AssetsPreferences} For all available preferences
+     */
+    setPreferences(preferences) {
+      this.loader.parsers.forEach((parser) => {
+        if (!parser.config) return;
+        Object.keys(parser.config).filter((key) => key in preferences).forEach((key) => {
+          parser.config[key] = preferences[key];
+        });
+      });
+    }
+  };
+  var Assets = new AssetsClass();
+  extensions.handleByList(ExtensionType.LoadParser, Assets.loader.parsers).handleByList(ExtensionType.ResolveParser, Assets.resolver.parsers).handleByList(ExtensionType.CacheParser, Assets.cache.parsers).handleByList(ExtensionType.DetectionParser, Assets.detections);
+  extensions.add(
+    cacheTextureArray,
+    detectDefaults,
+    detectAvif,
+    detectWebp,
+    detectMp4,
+    detectOgv,
+    detectWebm,
+    loadJson,
+    loadTxt,
+    loadWebFont,
+    loadSvg,
+    loadTextures,
+    loadVideoTextures,
+    loadBitmapFont,
+    bitmapFontCachePlugin,
+    resolveTextureUrl,
+    resolveJsonUrl
+  );
+  var assetKeyMap = {
+    loader: ExtensionType.LoadParser,
+    resolver: ExtensionType.ResolveParser,
+    cache: ExtensionType.CacheParser,
+    detection: ExtensionType.DetectionParser
+  };
+  extensions.handle(ExtensionType.Asset, (extension) => {
+    const ref = extension.ref;
+    Object.entries(assetKeyMap).filter(([key]) => !!ref[key]).forEach(([key, type]) => extensions.add(Object.assign(
+      ref[key],
+      // Allow the function to optionally define it's own
+      // ExtensionMetadata, the use cases here is priority for LoaderParsers
+      { extension: ref[key].extension ?? type }
+    )));
+  }, (extension) => {
+    const ref = extension.ref;
+    Object.keys(assetKeyMap).filter((key) => !!ref[key]).forEach((key) => extensions.remove(ref[key]));
+  });
 
   // node_modules/pixi.js/lib/scene/text/Text.mjs
   init_TextureSource();
@@ -42968,6 +46093,7 @@ ${parts.join("\n")}
   init_textureFrom();
   init_Container();
   init_Graphics();
+  init_Sprite();
   init_eventemitter3();
   extensions.add(browserExt, webworkerExt);
 
@@ -43075,6 +46201,7 @@ ${parts.join("\n")}
       this.characters = /* @__PURE__ */ new Map();
       this.worldContainer = new Container();
       this.characterSprites = /* @__PURE__ */ new Map();
+      this.terrainRendered = false;
       this.init();
     }
     async init() {
@@ -43087,13 +46214,11 @@ ${parts.join("\n")}
       }
     }
     async setupPixi() {
+      const container = document.getElementById("game-container");
       const canvas = document.createElement("canvas");
       canvas.style.width = "100%";
       canvas.style.height = "100%";
-      canvas.style.position = "fixed";
-      canvas.style.top = "0";
-      canvas.style.left = "0";
-      document.body.appendChild(canvas);
+      container.appendChild(canvas);
       this.app = new Application();
       await this.app.init({
         canvas,
@@ -43104,19 +46229,67 @@ ${parts.join("\n")}
         autoDensity: true
       });
       this.app.stage.addChild(this.worldContainer);
-      this.worldContainer.scale.set(3);
-      const tileSize = 64;
-      const centerX = 50 * tileSize * 3;
-      const centerY = 25 * tileSize * 3;
-      this.worldContainer.x = window.innerWidth / 2 - centerX;
-      this.worldContainer.y = window.innerHeight / 2 - centerY;
-      const ground = new Graphics();
-      ground.rect(-1e3, -1e3, 2e3, 2e3);
-      ground.fill(8900331);
-      this.worldContainer.addChildAt(ground, 0);
+      this.worldContainer.scale.set(0.5);
+      this.worldContainer.x = 0;
+      this.worldContainer.y = 0;
       window.addEventListener("resize", () => {
         this.app.renderer.resize(window.innerWidth, window.innerHeight);
       });
+      this.setupCameraControls();
+    }
+    setupCameraControls() {
+      let isDragging = false;
+      let lastX = 0;
+      let lastY = 0;
+      this.app.canvas.addEventListener("mousedown", (e2) => {
+        isDragging = true;
+        lastX = e2.clientX;
+        lastY = e2.clientY;
+        this.app.canvas.style.cursor = "grabbing";
+      });
+      window.addEventListener("mouseup", () => {
+        isDragging = false;
+        this.app.canvas.style.cursor = "grab";
+      });
+      window.addEventListener("mousemove", (e2) => {
+        if (!isDragging) return;
+        const dx = e2.clientX - lastX;
+        const dy = e2.clientY - lastY;
+        this.worldContainer.x += dx;
+        this.worldContainer.y += dy;
+        lastX = e2.clientX;
+        lastY = e2.clientY;
+      });
+      this.app.canvas.addEventListener("wheel", (e2) => {
+        e2.preventDefault();
+        const scaleFactor = e2.deltaY > 0 ? 0.9 : 1.1;
+        const newScale = this.worldContainer.scale.x * scaleFactor;
+        if (newScale > 0.1 && newScale < 5) {
+          this.worldContainer.scale.set(newScale);
+        }
+      });
+      this.app.canvas.style.cursor = "grab";
+    }
+    async renderTerrain(tiles) {
+      console.log("renderTerrain called, tiles:", tiles.length);
+      const texture = await Assets.load("/img/64x64\u50CF\u7D20\u8349\u5E73\u539F.png");
+      const viewRadius = 10;
+      const centerX = 50;
+      const centerY = 25;
+      for (let dy = -viewRadius; dy <= viewRadius; dy++) {
+        for (let dx = -viewRadius; dx <= viewRadius; dx++) {
+          const tileX = centerX + dx;
+          const tileY = centerY + dy;
+          if (tileX < 0 || tileX >= 100 || tileY < 0 || tileY >= 50) continue;
+          const tile = tiles[tileY]?.[tileX];
+          if (!tile) continue;
+          const sprite = new Sprite(texture);
+          sprite.x = tileX * 64;
+          sprite.y = tileY * 64;
+          this.worldContainer.addChildAt(sprite, 0);
+        }
+      }
+      console.log("\u6DFB\u52A0\u8349\u5730\u7EB9\u7406");
     }
     setupServerConnection() {
       this.server.on("connect", () => {
@@ -43150,6 +46323,11 @@ ${parts.join("\n")}
         return;
       }
       console.log("\u{1F3A8} \u5F00\u59CB\u6E32\u67D3, \u89D2\u8272\u6570:", state.characters?.length);
+      if (state.world?.tiles && !this.terrainRendered) {
+        this.renderTerrain(state.world.tiles).then(() => {
+          this.terrainRendered = true;
+        });
+      }
       for (const char of state.characters) {
         console.log("\u6E32\u67D3\u89D2\u8272:", char.name, char.x, char.y);
         this.renderCharacter(char);

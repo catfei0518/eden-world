@@ -24,6 +24,14 @@
             font-family: Arial, sans-serif;
             font-size: 14px;
         }
+        #game-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(#228B22, #006400);
+        }
         #instructions {
             position: fixed;
             bottom: 10px;
@@ -39,6 +47,7 @@
     </style>
 </head>
 <body>
+    <div id="game-container"></div>
     <div id="status">🔌 连接中...</div>
     <div id="instructions">
         亚当和夏娃正在由AI控制决策 | 按住鼠标拖动查看 | 滚轮缩放
