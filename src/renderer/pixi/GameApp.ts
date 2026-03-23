@@ -169,7 +169,7 @@ export class GameApp {
         
         // 游戏信息
         window.addEventListener('console-info', () => {
-            commandSystem.print(`🌍 伊甸世界 v0.10.0-alpha`);
+            commandSystem.print(`🌍 伊甸世界 v0.11.0-alpha`);
             commandSystem.print(`📦 物品数量: ${this.itemLayer.getItems().length}`);
             commandSystem.print(`👥 角色数量: ${this.characterLayer.getCharacters().length}`);
             commandSystem.print(`🌿 当前季节: ${this.currentSeason}`);

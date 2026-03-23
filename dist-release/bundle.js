@@ -48503,7 +48503,7 @@ ${e2}`);
         commandSystem.print(`\u23F0 \u65F6\u95F4\u7CFB\u7EDF\u5C1A\u672A\u5B9E\u73B0`);
       });
       window.addEventListener("console-info", () => {
-        commandSystem.print(`\u{1F30D} \u4F0A\u7538\u4E16\u754C v0.10.0-alpha`);
+        commandSystem.print(`\u{1F30D} \u4F0A\u7538\u4E16\u754C v0.11.0-alpha`);
         commandSystem.print(`\u{1F4E6} \u7269\u54C1\u6570\u91CF: ${this.itemLayer.getItems().length}`);
         commandSystem.print(`\u{1F465} \u89D2\u8272\u6570\u91CF: ${this.characterLayer.getCharacters().length}`);
         commandSystem.print(`\u{1F33F} \u5F53\u524D\u5B63\u8282: ${this.currentSeason}`);
