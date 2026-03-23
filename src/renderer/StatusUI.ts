@@ -133,6 +133,10 @@ export class StatusUI {
             const personality = charAny.getPersonality ? charAny.getPersonality() : '普通人';
             const lifespan = dna.lifespan;
             const lifespanText = `${Math.round((lifespan/1200)*70)}岁`;
+            const level = charAny.level || 1;
+            const exp = charAny.experience || 0;
+            const expToNext = level * 100;
+            const expPercent = Math.round((exp / expToNext) * 100);
             
             dnaContainer.innerHTML = `
                 <div class="dna-row" style="background: rgba(74, 169, 74, 0.3); font-weight: bold;">
@@ -140,6 +144,9 @@ export class StatusUI {
                 </div>
                 <div class="dna-row" style="background: rgba(74, 169, 74, 0.2);">
                     <span>🌿 生活状态</span><span>${charAny.getLifestyleStatus ? charAny.getLifestyleStatus() : '-'}</span>
+                </div>
+                <div class="dna-row" style="background: rgba(155, 89, 182, 0.3); font-weight: bold;">
+                    <span>⭐ 等级</span><span>Lv.${level} (${expPercent}%)</span>
                 </div>
                 <div class="dna-row">
                     <span>❤️ 寿命</span><span>${lifespanText}</span>

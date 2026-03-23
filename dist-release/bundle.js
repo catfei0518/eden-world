@@ -47244,6 +47244,13 @@ ${e2}`);
       // 精力 5=满, 0=空
       this.health = 100;
       // 生命值 0-100
+      // 经验系统（受智力影响）
+      this.experience = 0;
+      // 当前经验
+      this.level = 1;
+      // 当前等级
+      this.skillExp = /* @__PURE__ */ new Map();
+      // 技能经验
       // 当前行动
       this.action = "\u95F2\u7F6E";
       this.target = null;
@@ -47288,6 +47295,55 @@ ${e2}`);
       this.y = y2;
       this.canMove = canMove || (() => true);
     }
+    // ==================== 经验系统（受智力影响）====================
+    // 获取升级所需经验
+    get expToNextLevel() {
+      return this.level * 100;
+    }
+    // 获取技能升级所需经验
+    get skillExpNeeded() {
+      return 50 + this.level * 25;
+    }
+    // 获取经验加成（智力越高获取越多）
+    get expMultiplier() {
+      return 0.5 + this.phenotype.intelligence;
+    }
+    // 获得经验（所有行为都调用这个）
+    gainExp(amount) {
+      const actualGain = amount * this.expMultiplier;
+      this.experience += actualGain;
+      while (this.experience >= this.expToNextLevel) {
+        this.experience -= this.expToNextLevel;
+        this.levelUp();
+      }
+    }
+    // 升级
+    levelUp() {
+      this.level++;
+      this.health = Math.min(100, this.health + 10);
+      this.energy = Math.min(5, this.energy + 1);
+    }
+    // 获得技能经验
+    gainSkillExp(skillName, baseExp) {
+      const actualGain = baseExp * this.expMultiplier;
+      const current = this.skillExp.get(skillName) || 0;
+      const newExp = current + actualGain;
+      this.skillExp.set(skillName, newExp);
+      if (newExp >= this.skillExpNeeded) {
+        this.skillExp.set(skillName, 0);
+        console.log(`${this.name} \u7684\u300C${skillName}\u300D\u5347\u7EA7\u4E86\uFF01`);
+      }
+    }
+    // 获取当前等级
+    getLevel() {
+      return this.level;
+    }
+    // 获取技能等级
+    getSkillLevel(skillName) {
+      const exp = this.skillExp.get(skillName) || 0;
+      return Math.floor(exp / this.skillExpNeeded);
+    }
+    // ==================== 移动相关 ====================
     // 获取移动速度（受敏捷DNA影响）
     get moveSpeed() {
       return 0.017 * (0.5 + this.phenotype.agility * 1.5);
@@ -48002,12 +48058,19 @@ ${e2}`);
         const personality = charAny.getPersonality ? charAny.getPersonality() : "\u666E\u901A\u4EBA";
         const lifespan = dna.lifespan;
         const lifespanText = `${Math.round(lifespan / 1200 * 70)}\u5C81`;
+        const level = charAny.level || 1;
+        const exp = charAny.experience || 0;
+        const expToNext = level * 100;
+        const expPercent = Math.round(exp / expToNext * 100);
         dnaContainer.innerHTML = `
                 <div class="dna-row" style="background: rgba(74, 169, 74, 0.3); font-weight: bold;">
                     <span>\u{1F3AD} \u6027\u683C</span><span>${personality}</span>
                 </div>
                 <div class="dna-row" style="background: rgba(74, 169, 74, 0.2);">
                     <span>\u{1F33F} \u751F\u6D3B\u72B6\u6001</span><span>${charAny.getLifestyleStatus ? charAny.getLifestyleStatus() : "-"}</span>
+                </div>
+                <div class="dna-row" style="background: rgba(155, 89, 182, 0.3); font-weight: bold;">
+                    <span>\u2B50 \u7B49\u7EA7</span><span>Lv.${level} (${expPercent}%)</span>
                 </div>
                 <div class="dna-row">
                     <span>\u2764\uFE0F \u5BFF\u547D</span><span>${lifespanText}</span>

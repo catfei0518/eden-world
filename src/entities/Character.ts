@@ -40,6 +40,11 @@ export class Character {
     energy: number = 5; // 精力 5=满, 0=空
     health: number = 100; // 生命值 0-100
     
+    // 经验系统（受智力影响）
+    experience: number = 0;  // 当前经验
+    level: number = 1;       // 当前等级
+    skillExp: Map<string, number> = new Map();  // 技能经验
+    
     // 当前行动
     action: string = '闲置';
     target: { x: number; y: number } | null = null;
@@ -61,6 +66,72 @@ export class Character {
         this.y = y;
         this.canMove = canMove || (() => true);
     }
+    
+    // ==================== 经验系统（受智力影响）====================
+    
+    // 获取升级所需经验
+    private get expToNextLevel(): number {
+        return this.level * 100;
+    }
+    
+    // 获取技能升级所需经验
+    private get skillExpNeeded(): number {
+        return 50 + this.level * 25;
+    }
+    
+    // 获取经验加成（智力越高获取越多）
+    private get expMultiplier(): number {
+        // 智力0.2 = 0.7倍，智力1.0 = 1.5倍
+        return 0.5 + this.phenotype.intelligence;
+    }
+    
+    // 获得经验（所有行为都调用这个）
+    gainExp(amount: number): void {
+        const actualGain = amount * this.expMultiplier;
+        this.experience += actualGain;
+        
+        // 检查升级
+        while (this.experience >= this.expToNextLevel) {
+            this.experience -= this.expToNextLevel;
+            this.levelUp();
+        }
+    }
+    
+    // 升级
+    private levelUp(): void {
+        this.level++;
+        // 升级时恢复少量生命
+        this.health = Math.min(100, this.health + 10);
+        this.energy = Math.min(5, this.energy + 1);
+    }
+    
+    // 获得技能经验
+    gainSkillExp(skillName: string, baseExp: number): void {
+        const actualGain = baseExp * this.expMultiplier;
+        const current = this.skillExp.get(skillName) || 0;
+        const newExp = current + actualGain;
+        this.skillExp.set(skillName, newExp);
+        
+        // 检查技能升级
+        if (newExp >= this.skillExpNeeded) {
+            this.skillExp.set(skillName, 0);
+            // 技能升级效果可以在这里扩展
+            console.log(`${this.name} 的「${skillName}」升级了！`);
+        }
+    }
+    
+    // 获取当前等级
+    getLevel(): number {
+        return this.level;
+    }
+    
+    // 获取技能等级
+    getSkillLevel(skillName: string): number {
+        const exp = this.skillExp.get(skillName) || 0;
+        return Math.floor(exp / this.skillExpNeeded);
+    }
+    
+    // ==================== 移动相关 ====================
     
     // 获取移动速度（受敏捷DNA影响）
     private get moveSpeed(): number {
