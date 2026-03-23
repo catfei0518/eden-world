@@ -131,6 +131,8 @@ export class StatusUI {
         const dnaContainer = document.getElementById('panel-dna-attrs');
         if (dnaContainer) {
             const personality = charAny.getPersonality ? charAny.getPersonality() : '普通人';
+            const lifespan = dna.lifespan;
+            const lifespanText = `${Math.round((lifespan/1200)*70)}岁`;
             
             dnaContainer.innerHTML = `
                 <div class="dna-row" style="background: rgba(74, 169, 74, 0.3); font-weight: bold;">
@@ -140,16 +142,7 @@ export class StatusUI {
                     <span>🌿 生活状态</span><span>${charAny.getLifestyleStatus ? charAny.getLifestyleStatus() : '-'}</span>
                 </div>
                 <div class="dna-row">
-                    <span>⚔️ 胆量</span><span>${(dna.bravery * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>😨 恐惧阈值</span><span>${(dna.fearResponse * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>⚔️ 攻击性</span><span>${(dna.aggression * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>🏃 敏捷</span><span>${(dna.agility * 100).toFixed(0)}</span>
+                    <span>❤️ 寿命</span><span>${lifespanText}</span>
                 </div>
                 <div class="dna-row">
                     <span>🔥 代谢</span><span>${(dna.metabolism * 100).toFixed(0)}</span>
@@ -162,6 +155,39 @@ export class StatusUI {
                 </div>
                 <div class="dna-row">
                     <span>🛡️ 免疫力</span><span>${(dna.immuneStrength * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>🏃 敏捷</span><span>${(dna.agility * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>🧠 智力</span><span>${(dna.intelligence * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>👁️ 感知</span><span>${(dna.perception * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>⚔️ 胆量</span><span>${(dna.bravery * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>😨 恐惧</span><span>${(dna.fearResponse * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>⚔️ 攻击性</span><span>${(dna.aggression * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>🤝 社交</span><span>${(dna.sociability * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>💞 同理心</span><span>${(dna.empathy * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>🌟 好奇心</span><span>${(dna.curiosity * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>⏳ 耐心</span><span>${(dna.patience * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>🧬 生育力</span><span>${(dna.fertility * 100).toFixed(0)}</span>
                 </div>
             `;
         }

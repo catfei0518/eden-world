@@ -48000,6 +48000,8 @@ ${e2}`);
       const dnaContainer = document.getElementById("panel-dna-attrs");
       if (dnaContainer) {
         const personality = charAny.getPersonality ? charAny.getPersonality() : "\u666E\u901A\u4EBA";
+        const lifespan = dna.lifespan;
+        const lifespanText = `${Math.round(lifespan / 1200 * 70)}\u5C81`;
         dnaContainer.innerHTML = `
                 <div class="dna-row" style="background: rgba(74, 169, 74, 0.3); font-weight: bold;">
                     <span>\u{1F3AD} \u6027\u683C</span><span>${personality}</span>
@@ -48008,16 +48010,7 @@ ${e2}`);
                     <span>\u{1F33F} \u751F\u6D3B\u72B6\u6001</span><span>${charAny.getLifestyleStatus ? charAny.getLifestyleStatus() : "-"}</span>
                 </div>
                 <div class="dna-row">
-                    <span>\u2694\uFE0F \u80C6\u91CF</span><span>${(dna.bravery * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>\u{1F628} \u6050\u60E7\u9608\u503C</span><span>${(dna.fearResponse * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>\u2694\uFE0F \u653B\u51FB\u6027</span><span>${(dna.aggression * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>\u{1F3C3} \u654F\u6377</span><span>${(dna.agility * 100).toFixed(0)}</span>
+                    <span>\u2764\uFE0F \u5BFF\u547D</span><span>${lifespanText}</span>
                 </div>
                 <div class="dna-row">
                     <span>\u{1F525} \u4EE3\u8C22</span><span>${(dna.metabolism * 100).toFixed(0)}</span>
@@ -48030,6 +48023,39 @@ ${e2}`);
                 </div>
                 <div class="dna-row">
                     <span>\u{1F6E1}\uFE0F \u514D\u75AB\u529B</span><span>${(dna.immuneStrength * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F3C3} \u654F\u6377</span><span>${(dna.agility * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F9E0} \u667A\u529B</span><span>${(dna.intelligence * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F441}\uFE0F \u611F\u77E5</span><span>${(dna.perception * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u2694\uFE0F \u80C6\u91CF</span><span>${(dna.bravery * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F628} \u6050\u60E7</span><span>${(dna.fearResponse * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u2694\uFE0F \u653B\u51FB\u6027</span><span>${(dna.aggression * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F91D} \u793E\u4EA4</span><span>${(dna.sociability * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F49E} \u540C\u7406\u5FC3</span><span>${(dna.empathy * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F31F} \u597D\u5947\u5FC3</span><span>${(dna.curiosity * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u23F3 \u8010\u5FC3</span><span>${(dna.patience * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F9EC} \u751F\u80B2\u529B</span><span>${(dna.fertility * 100).toFixed(0)}</span>
                 </div>
             `;
       }
