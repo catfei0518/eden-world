@@ -228,9 +228,11 @@ export class StatusUI {
         if (char.water < 2) return '💧口渴';
         if (char.food < 2) return '🍖饥饿';
         if (char.energy < 2) return '😴疲惫';
-        if (char.action.includes('寻找')) return '🔍探索';
+        if (char.action === '饮水中') return '💧饮水';
+        if (char.action === '进食中') return '🍖进食';
         if (char.action === '休息中') return '💤休息';
         if (char.action === '闲置') return '🧘待机';
+        if (char.action.includes('寻找')) return '🔍探索';
         return '🚶移动';
     }
     

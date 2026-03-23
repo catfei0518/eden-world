@@ -46090,7 +46090,6 @@ ${e2}`);
   };
 
   // node_modules/pixi.js/lib/index.mjs
-  init_Rectangle();
   init_textureFrom();
   init_Container();
   init_Graphics();
@@ -47440,6 +47439,12 @@ ${e2}`);
       this.food = Math.max(0, this.food - consumption);
       this.water = Math.max(0, this.water - consumption * 1.5);
       this.energy = Math.max(0, this.energy - consumption);
+      if (this.action === "\u5BFB\u627E\u98DF\u7269" && world.nearbyFood.length > 0) {
+        this.food = Math.min(5, this.food + 8e-3 * this.metabolismRate);
+      }
+      if (this.action === "\u5BFB\u627E\u6C34\u6E90" && world.nearbyWater.length > 0) {
+        this.water = Math.min(5, this.water + 0.013 * this.metabolismRate);
+      }
       if (this.water <= 0 && !this.isDead) {
         this.health = Math.max(0, this.health - deltaTime * 2 / 60);
       }
@@ -47534,8 +47539,10 @@ ${e2}`);
       this.target = null;
       if (this.action === "\u5BFB\u627E\u6C34\u6E90") {
         this.water = Math.min(5, this.water + 2);
+        this.action = "\u996E\u6C34\u4E2D";
       } else if (this.action === "\u5BFB\u627E\u98DF\u7269") {
         this.food = Math.min(5, this.food + 2);
+        this.action = "\u8FDB\u98DF\u4E2D";
       }
       this.energy = 5;
     }
@@ -47548,7 +47555,6 @@ ${e2}`);
   };
 
   // src/renderer/pixi/layers/CharacterLayer.ts
-  var TILE_SIZE4 = 64;
   var CHAR_SIZE = 32;
   var HITBOX_SIZE = 48;
   var CharacterLayer = class {
@@ -47660,12 +47666,6 @@ ${e2}`);
     }
     setupInteraction() {
       this.container.eventMode = "static";
-      this.container.hitArea = new Rectangle(
-        0,
-        0,
-        this.map.getSize().width * TILE_SIZE4,
-        this.map.getSize().height * TILE_SIZE4
-      );
     }
     update(deltaTime) {
       const world = this.getWorldState();
@@ -48007,9 +48007,11 @@ ${e2}`);
       if (char.water < 2) return "\u{1F4A7}\u53E3\u6E34";
       if (char.food < 2) return "\u{1F356}\u9965\u997F";
       if (char.energy < 2) return "\u{1F634}\u75B2\u60EB";
-      if (char.action.includes("\u5BFB\u627E")) return "\u{1F50D}\u63A2\u7D22";
+      if (char.action === "\u996E\u6C34\u4E2D") return "\u{1F4A7}\u996E\u6C34";
+      if (char.action === "\u8FDB\u98DF\u4E2D") return "\u{1F356}\u8FDB\u98DF";
       if (char.action === "\u4F11\u606F\u4E2D") return "\u{1F4A4}\u4F11\u606F";
       if (char.action === "\u95F2\u7F6E") return "\u{1F9D8}\u5F85\u673A";
+      if (char.action.includes("\u5BFB\u627E")) return "\u{1F50D}\u63A2\u7D22";
       return "\u{1F6B6}\u79FB\u52A8";
     }
     // 点击空白处关闭

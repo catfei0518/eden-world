@@ -297,6 +297,16 @@ export class Character {
         this.water = Math.max(0, this.water - consumption * 1.5);
         this.energy = Math.max(0, this.energy - consumption);
         
+        // 在食物/水源附近时恢复（基于代谢）
+        if (this.action === '寻找食物' && world.nearbyFood.length > 0) {
+            // 在食物附近，每秒恢复0.5
+            this.food = Math.min(5, this.food + 0.008 * this.metabolismRate);
+        }
+        if (this.action === '寻找水源' && world.nearbyWater.length > 0) {
+            // 在水源附近，每秒恢复0.8
+            this.water = Math.min(5, this.water + 0.013 * this.metabolismRate);
+        }
+        
         // 生命值消耗
         // 口渴为0：每分钟消耗2点生命
         if (this.water <= 0 && !this.isDead) {
@@ -422,8 +432,10 @@ export class Character {
         
         if (this.action === '寻找水源') {
             this.water = Math.min(5, this.water + 2);
+            this.action = '饮水中'; // 改变动作为饮水中
         } else if (this.action === '寻找食物') {
             this.food = Math.min(5, this.food + 2);
+            this.action = '进食中'; // 改变动作为进食中
         }
         
         this.energy = 5; // 完全恢复

@@ -145,13 +145,9 @@ export class CharacterLayer {
     }
     
     private setupInteraction(): void {
-        // 让容器可以点击（用于关闭面板）
+        // 让容器可以点击
         this.container.eventMode = 'static';
-        this.container.hitArea = new PIXI.Rectangle(
-            0, 0, 
-            this.map.getSize().width * TILE_SIZE,
-            this.map.getSize().height * TILE_SIZE
-        );
+        // 注意：不设置hitArea，让子元素可以接收点击事件
     }
     
     update(deltaTime: number): void {
