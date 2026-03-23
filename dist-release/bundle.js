@@ -47239,6 +47239,8 @@ ${e2}`);
       this.water = 5;
       this.energy = 5;
       // 5=满, 0=空
+      this.health = 100;
+      // 生命值 0-100
       // 当前行动
       this.action = "\u95F2\u7F6E";
       this.target = null;
@@ -47301,12 +47303,57 @@ ${e2}`);
       if (fear < 0.4) return "\u6613\u53D7\u60CA";
       return "\u666E\u901A\u4EBA";
     }
+    // ==================== 生命值系统 ====================
+    // 最大生命值（体质影响）
+    get maxHealth() {
+      return 75 + this.phenotype.constitution * 50;
+    }
+    // 生命值百分比
+    get healthPercent() {
+      return Math.round(this.health / this.maxHealth * 100);
+    }
+    // 基础伤害（力量影响）
+    get baseDamage() {
+      return 10 + this.phenotype.strength * 20;
+    }
+    // 获取生命状态
+    getHealthStatus() {
+      const pct = this.health / this.maxHealth;
+      if (pct > 0.7) return "\u5065\u5EB7";
+      if (pct > 0.4) return "\u8F7B\u4F24";
+      if (pct > 0.2) return "\u91CD\u4F24";
+      return "\u6FD2\u6B7B";
+    }
+    // 受到伤害
+    takeDamage(damage) {
+      this.health = Math.max(0, this.health - damage);
+      if (this.health <= 0) {
+        this.action = "\u6B7B\u4EA1";
+      }
+    }
+    // 恢复生命
+    heal(amount) {
+      this.health = Math.min(this.maxHealth, this.health + amount);
+    }
+    // 攻击其他角色
+    attack(target, weaponBonus = 0) {
+      const damage = this.baseDamage + weaponBonus - target.phenotype.constitution * 10;
+      const actualDamage = Math.max(1, Math.round(damage));
+      target.takeDamage(actualDamage);
+      return actualDamage;
+    }
     // 每帧更新
     update(deltaTime, world) {
       const consumption = deltaTime * 0.01 * this.metabolismRate;
       this.food = Math.max(0, this.food - consumption);
       this.water = Math.max(0, this.water - consumption * 1.5);
       this.energy = Math.max(0, this.energy - consumption);
+      if (this.water <= 0) {
+        this.health = Math.max(0, this.health - deltaTime * 2 / 60);
+      }
+      if (this.food <= 0) {
+        this.health = Math.max(0, this.health - deltaTime * 1 / 60);
+      }
       if (this.target) {
         this.moveToTarget();
       }
@@ -47772,6 +47819,16 @@ ${e2}`);
       if (foodVal) foodVal.textContent = `${foodPct}%`;
       if (waterVal) waterVal.textContent = `${waterPct}%`;
       if (energyVal) energyVal.textContent = `${energyPct}%`;
+      const healthVal = document.getElementById("panel-health-val");
+      const healthBar = document.getElementById("panel-health-bar");
+      if (healthBar && healthVal) {
+        const charAny = char;
+        const maxHealth = charAny.maxHealth ? charAny.maxHealth() : 100;
+        const health = charAny.health !== void 0 ? charAny.health : 100;
+        const healthPct = Math.round(health / maxHealth * 100);
+        healthBar.style.width = `${healthPct}%`;
+        healthVal.textContent = `${healthPct}%`;
+      }
       const actionElem = document.getElementById("panel-action");
       if (actionElem) actionElem.textContent = char.action;
       const dnaContainer = document.getElementById("panel-dna-attrs");

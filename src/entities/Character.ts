@@ -36,6 +36,7 @@ export class Character {
     food: number = 5;
     water: number = 5;
     energy: number = 5; // 5=满, 0=空
+    health: number = 100; // 生命值 0-100
     
     // 当前行动
     action: string = '闲置';
@@ -123,6 +124,56 @@ export class Character {
         return '普通人';
     }
     
+    // ==================== 生命值系统 ====================
+    
+    // 最大生命值（体质影响）
+    public get maxHealth(): number {
+        // 75 + 体质 × 50 = 75-125
+        return 75 + this.phenotype.constitution * 50;
+    }
+    
+    // 生命值百分比
+    public get healthPercent(): number {
+        return Math.round((this.health / this.maxHealth) * 100);
+    }
+    
+    // 基础伤害（力量影响）
+    public get baseDamage(): number {
+        // 10 + 力量 × 20 = 10-30
+        return 10 + this.phenotype.strength * 20;
+    }
+    
+    // 获取生命状态
+    public getHealthStatus(): string {
+        const pct = this.health / this.maxHealth;
+        if (pct > 0.7) return '健康';
+        if (pct > 0.4) return '轻伤';
+        if (pct > 0.2) return '重伤';
+        return '濒死';
+    }
+    
+    // 受到伤害
+    public takeDamage(damage: number): void {
+        this.health = Math.max(0, this.health - damage);
+        if (this.health <= 0) {
+            this.action = '死亡';
+        }
+    }
+    
+    // 恢复生命
+    public heal(amount: number): void {
+        this.health = Math.min(this.maxHealth, this.health + amount);
+    }
+    
+    // 攻击其他角色
+    public attack(target: Character, weaponBonus: number = 0): number {
+        // 伤害 = 基础伤害 + 武器加成 - 目标体质减免
+        const damage = this.baseDamage + weaponBonus - target.phenotype.constitution * 10;
+        const actualDamage = Math.max(1, Math.round(damage)); // 最小1点伤害
+        target.takeDamage(actualDamage);
+        return actualDamage;
+    }
+    
     // 每帧更新
     update(deltaTime: number, world: WorldState): void {
         // 消耗（受代谢影响）
@@ -130,6 +181,16 @@ export class Character {
         this.food = Math.max(0, this.food - consumption);
         this.water = Math.max(0, this.water - consumption * 1.5);
         this.energy = Math.max(0, this.energy - consumption);
+        
+        // 生命值消耗
+        // 口渴为0：每分钟消耗2点生命
+        if (this.water <= 0) {
+            this.health = Math.max(0, this.health - deltaTime * 2 / 60);
+        }
+        // 饥饿为0：每分钟消耗1点生命
+        if (this.food <= 0) {
+            this.health = Math.max(0, this.health - deltaTime * 1 / 60);
+        }
         
         // 移动
         if (this.target) {

@@ -94,6 +94,7 @@ npm run preview
 - [命令系统](./docs/systems/COMMAND.md) - 控制台与自定义指令
 - [季节系统](./docs/systems/SEASON.md) - 季节切换与物品影响
 - [战斗属性](./docs/systems/COMBAT_ATTRIBUTES.md) - 核心战斗属性系统
+- [生命值系统](./docs/systems/HEALTH_SYSTEM.md) - 生命值与战斗伤害系统
 
 ## 🤝 贡献
 

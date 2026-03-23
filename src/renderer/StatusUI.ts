@@ -131,6 +131,18 @@ export class StatusUI {
         if (waterVal) waterVal.textContent = `${waterPct}%`;
         if (energyVal) energyVal.textContent = `${energyPct}%`;
         
+        // 生命值
+        const healthVal = document.getElementById('panel-health-val');
+        const healthBar = document.getElementById('panel-health-bar');
+        if (healthBar && healthVal) {
+            const charAny = char as any;
+            const maxHealth = charAny.maxHealth ? charAny.maxHealth() : 100;
+            const health = charAny.health !== undefined ? charAny.health : 100;
+            const healthPct = Math.round((health / maxHealth) * 100);
+            healthBar.style.width = `${healthPct}%`;
+            healthVal.textContent = `${healthPct}%`;
+        }
+        
         // 当前行动
         const actionElem = document.getElementById('panel-action');
         if (actionElem) actionElem.textContent = char.action;
