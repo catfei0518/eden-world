@@ -44,11 +44,11 @@ npm install
 # 开发模式
 npm run dev
 
-# 或直接启动服务器
+# 或直接启动服务器（端口3333）
 npm run preview
 ```
 
-然后访问 http://localhost:3000
+然后访问 http://localhost:3333
 
 ## 🎮 操作说明
 
@@ -56,6 +56,7 @@ npm run preview
 - **鼠标拖拽**: 移动地图
 - **滚轮**: 缩放地图
 - **1/2/3**: 切换缩放级别
+- **`~` 或 `/`**: 打开控制台
 
 ## 📁 项目结构
 
@@ -65,12 +66,17 @@ npm run preview
     /core           # 核心引擎
     /world          # 世界相关（地图生成）
     /renderer       # 渲染系统（PixiJS）
+    │   /pixi
+    │       /layers # 渲染层（地形/物品/角色）
+    │   StatusUI.ts      # 角色状态面板
+    │   ItemStatusUI.ts  # 物品信息面板
+    │   ConsoleUI.ts    # 控制台界面
     /systems        # 游戏系统
     │   /dna        # DNA系统（遗传与表现型）
     │   /needs      # 需求系统（饥饿/口渴/安全等）
     │   /ai         # AI决策系统
-    /entities       # 实体
-    /utils          # 工具函数
+    │   CommandSystem.ts # 命令系统（支持自定义指令）
+    /entities       # 实体（角色等）
   /docs             # 文档
   /tests            # 测试
   /img              # 游戏素材
@@ -85,6 +91,8 @@ npm run preview
 - [素材系统](./docs/systems/ASSETS.md)
 - [DNA系统](./docs/systems/DNA_SYSTEM.md) - AI决策与遗传机制
 - [数据库设计](./docs/systems/DATABASE_DESIGN.md) - PostgreSQL表结构
+- [命令系统](./docs/systems/COMMAND.md) - 控制台与自定义指令
+- [季节系统](./docs/systems/SEASON.md) - 季节切换与物品影响
 
 ## 🤝 贡献
 
