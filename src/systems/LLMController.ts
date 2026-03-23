@@ -11,7 +11,7 @@ interface LLMAction {
 }
 
 export class LLMController {
-    private ollamaUrl: string = 'http://localhost:11434';
+    private ollamaUrl: string = 'http://114.66.13.167:11434';
     private model: string = 'qwen3.5:2b';
     private characters: Map<string, Character> = new Map();
     private lastDecision: Map<string, number> = new Map();

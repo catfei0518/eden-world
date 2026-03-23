@@ -48839,7 +48839,7 @@ ${e2}`);
   // src/systems/LLMController.ts
   var LLMController = class {
     constructor() {
-      this.ollamaUrl = "http://localhost:11434";
+      this.ollamaUrl = "http://114.66.13.167:11434";
       this.model = "qwen3.5:2b";
       this.characters = /* @__PURE__ */ new Map();
       this.lastDecision = /* @__PURE__ */ new Map();
