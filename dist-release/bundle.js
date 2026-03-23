@@ -47476,22 +47476,22 @@ ${e2}`);
     }
     // 每帧更新
     update(deltaTime, world) {
-      const consumptionPerFrame = 100 / (6 * 60 * 60 * 60);
+      const consumptionPerMs = 100 / (6 * 60 * 60 * 1e3);
       const consumptionMultiplier = 0.5 + this.phenotype.metabolism;
-      this.calories = Math.max(0, this.calories - consumptionPerFrame * consumptionMultiplier * deltaTime);
-      this.water = Math.max(0, this.water - consumptionPerFrame * consumptionMultiplier * deltaTime);
-      this.energy = Math.max(0, this.energy - consumptionPerFrame * 0.1 * deltaTime);
+      this.calories = Math.max(0, this.calories - consumptionPerMs * consumptionMultiplier * deltaTime);
+      this.water = Math.max(0, this.water - consumptionPerMs * consumptionMultiplier * deltaTime);
+      this.energy = Math.max(0, this.energy - consumptionPerMs * 0.5 * deltaTime);
       if (this.action === "\u5BFB\u627E\u98DF\u7269" && world.nearbyFood.length > 0) {
-        this.calories = Math.min(100, this.calories + 0.01 * this.phenotype.metabolism * deltaTime);
+        this.calories = Math.min(100, this.calories + 0.02 * this.phenotype.metabolism * deltaTime / 1e3);
       }
       if (this.action === "\u5BFB\u627E\u6C34\u6E90" && world.nearbyWater.length > 0) {
-        this.water = Math.min(100, this.water + 0.01 * this.phenotype.metabolism * deltaTime);
+        this.water = Math.min(100, this.water + 0.02 * this.phenotype.metabolism * deltaTime / 1e3);
       }
       if (this.calories <= 0 && !this.isDead) {
-        this.health = Math.max(0, this.health - deltaTime * 0.1);
+        this.health = Math.max(0, this.health - deltaTime / 1e3 * 5);
       }
       if (this.water <= 0 && !this.isDead) {
-        this.health = Math.max(0, this.health - deltaTime * 0.1);
+        this.health = Math.max(0, this.health - deltaTime / 1e3 * 5);
       }
       if (this.health <= 0 && !this.isDead) {
         this.die("\u9965\u997F/\u53E3\u6E34\u8017\u5C3D");

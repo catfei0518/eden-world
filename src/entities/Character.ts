@@ -340,29 +340,29 @@ export class Character {
     // 每帧更新
     update(deltaTime: number, world: WorldState): void {
         // 消耗（受代谢影响）
-        // 100%在6小时内耗尽（6*60*60*60帧 at 60fps）
-        // deltaTime约等于1（每帧）
-        const consumptionPerFrame = 100 / (6 * 60 * 60 * 60);  // 约0.000077%/帧
+        // 100%在6小时内耗尽 = 100% / (6*60*60)秒 = 0.00463%/秒
+        // deltaTime在PIXI中是毫秒(ms)
+        const consumptionPerMs = 100 / (6 * 60 * 60 * 1000);  // 约0.00000463%/ms
         const consumptionMultiplier = 0.5 + this.phenotype.metabolism;
         
-        this.calories = Math.max(0, this.calories - consumptionPerFrame * consumptionMultiplier * deltaTime);
-        this.water = Math.max(0, this.water - consumptionPerFrame * consumptionMultiplier * deltaTime);
-        this.energy = Math.max(0, this.energy - consumptionPerFrame * 0.1 * deltaTime);
+        this.calories = Math.max(0, this.calories - consumptionPerMs * consumptionMultiplier * deltaTime);
+        this.water = Math.max(0, this.water - consumptionPerMs * consumptionMultiplier * deltaTime);
+        this.energy = Math.max(0, this.energy - consumptionPerMs * 0.5 * deltaTime);
         
         // 在食物/水源附近时恢复
         if (this.action === '寻找食物' && world.nearbyFood.length > 0) {
-            this.calories = Math.min(100, this.calories + 0.01 * this.phenotype.metabolism * deltaTime);
+            this.calories = Math.min(100, this.calories + 0.02 * this.phenotype.metabolism * deltaTime / 1000);
         }
         if (this.action === '寻找水源' && world.nearbyWater.length > 0) {
-            this.water = Math.min(100, this.water + 0.01 * this.phenotype.metabolism * deltaTime);
+            this.water = Math.min(100, this.water + 0.02 * this.phenotype.metabolism * deltaTime / 1000);
         }
         
         // 生命值消耗
         if (this.calories <= 0 && !this.isDead) {
-            this.health = Math.max(0, this.health - deltaTime * 0.1);
+            this.health = Math.max(0, this.health - deltaTime / 1000 * 5);
         }
         if (this.water <= 0 && !this.isDead) {
-            this.health = Math.max(0, this.health - deltaTime * 0.1);
+            this.health = Math.max(0, this.health - deltaTime / 1000 * 5);
         }
         
         // 死亡检查
