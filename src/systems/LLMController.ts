@@ -29,7 +29,14 @@ export class LLMController {
     addCharacter(char: Character): void {
         char.useLLM = true;
         this.characters.set(char.id, char);
-        console.log(`🤖 ${char.name} 已启用LLM控制`);
+        
+        // 美化的启动日志
+        console.log('%c╔═══════════════════════════════════════╗', 'color: #4CAF50; font-weight: bold');
+        console.log(`%c║  🤖 ${char.name} 已启用LLM控制             ║`, 'color: #4CAF50; font-weight: bold');
+        console.log('%c╚═══════════════════════════════════════╝', 'color: #4CAF50; font-weight: bold');
+        console.log('%c   模型: qwen3.5:2b --think=false', 'color: #888');
+        console.log('%c   决策间隔: 3秒/次', 'color: #888');
+        console.log('%c─────────────────────────────────────────', 'color: #333');
     }
     
     /**
@@ -75,6 +82,11 @@ export class LLMController {
     private async getDecision(char: Character, world: any): Promise<LLMAction | null> {
         const prompt = this.buildPrompt(char, world);
         
+        // 记录思考开始
+        console.log(`%c🤖 ${char.name} 思考中...`, 'color: #4CAF50; font-weight: bold');
+        console.log(`%c   状态: 饥饿${char.hungerPercent}% | 口渴${char.thirstPercent}% | 精力${Math.round(char.energy/5*100)}% | 生命${Math.round(char.health)}%`, 'color: #888');
+        console.log(`%c   提示词: ${prompt.substring(0, 100)}...`, 'color: #666');
+        
         try {
             const response = await fetch(`${this.ollamaUrl}/api/generate`, {
                 method: 'POST',
@@ -95,9 +107,17 @@ export class LLMController {
             }
             
             const data = await response.json();
-            return this.parseResponse(data.response, char);
+            const result = this.parseResponse(data.response, char);
+            
+            // 记录思考结果
+            console.log(`%c✅ ${char.name} 决策: ${result.action}`, 'color: #4CAF50; font-weight: bold');
+            if (result.reason) {
+                console.log(`%c   原因: ${result.reason}`, 'color: #888');
+            }
+            
+            return result;
         } catch (error) {
-            console.error('Ollama调用失败:', error);
+            console.error(`%c❌ ${char.name} LLM调用失败:`, 'color: #f44336', error);
             return null;
         }
     }
@@ -197,21 +217,35 @@ export class LLMController {
         switch (decision.action) {
             case '寻找食物':
                 this.goToNearest(char, world.nearbyFood);
+                const foodTarget = char.target ? ` → (${char.target.x.toFixed(1)}, ${char.target.y.toFixed(1)})` : ' (无目标)';
+                console.log(`%c   📍 目标: 食物${foodTarget}`, 'color: #FF9800');
                 break;
             case '寻找水源':
                 this.goToNearest(char, world.nearbyWater);
+                const waterTarget = char.target ? ` → (${char.target.x.toFixed(1)}, ${char.target.y.toFixed(1)})` : ' (无目标)';
+                console.log(`%c   📍 目标: 水源${waterTarget}`, 'color: #2196F3');
                 break;
             case '休息':
-                // 恢复精力
+                console.log(`%c   💤 休息恢复精力`, 'color: #9C27B0');
+                break;
+            case '吃东西':
+                console.log(`%c   🍖 吃东西`, 'color: #E91E63');
+                break;
+            case '喝水':
+                console.log(`%c   💧 喝水`, 'color: #03A9F4');
+                break;
+            case '探索':
+                console.log(`%c   🧭 探索周围`, 'color: #4CAF50');
                 break;
             case '闲置':
-            case '探索':
             default:
                 char.target = null;
+                console.log(`%c   ⏸️ 闲置`, 'color: #757575');
                 break;
         }
         
-        console.log(`🤖 ${char.name} LLM决策: ${decision.action}`);
+        // 记录动作变化
+        console.log(`%c─────────────────────────────────`, 'color: #333');
     }
     
     /**

@@ -48862,7 +48862,12 @@ ${e2}`);
     addCharacter(char) {
       char.useLLM = true;
       this.characters.set(char.id, char);
-      console.log(`\u{1F916} ${char.name} \u5DF2\u542F\u7528LLM\u63A7\u5236`);
+      console.log("%c\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557", "color: #4CAF50; font-weight: bold");
+      console.log(`%c\u2551  \u{1F916} ${char.name} \u5DF2\u542F\u7528LLM\u63A7\u5236             \u2551`, "color: #4CAF50; font-weight: bold");
+      console.log("%c\u255A\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255D", "color: #4CAF50; font-weight: bold");
+      console.log("%c   \u6A21\u578B: qwen3.5:2b --think=false", "color: #888");
+      console.log("%c   \u51B3\u7B56\u95F4\u9694: 3\u79D2/\u6B21", "color: #888");
+      console.log("%c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500", "color: #333");
     }
     /**
      * 移除角色从LLM控制
@@ -48900,6 +48905,9 @@ ${e2}`);
      */
     async getDecision(char, world) {
       const prompt = this.buildPrompt(char, world);
+      console.log(`%c\u{1F916} ${char.name} \u601D\u8003\u4E2D...`, "color: #4CAF50; font-weight: bold");
+      console.log(`%c   \u72B6\u6001: \u9965\u997F${char.hungerPercent}% | \u53E3\u6E34${char.thirstPercent}% | \u7CBE\u529B${Math.round(char.energy / 5 * 100)}% | \u751F\u547D${Math.round(char.health)}%`, "color: #888");
+      console.log(`%c   \u63D0\u793A\u8BCD: ${prompt.substring(0, 100)}...`, "color: #666");
       try {
         const response = await fetch(`${this.ollamaUrl}/api/generate`, {
           method: "POST",
@@ -48918,9 +48926,14 @@ ${e2}`);
           throw new Error(`Ollama\u9519\u8BEF: ${response.status}`);
         }
         const data = await response.json();
-        return this.parseResponse(data.response, char);
+        const result = this.parseResponse(data.response, char);
+        console.log(`%c\u2705 ${char.name} \u51B3\u7B56: ${result.action}`, "color: #4CAF50; font-weight: bold");
+        if (result.reason) {
+          console.log(`%c   \u539F\u56E0: ${result.reason}`, "color: #888");
+        }
+        return result;
       } catch (error) {
-        console.error("Ollama\u8C03\u7528\u5931\u8D25:", error);
+        console.error(`%c\u274C ${char.name} LLM\u8C03\u7528\u5931\u8D25:`, "color: #f44336", error);
         return null;
       }
     }
@@ -49002,19 +49015,33 @@ ${e2}`);
       switch (decision.action) {
         case "\u5BFB\u627E\u98DF\u7269":
           this.goToNearest(char, world.nearbyFood);
+          const foodTarget = char.target ? ` \u2192 (${char.target.x.toFixed(1)}, ${char.target.y.toFixed(1)})` : " (\u65E0\u76EE\u6807)";
+          console.log(`%c   \u{1F4CD} \u76EE\u6807: \u98DF\u7269${foodTarget}`, "color: #FF9800");
           break;
         case "\u5BFB\u627E\u6C34\u6E90":
           this.goToNearest(char, world.nearbyWater);
+          const waterTarget = char.target ? ` \u2192 (${char.target.x.toFixed(1)}, ${char.target.y.toFixed(1)})` : " (\u65E0\u76EE\u6807)";
+          console.log(`%c   \u{1F4CD} \u76EE\u6807: \u6C34\u6E90${waterTarget}`, "color: #2196F3");
           break;
         case "\u4F11\u606F":
+          console.log(`%c   \u{1F4A4} \u4F11\u606F\u6062\u590D\u7CBE\u529B`, "color: #9C27B0");
+          break;
+        case "\u5403\u4E1C\u897F":
+          console.log(`%c   \u{1F356} \u5403\u4E1C\u897F`, "color: #E91E63");
+          break;
+        case "\u559D\u6C34":
+          console.log(`%c   \u{1F4A7} \u559D\u6C34`, "color: #03A9F4");
+          break;
+        case "\u63A2\u7D22":
+          console.log(`%c   \u{1F9ED} \u63A2\u7D22\u5468\u56F4`, "color: #4CAF50");
           break;
         case "\u95F2\u7F6E":
-        case "\u63A2\u7D22":
         default:
           char.target = null;
+          console.log(`%c   \u23F8\uFE0F \u95F2\u7F6E`, "color: #757575");
           break;
       }
-      console.log(`\u{1F916} ${char.name} LLM\u51B3\u7B56: ${decision.action}`);
+      console.log(`%c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500`, "color: #333");
     }
     /**
      * 前往最近的物品
