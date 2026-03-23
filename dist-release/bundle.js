@@ -47270,6 +47270,37 @@ ${e2}`);
     get wanderRange() {
       return Math.floor(8 + this.phenotype.curiosity * 12);
     }
+    // ==================== 核心战斗属性 ====================
+    // 胆量：探索危险区域的意愿
+    // true = 愿意探索危险区域
+    shouldExploreDanger() {
+      return this.phenotype.bravery > 0.6;
+    }
+    // 恐惧阈值：是否触发逃跑
+    // dangerLevel: 0-1，危险程度
+    // 返回true表示应该逃跑
+    shouldFlee(dangerLevel) {
+      return dangerLevel > 1 - this.phenotype.fearResponse;
+    }
+    // 攻击性：是否主动攻击
+    // true = 主动攻击
+    shouldAttack() {
+      return this.phenotype.aggression > 0.6;
+    }
+    // 获取性格描述
+    getPersonality() {
+      const bravery = this.phenotype.bravery;
+      const fear = this.phenotype.fearResponse;
+      const aggr = this.phenotype.aggression;
+      if (bravery > 0.7 && fear > 0.7 && aggr > 0.7) return "\u52C7\u58EB";
+      if (bravery > 0.7 && fear < 0.4 && aggr > 0.7) return "\u83BD\u592B";
+      if (bravery > 0.7 && fear > 0.7 && aggr < 0.4) return "\u8C28\u614E\u6218\u58EB";
+      if (bravery < 0.4 && fear < 0.4 && aggr < 0.4) return "\u9003\u5175";
+      if (bravery < 0.4 && fear > 0.7 && aggr < 0.4) return "\u65C1\u89C2\u8005";
+      if (aggr > 0.7) return "\u6311\u8845\u8005";
+      if (fear < 0.4) return "\u6613\u53D7\u60CA";
+      return "\u666E\u901A\u4EBA";
+    }
     // 每帧更新
     update(deltaTime, world) {
       const consumption = deltaTime * 0.01 * this.metabolismRate;
@@ -47745,7 +47776,20 @@ ${e2}`);
       if (actionElem) actionElem.textContent = char.action;
       const dnaContainer = document.getElementById("panel-dna-attrs");
       if (dnaContainer) {
+        const personality = char.getPersonality ? char.getPersonality() : "\u666E\u901A\u4EBA";
         dnaContainer.innerHTML = `
+                <div class="dna-row" style="background: rgba(74, 169, 74, 0.3); font-weight: bold;">
+                    <span>\u{1F3AD} \u6027\u683C</span><span>${personality}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u2694\uFE0F \u80C6\u91CF</span><span>${(dna.bravery * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F628} \u6050\u60E7\u9608\u503C</span><span>${(dna.fearResponse * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u2694\uFE0F \u653B\u51FB\u6027</span><span>${(dna.aggression * 100).toFixed(0)}</span>
+                </div>
                 <div class="dna-row">
                     <span>\u{1F3C3} \u654F\u6377</span><span>${(dna.agility * 100).toFixed(0)}</span>
                 </div>
@@ -47754,9 +47798,6 @@ ${e2}`);
                 </div>
                 <div class="dna-row">
                     <span>\u2753 \u597D\u5947</span><span>${(dna.curiosity * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>\u{1F4AA} \u52C7\u6562</span><span>${(dna.bravery * 100).toFixed(0)}</span>
                 </div>
                 <div class="dna-row">
                     <span>\u{1F6E1}\uFE0F \u98CE\u9669\u89C4\u907F</span><span>${(dna.riskAversion * 100).toFixed(0)}</span>
@@ -47781,12 +47822,6 @@ ${e2}`);
                 </div>
                 <div class="dna-row">
                     <span>\u{1F3CB}\uFE0F \u4F53\u8D28</span><span>${(dna.constitution * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>\u{1F3C3} \u8010\u529B</span><span>${(dna.endurance * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>\u2694\uFE0F \u653B\u51FB</span><span>${(dna.aggression * 100).toFixed(0)}</span>
                 </div>
             `;
       }

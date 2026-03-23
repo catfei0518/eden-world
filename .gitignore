@@ -15,3 +15,6 @@ build/
 
 # 私有文档（不上传）
 docs/WORKFLOW.md
+
+# AI规则（不上传）
+.trae/

@@ -83,6 +83,46 @@ export class Character {
         return Math.floor(8 + this.phenotype.curiosity * 12);
     }
     
+    // ==================== 核心战斗属性 ====================
+    
+    // 胆量：探索危险区域的意愿
+    // true = 愿意探索危险区域
+    public shouldExploreDanger(): boolean {
+        return this.phenotype.bravery > 0.6;
+    }
+    
+    // 恐惧阈值：是否触发逃跑
+    // dangerLevel: 0-1，危险程度
+    // 返回true表示应该逃跑
+    public shouldFlee(dangerLevel: number): boolean {
+        // 危险程度超过阈值就逃跑
+        // 阈值低的(0.3)容易被吓跑，阈值高的(0.7)不容易跑
+        return dangerLevel > (1 - this.phenotype.fearResponse);
+    }
+    
+    // 攻击性：是否主动攻击
+    // true = 主动攻击
+    public shouldAttack(): boolean {
+        return this.phenotype.aggression > 0.6;
+    }
+    
+    // 获取性格描述
+    public getPersonality(): string {
+        const bravery = this.phenotype.bravery;
+        const fear = this.phenotype.fearResponse;
+        const aggr = this.phenotype.aggression;
+        
+        // 判断性格类型
+        if (bravery > 0.7 && fear > 0.7 && aggr > 0.7) return '勇士';
+        if (bravery > 0.7 && fear < 0.4 && aggr > 0.7) return '莽夫';
+        if (bravery > 0.7 && fear > 0.7 && aggr < 0.4) return '谨慎战士';
+        if (bravery < 0.4 && fear < 0.4 && aggr < 0.4) return '逃兵';
+        if (bravery < 0.4 && fear > 0.7 && aggr < 0.4) return '旁观者';
+        if (aggr > 0.7) return '挑衅者';
+        if (fear < 0.4) return '易受惊';
+        return '普通人';
+    }
+    
     // 每帧更新
     update(deltaTime: number, world: WorldState): void {
         // 消耗（受代谢影响）

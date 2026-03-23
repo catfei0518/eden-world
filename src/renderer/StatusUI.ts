@@ -138,7 +138,22 @@ export class StatusUI {
         // DNA属性 - 完整列表
         const dnaContainer = document.getElementById('panel-dna-attrs');
         if (dnaContainer) {
+            // 获取性格类型
+            const personality = (char as any).getPersonality ? (char as any).getPersonality() : '普通人';
+            
             dnaContainer.innerHTML = `
+                <div class="dna-row" style="background: rgba(74, 169, 74, 0.3); font-weight: bold;">
+                    <span>🎭 性格</span><span>${personality}</span>
+                </div>
+                <div class="dna-row">
+                    <span>⚔️ 胆量</span><span>${(dna.bravery * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>😨 恐惧阈值</span><span>${(dna.fearResponse * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>⚔️ 攻击性</span><span>${(dna.aggression * 100).toFixed(0)}</span>
+                </div>
                 <div class="dna-row">
                     <span>🏃 敏捷</span><span>${(dna.agility * 100).toFixed(0)}</span>
                 </div>
@@ -147,9 +162,6 @@ export class StatusUI {
                 </div>
                 <div class="dna-row">
                     <span>❓ 好奇</span><span>${(dna.curiosity * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>💪 勇敢</span><span>${(dna.bravery * 100).toFixed(0)}</span>
                 </div>
                 <div class="dna-row">
                     <span>🛡️ 风险规避</span><span>${(dna.riskAversion * 100).toFixed(0)}</span>
@@ -174,12 +186,6 @@ export class StatusUI {
                 </div>
                 <div class="dna-row">
                     <span>🏋️ 体质</span><span>${(dna.constitution * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>🏃 耐力</span><span>${(dna.endurance * 100).toFixed(0)}</span>
-                </div>
-                <div class="dna-row">
-                    <span>⚔️ 攻击</span><span>${(dna.aggression * 100).toFixed(0)}</span>
                 </div>
             `;
         }
