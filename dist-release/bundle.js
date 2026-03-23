@@ -44762,6 +44762,1333 @@ ${e2}`);
     Object.keys(assetKeyMap).filter((key) => !!ref[key]).forEach((key) => extensions.remove(ref[key]));
   });
 
+  // node_modules/pixi.js/lib/scene/text/Text.mjs
+  init_TextureSource();
+  init_TextureStyle();
+
+  // node_modules/pixi.js/lib/scene/text/AbstractText.mjs
+  init_ObservablePoint();
+  init_deprecation();
+  init_ViewContainer();
+  var AbstractText = class extends ViewContainer {
+    constructor(options, styleClass) {
+      const { text, resolution, style, anchor, width, height, roundPixels, ...rest } = options;
+      super({
+        ...rest
+      });
+      this.batched = true;
+      this._resolution = null;
+      this._autoResolution = true;
+      this._didTextUpdate = true;
+      this._styleClass = styleClass;
+      this.text = text ?? "";
+      this.style = style;
+      this.resolution = resolution ?? null;
+      this.allowChildren = false;
+      this._anchor = new ObservablePoint(
+        {
+          _onUpdate: () => {
+            this.onViewUpdate();
+          }
+        }
+      );
+      if (anchor) this.anchor = anchor;
+      this.roundPixels = roundPixels ?? false;
+      if (width !== void 0) this.width = width;
+      if (height !== void 0) this.height = height;
+    }
+    /**
+     * The anchor point of the text that controls the origin point for positioning and rotation.
+     * Can be a number (same value for x/y) or a PointData object.
+     * - (0,0) is top-left
+     * - (0.5,0.5) is center
+     * - (1,1) is bottom-right
+     * ```ts
+     * // Set anchor to center
+     * const text = new Text({
+     *     text: 'Hello Pixi!',
+     *     anchor: 0.5 // Same as { x: 0.5, y: 0.5 }
+     * });
+     * // Set anchor to top-left
+     * const text2 = new Text({
+     *     text: 'Hello Pixi!',
+     *     anchor: { x: 0, y: 0 } // Top-left corner
+     * });
+     * // Set anchor to bottom-right
+     * const text3 = new Text({
+     *     text: 'Hello Pixi!',
+     *     anchor: { x: 1, y: 1 } // Bottom-right corner
+     * });
+     * ```
+     * @default { x: 0, y: 0 }
+     */
+    get anchor() {
+      return this._anchor;
+    }
+    set anchor(value) {
+      typeof value === "number" ? this._anchor.set(value) : this._anchor.copyFrom(value);
+    }
+    /**
+     * The text content to display. Use '\n' for line breaks.
+     * Accepts strings, numbers, or objects with toString() method.
+     * @example
+     * ```ts
+     * const text = new Text({
+     *     text: 'Hello Pixi!',
+     * });
+     * const multilineText = new Text({
+     *     text: 'Line 1\nLine 2\nLine 3',
+     * });
+     * const numberText = new Text({
+     *     text: 12345, // Will be converted to '12345'
+     * });
+     * const objectText = new Text({
+     *     text: { toString: () => 'Object Text' }, // Custom toString
+     * });
+     *
+     * // Update text dynamically
+     * text.text = 'Updated Text'; // Re-renders with new text
+     * text.text = 67890; // Updates to '67890'
+     * text.text = { toString: () => 'Dynamic Text' }; // Uses custom toString method
+     * // Clear text
+     * text.text = ''; // Clears the text
+     * ```
+     * @default ''
+     */
+    set text(value) {
+      value = value.toString();
+      if (this._text === value) return;
+      this._text = value;
+      this.onViewUpdate();
+    }
+    get text() {
+      return this._text;
+    }
+    /**
+     * The resolution/device pixel ratio for rendering.
+     * Higher values result in sharper text at the cost of performance.
+     * Set to null for auto-resolution based on device.
+     * @example
+     * ```ts
+     * const text = new Text({
+     *     text: 'Hello Pixi!',
+     *     resolution: 2 // High DPI for sharper text
+     * });
+     * const autoResText = new Text({
+     *     text: 'Auto Resolution',
+     *     resolution: null // Use device's pixel ratio
+     * });
+     * ```
+     * @default null
+     */
+    set resolution(value) {
+      this._autoResolution = value === null;
+      this._resolution = value;
+      this.onViewUpdate();
+    }
+    get resolution() {
+      return this._resolution;
+    }
+    get style() {
+      return this._style;
+    }
+    /**
+     * The style configuration for the text.
+     * Can be a TextStyle instance or a configuration object.
+     * Supports canvas text styles, HTML text styles, and bitmap text styles.
+     * @example
+     * ```ts
+     * const text = new Text({
+     *     text: 'Styled Text',
+     *     style: {
+     *         fontSize: 24,
+     *         fill: 0xff1010, // Red color
+     *         fontFamily: 'Arial',
+     *         align: 'center', // Center alignment
+     *         stroke: { color: '#4a1850', width: 5 }, // Purple stroke
+     *         dropShadow: {
+     *             color: '#000000', // Black shadow
+     *             blur: 4, // Shadow blur
+     *             distance: 6 // Shadow distance
+     *         }
+     *     }
+     * });
+     * const htmlText = new HTMLText({
+     *     text: 'HTML Styled Text',
+     *     style: {
+     *         fontSize: '20px',
+     *         fill: 'blue',
+     *         fontFamily: 'Verdana',
+     *     }
+     * });
+     * const bitmapText = new BitmapText({
+     *     text: 'Bitmap Styled Text',
+     *     style: {
+     *         fontName: 'Arial',
+     *         fontSize: 32,
+     *     }
+     * })
+     *
+     * // Update style dynamically
+     * text.style = {
+     *     fontSize: 30, // Change font size
+     *     fill: 0x00ff00, // Change color to green
+     *     align: 'right', // Change alignment to right
+     *     stroke: { color: '#000000', width: 2 }, // Add black stroke
+     * }
+     */
+    set style(style) {
+      style || (style = {});
+      this._style?.off("update", this.onViewUpdate, this);
+      if (style instanceof this._styleClass) {
+        this._style = style;
+      } else {
+        this._style = new this._styleClass(style);
+      }
+      this._style.on("update", this.onViewUpdate, this);
+      this.onViewUpdate();
+    }
+    /**
+     * The width of the sprite, setting this will actually modify the scale to achieve the value set.
+     * @example
+     * ```ts
+     * // Set width directly
+     * texture.width = 200;
+     * console.log(texture.scale.x); // Scale adjusted to match width
+     *
+     * // For better performance when setting both width and height
+     * texture.setSize(300, 400); // Avoids recalculating bounds twice
+     * ```
+     */
+    get width() {
+      return Math.abs(this.scale.x) * this.bounds.width;
+    }
+    set width(value) {
+      this._setWidth(value, this.bounds.width);
+    }
+    /**
+     * The height of the sprite, setting this will actually modify the scale to achieve the value set.
+     * @example
+     * ```ts
+     * // Set height directly
+     * texture.height = 200;
+     * console.log(texture.scale.y); // Scale adjusted to match height
+     *
+     * // For better performance when setting both width and height
+     * texture.setSize(300, 400); // Avoids recalculating bounds twice
+     * ```
+     */
+    get height() {
+      return Math.abs(this.scale.y) * this.bounds.height;
+    }
+    set height(value) {
+      this._setHeight(value, this.bounds.height);
+    }
+    /**
+     * Retrieves the size of the Text as a [Size]{@link Size} object based on the texture dimensions and scale.
+     * This is faster than getting width and height separately as it only calculates the bounds once.
+     * @example
+     * ```ts
+     * // Basic size retrieval
+     * const text = new Text({
+     *     text: 'Hello Pixi!',
+     *     style: { fontSize: 24 }
+     * });
+     * const size = text.getSize();
+     * console.log(`Size: ${size.width}x${size.height}`);
+     *
+     * // Reuse existing size object
+     * const reuseSize = { width: 0, height: 0 };
+     * text.getSize(reuseSize);
+     * ```
+     * @param out - Optional object to store the size in, to avoid allocating a new object
+     * @returns The size of the Sprite
+     * @see {@link Text#width} For getting just the width
+     * @see {@link Text#height} For getting just the height
+     * @see {@link Text#setSize} For setting both width and height
+     */
+    getSize(out2) {
+      out2 || (out2 = {});
+      out2.width = Math.abs(this.scale.x) * this.bounds.width;
+      out2.height = Math.abs(this.scale.y) * this.bounds.height;
+      return out2;
+    }
+    /**
+     * Sets the size of the Text to the specified width and height.
+     * This is faster than setting width and height separately as it only recalculates bounds once.
+     * @example
+     * ```ts
+     * // Basic size setting
+     * const text = new Text({
+     *    text: 'Hello Pixi!',
+     *    style: { fontSize: 24 }
+     * });
+     * text.setSize(100, 200); // Width: 100, Height: 200
+     *
+     * // Set uniform size
+     * text.setSize(100); // Sets both width and height to 100
+     *
+     * // Set size with object
+     * text.setSize({
+     *     width: 200,
+     *     height: 300
+     * });
+     * ```
+     * @param value - This can be either a number or a {@link Size} object
+     * @param height - The height to set. Defaults to the value of `width` if not provided
+     * @see {@link Text#width} For setting width only
+     * @see {@link Text#height} For setting height only
+     */
+    setSize(value, height) {
+      if (typeof value === "object") {
+        height = value.height ?? value.width;
+        value = value.width;
+      } else {
+        height ?? (height = value);
+      }
+      value !== void 0 && this._setWidth(value, this.bounds.width);
+      height !== void 0 && this._setHeight(height, this.bounds.height);
+    }
+    /**
+     * Checks if the object contains the given point in local coordinates.
+     * Uses the text's bounds for hit testing.
+     * @example
+     * ```ts
+     * // Basic point check
+     * const localPoint = { x: 50, y: 25 };
+     * const contains = text.containsPoint(localPoint);
+     * console.log('Point is inside:', contains);
+     * ```
+     * @param point - The point to check in local coordinates
+     * @returns True if the point is within the text's bounds
+     * @see {@link Container#toLocal} For converting global coordinates to local
+     */
+    containsPoint(point) {
+      const width = this.bounds.width;
+      const height = this.bounds.height;
+      const x1 = -width * this.anchor.x;
+      let y1 = 0;
+      if (point.x >= x1 && point.x <= x1 + width) {
+        y1 = -height * this.anchor.y;
+        if (point.y >= y1 && point.y <= y1 + height) return true;
+      }
+      return false;
+    }
+    /** @internal */
+    onViewUpdate() {
+      if (!this.didViewUpdate) this._didTextUpdate = true;
+      super.onViewUpdate();
+    }
+    /**
+     * Destroys this text renderable and optionally its style texture.
+     * @param options - Options parameter. A boolean will act as if all options
+     *  have been set to that value
+     * @example
+     * // Destroys the text and its style
+     * text.destroy({ style: true, texture: true, textureSource: true });
+     * text.destroy(true);
+     * text.destroy() // Destroys the text, but not its style
+     */
+    destroy(options = false) {
+      super.destroy(options);
+      this.owner = null;
+      this._bounds = null;
+      this._anchor = null;
+      if (typeof options === "boolean" ? options : options?.style) {
+        this._style.destroy(options);
+      }
+      this._style = null;
+      this._text = null;
+    }
+    /**
+     * Returns a unique key for this instance.
+     * This key is used for caching.
+     * @returns {string} Unique key for the instance
+     */
+    get styleKey() {
+      return `${this._text}:${this._style.styleKey}:${this._resolution}`;
+    }
+  };
+  function ensureTextOptions(args, name) {
+    let options = args[0] ?? {};
+    if (typeof options === "string" || args[1]) {
+      deprecation(v8_0_0, `use new ${name}({ text: "hi!", style }) instead`);
+      options = {
+        text: options,
+        style: args[1]
+      };
+    }
+    return options;
+  }
+
+  // node_modules/pixi.js/lib/scene/text/canvas/CanvasTextGenerator.mjs
+  init_Color();
+  init_Rectangle();
+  init_CanvasPool();
+
+  // node_modules/pixi.js/lib/utils/canvas/getCanvasBoundingBox.mjs
+  init_adapter();
+  init_pow2();
+  init_Rectangle();
+  var _internalCanvas = null;
+  var _internalContext = null;
+  function ensureInternalCanvas(width, height) {
+    if (!_internalCanvas) {
+      _internalCanvas = DOMAdapter.get().createCanvas(256, 128);
+      _internalContext = _internalCanvas.getContext("2d", { willReadFrequently: true });
+      _internalContext.globalCompositeOperation = "copy";
+      _internalContext.globalAlpha = 1;
+    }
+    if (_internalCanvas.width < width || _internalCanvas.height < height) {
+      _internalCanvas.width = nextPow2(width);
+      _internalCanvas.height = nextPow2(height);
+    }
+  }
+  function checkRow(data, width, y2) {
+    for (let x2 = 0, index = 4 * y2 * width; x2 < width; ++x2, index += 4) {
+      if (data[index + 3] !== 0) return false;
+    }
+    return true;
+  }
+  function checkColumn(data, width, x2, top, bottom) {
+    const stride = 4 * width;
+    for (let y2 = top, index = top * stride + 4 * x2; y2 <= bottom; ++y2, index += stride) {
+      if (data[index + 3] !== 0) return false;
+    }
+    return true;
+  }
+  function getCanvasBoundingBox(...args) {
+    let options = args[0];
+    if (!options.canvas) {
+      options = { canvas: args[0], resolution: args[1] };
+    }
+    const { canvas } = options;
+    const resolution = Math.min(options.resolution ?? 1, 1);
+    const width = options.width ?? canvas.width;
+    const height = options.height ?? canvas.height;
+    let output = options.output;
+    ensureInternalCanvas(width, height);
+    if (!_internalContext) {
+      throw new TypeError("Failed to get canvas 2D context");
+    }
+    _internalContext.drawImage(
+      canvas,
+      0,
+      0,
+      width,
+      height,
+      0,
+      0,
+      width * resolution,
+      height * resolution
+    );
+    const imageData = _internalContext.getImageData(0, 0, width, height);
+    const data = imageData.data;
+    let left = 0;
+    let top = 0;
+    let right = width - 1;
+    let bottom = height - 1;
+    while (top < height && checkRow(data, width, top)) ++top;
+    if (top === height) return Rectangle.EMPTY;
+    while (checkRow(data, width, bottom)) --bottom;
+    while (checkColumn(data, width, left, top, bottom)) ++left;
+    while (checkColumn(data, width, right, top, bottom)) --right;
+    ++right;
+    ++bottom;
+    _internalContext.globalCompositeOperation = "source-over";
+    _internalContext.strokeRect(left, top, right - left, bottom - top);
+    _internalContext.globalCompositeOperation = "copy";
+    output ?? (output = new Rectangle());
+    output.set(left / resolution, top / resolution, (right - left) / resolution, (bottom - top) / resolution);
+    return output;
+  }
+
+  // node_modules/pixi.js/lib/scene/text/canvas/CanvasTextGenerator.mjs
+  init_CanvasTextMetrics();
+  init_fontStringFromTextStyle();
+  init_getCanvasFillStyle();
+  var tempRect6 = new Rectangle();
+  function countSpaces(text) {
+    let count2 = 0;
+    for (let i2 = 0; i2 < text.length; i2++) {
+      if (text.charCodeAt(i2) === 32) count2++;
+    }
+    return count2;
+  }
+  var CanvasTextGeneratorClass = class {
+    /**
+     * Creates a canvas with the specified text rendered to it.
+     *
+     * Generates a canvas of appropriate size, renders the text with the provided style,
+     * and returns both the canvas/context and a Rectangle representing the text bounds.
+     *
+     * When trim is enabled in the style, the frame will represent the bounds of the
+     * non-transparent pixels, which can be smaller than the full canvas.
+     * @param options - The options for generating the text canvas
+     * @param options.text - The text to render
+     * @param options.style - The style to apply to the text
+     * @param options.resolution - The resolution of the canvas (defaults to 1)
+     * @param options.padding
+     * @returns An object containing the canvas/context and the frame (bounds) of the text
+     */
+    getCanvasAndContext(options) {
+      const { text, style, resolution = 1 } = options;
+      const padding = style._getFinalPadding();
+      const measured = CanvasTextMetrics.measureText(text || " ", style);
+      const width = Math.ceil(Math.ceil(Math.max(1, measured.width) + padding * 2) * resolution);
+      const height = Math.ceil(Math.ceil(Math.max(1, measured.height) + padding * 2) * resolution);
+      const canvasAndContext = CanvasPool.getOptimalCanvasAndContext(width, height);
+      this._renderTextToCanvas(style, padding, resolution, canvasAndContext, measured);
+      const frame = style.trim ? getCanvasBoundingBox({ canvas: canvasAndContext.canvas, width, height, resolution: 1, output: tempRect6 }) : tempRect6.set(0, 0, width, height);
+      return {
+        canvasAndContext,
+        frame
+      };
+    }
+    /**
+     * Returns a canvas and context to the pool.
+     *
+     * This should be called when you're done with the canvas to allow reuse
+     * and prevent memory leaks.
+     * @param canvasAndContext - The canvas and context to return to the pool
+     */
+    returnCanvasAndContext(canvasAndContext) {
+      CanvasPool.returnCanvasAndContext(canvasAndContext);
+    }
+    /**
+     * Renders text to its canvas, and updates its texture.
+     * @param style - The style of the text
+     * @param padding - The padding of the text
+     * @param resolution - The resolution of the text
+     * @param canvasAndContext - The canvas and context to render the text to
+     * @param measured - Pre-measured text metrics to avoid duplicate measurement
+     */
+    _renderTextToCanvas(style, padding, resolution, canvasAndContext, measured) {
+      if (measured.runsByLine && measured.runsByLine.length > 0) {
+        this._renderTaggedTextToCanvas(measured, style, padding, resolution, canvasAndContext);
+        return;
+      }
+      const { canvas, context: context2 } = canvasAndContext;
+      const font = fontStringFromTextStyle(style);
+      const lines = measured.lines;
+      const lineHeight = measured.lineHeight;
+      const lineWidths = measured.lineWidths;
+      const maxLineWidth = measured.maxLineWidth;
+      const fontProperties = measured.fontProperties;
+      const height = canvas.height;
+      context2.resetTransform();
+      context2.scale(resolution, resolution);
+      context2.textBaseline = style.textBaseline;
+      if (style._stroke?.width) {
+        const strokeStyle = style._stroke;
+        context2.lineWidth = strokeStyle.width;
+        context2.miterLimit = strokeStyle.miterLimit;
+        context2.lineJoin = strokeStyle.join;
+        context2.lineCap = strokeStyle.cap;
+      }
+      context2.font = font;
+      let linePositionX;
+      let linePositionY;
+      const passesCount = style.dropShadow ? 2 : 1;
+      const alignWidth = style.wordWrap ? Math.max(style.wordWrapWidth, maxLineWidth) : maxLineWidth;
+      const strokeWidth = style._stroke?.width ?? 0;
+      const halfStroke = strokeWidth / 2;
+      let linePositionYShift = (lineHeight - fontProperties.fontSize) / 2;
+      if (lineHeight - fontProperties.fontSize < 0) {
+        linePositionYShift = 0;
+      }
+      for (let i2 = 0; i2 < passesCount; ++i2) {
+        const isShadowPass = style.dropShadow && i2 === 0;
+        const dsOffsetText = isShadowPass ? Math.ceil(Math.max(1, height) + padding * 2) : 0;
+        const dsOffsetShadow = dsOffsetText * resolution;
+        if (isShadowPass) {
+          this._setupDropShadow(context2, style, resolution, dsOffsetShadow);
+        } else {
+          const gradientBounds = style._gradientBounds;
+          const gradientOffset = style._gradientOffset;
+          if (gradientBounds) {
+            const gradientMetrics = {
+              width: gradientBounds.width,
+              height: gradientBounds.height,
+              lineHeight: gradientBounds.height,
+              lines: measured.lines
+            };
+            this._setFillAndStrokeStyles(
+              context2,
+              style,
+              gradientMetrics,
+              padding,
+              halfStroke,
+              gradientOffset?.x ?? 0,
+              gradientOffset?.y ?? 0
+            );
+          } else if (gradientOffset) {
+            this._setFillAndStrokeStyles(
+              context2,
+              style,
+              measured,
+              padding,
+              halfStroke,
+              gradientOffset.x,
+              gradientOffset.y
+            );
+          } else {
+            this._setFillAndStrokeStyles(context2, style, measured, padding, halfStroke);
+          }
+          context2.shadowColor = "rgba(0,0,0,0)";
+        }
+        for (let j2 = 0; j2 < lines.length; j2++) {
+          linePositionX = halfStroke;
+          linePositionY = halfStroke + j2 * lineHeight + fontProperties.ascent + linePositionYShift;
+          linePositionX += this._getAlignmentOffset(lineWidths[j2], alignWidth, style.align);
+          let wordSpacing = 0;
+          if (style.align === "justify" && style.wordWrap && j2 < lines.length - 1) {
+            const spaces = countSpaces(lines[j2]);
+            if (spaces > 0) {
+              wordSpacing = (alignWidth - lineWidths[j2]) / spaces;
+            }
+          }
+          if (style._stroke?.width) {
+            this._drawLetterSpacing(
+              lines[j2],
+              style,
+              canvasAndContext,
+              linePositionX + padding,
+              linePositionY + padding - dsOffsetText,
+              true,
+              wordSpacing
+            );
+          }
+          if (style._fill !== void 0) {
+            this._drawLetterSpacing(
+              lines[j2],
+              style,
+              canvasAndContext,
+              linePositionX + padding,
+              linePositionY + padding - dsOffsetText,
+              false,
+              wordSpacing
+            );
+          }
+        }
+      }
+    }
+    /**
+     * Renders tagged text (with per-run styles) to canvas.
+     * @param measured - The measured text metrics containing runsByLine
+     * @param style - The base text style
+     * @param padding - The padding of the text
+     * @param resolution - The resolution of the text
+     * @param canvasAndContext - The canvas and context to render to
+     */
+    _renderTaggedTextToCanvas(measured, style, padding, resolution, canvasAndContext) {
+      const { canvas, context: context2 } = canvasAndContext;
+      const { runsByLine, lineWidths, maxLineWidth, lineAscents, lineHeights, hasDropShadow } = measured;
+      const height = canvas.height;
+      context2.resetTransform();
+      context2.scale(resolution, resolution);
+      context2.textBaseline = style.textBaseline;
+      const passesCount = hasDropShadow ? 2 : 1;
+      const alignWidth = style.wordWrap ? Math.max(style.wordWrapWidth, maxLineWidth) : maxLineWidth;
+      let maxStrokeWidth = style._stroke?.width ?? 0;
+      for (const lineRuns of runsByLine) {
+        for (const run of lineRuns) {
+          const w2 = run.style._stroke?.width ?? 0;
+          if (w2 > maxStrokeWidth) maxStrokeWidth = w2;
+        }
+      }
+      const halfStroke = maxStrokeWidth / 2;
+      const runDataByLine = [];
+      for (let lineIndex = 0; lineIndex < runsByLine.length; lineIndex++) {
+        const lineRuns = runsByLine[lineIndex];
+        const runData = [];
+        for (const run of lineRuns) {
+          const font = fontStringFromTextStyle(run.style);
+          context2.font = font;
+          runData.push({
+            width: CanvasTextMetrics._measureText(run.text, run.style.letterSpacing, context2),
+            font
+          });
+        }
+        runDataByLine.push(runData);
+      }
+      for (let pass = 0; pass < passesCount; ++pass) {
+        const isShadowPass = hasDropShadow && pass === 0;
+        const dsOffsetText = isShadowPass ? Math.ceil(Math.max(1, height) + padding * 2) : 0;
+        const dsOffsetShadow = dsOffsetText * resolution;
+        if (!isShadowPass) {
+          context2.shadowColor = "rgba(0,0,0,0)";
+        }
+        let currentY = halfStroke;
+        for (let lineIndex = 0; lineIndex < runsByLine.length; lineIndex++) {
+          const lineRuns = runsByLine[lineIndex];
+          const lineWidth = lineWidths[lineIndex];
+          const lineAscent = lineAscents[lineIndex];
+          const currentLineHeight = lineHeights[lineIndex];
+          const lineRunData = runDataByLine[lineIndex];
+          let linePositionX = halfStroke;
+          linePositionX += this._getAlignmentOffset(lineWidth, alignWidth, style.align);
+          let wordSpacing = 0;
+          if (style.align === "justify" && style.wordWrap && lineIndex < runsByLine.length - 1) {
+            let totalSpaces = 0;
+            for (const run of lineRuns) {
+              totalSpaces += countSpaces(run.text);
+            }
+            if (totalSpaces > 0) {
+              wordSpacing = (alignWidth - lineWidth) / totalSpaces;
+            }
+          }
+          const linePositionY = currentY + lineAscent;
+          let runX = linePositionX + padding;
+          for (let runIndex = 0; runIndex < lineRuns.length; runIndex++) {
+            const run = lineRuns[runIndex];
+            const { width: runWidth, font: runFont } = lineRunData[runIndex];
+            context2.font = runFont;
+            context2.textBaseline = run.style.textBaseline;
+            if (run.style._stroke?.width) {
+              const runStroke = run.style._stroke;
+              context2.lineWidth = runStroke.width;
+              context2.miterLimit = runStroke.miterLimit;
+              context2.lineJoin = runStroke.join;
+              context2.lineCap = runStroke.cap;
+              if (isShadowPass) {
+                if (run.style.dropShadow) {
+                  this._setupDropShadow(
+                    context2,
+                    run.style,
+                    resolution,
+                    dsOffsetShadow
+                  );
+                } else {
+                  const spacesSkipped = countSpaces(run.text);
+                  runX += runWidth + spacesSkipped * wordSpacing;
+                  continue;
+                }
+              } else {
+                const runFontProps = CanvasTextMetrics.measureFont(runFont);
+                const runHeight = run.style.lineHeight || runFontProps.fontSize;
+                const runMetrics = {
+                  width: runWidth,
+                  height: runHeight,
+                  lineHeight: runHeight,
+                  lines: [run.text]
+                };
+                context2.strokeStyle = getCanvasFillStyle(
+                  runStroke,
+                  context2,
+                  runMetrics,
+                  padding * 2,
+                  runX - padding,
+                  currentY
+                );
+              }
+              this._drawLetterSpacing(
+                run.text,
+                run.style,
+                canvasAndContext,
+                runX,
+                linePositionY + padding - dsOffsetText,
+                true,
+                wordSpacing
+              );
+            }
+            const spacesInRun = countSpaces(run.text);
+            runX += runWidth + spacesInRun * wordSpacing;
+          }
+          runX = linePositionX + padding;
+          for (let runIndex = 0; runIndex < lineRuns.length; runIndex++) {
+            const run = lineRuns[runIndex];
+            const { width: runWidth, font: runFont } = lineRunData[runIndex];
+            context2.font = runFont;
+            context2.textBaseline = run.style.textBaseline;
+            if (run.style._fill !== void 0) {
+              if (isShadowPass) {
+                if (run.style.dropShadow) {
+                  this._setupDropShadow(
+                    context2,
+                    run.style,
+                    resolution,
+                    dsOffsetShadow
+                  );
+                } else {
+                  const spacesSkipped = countSpaces(run.text);
+                  runX += runWidth + spacesSkipped * wordSpacing;
+                  continue;
+                }
+              } else {
+                const runFontProps = CanvasTextMetrics.measureFont(runFont);
+                const runHeight = run.style.lineHeight || runFontProps.fontSize;
+                const runMetrics = {
+                  width: runWidth,
+                  height: runHeight,
+                  lineHeight: runHeight,
+                  lines: [run.text]
+                };
+                context2.fillStyle = getCanvasFillStyle(
+                  run.style._fill,
+                  context2,
+                  runMetrics,
+                  padding * 2,
+                  runX - padding,
+                  currentY
+                );
+              }
+              this._drawLetterSpacing(
+                run.text,
+                run.style,
+                canvasAndContext,
+                runX,
+                linePositionY + padding - dsOffsetText,
+                false,
+                wordSpacing
+              );
+            }
+            const spacesInFillRun = countSpaces(run.text);
+            runX += runWidth + spacesInFillRun * wordSpacing;
+          }
+          currentY += currentLineHeight;
+        }
+      }
+    }
+    /**
+     * Sets fill and stroke styles on the canvas context for text rendering.
+     * @param context - The canvas context
+     * @param style - The text style
+     * @param metrics - The text metrics for gradient calculation
+     * @param padding - The padding value
+     * @param halfStroke - Half the stroke width
+     * @param offsetX - X offset for gradient positioning
+     * @param offsetY - Y offset for gradient positioning
+     */
+    _setFillAndStrokeStyles(context2, style, metrics, padding, halfStroke, offsetX = 0, offsetY = 0) {
+      context2.fillStyle = style._fill ? getCanvasFillStyle(style._fill, context2, metrics, padding * 2, offsetX, offsetY) : null;
+      if (style._stroke?.width) {
+        const strokePadding = halfStroke + padding * 2;
+        context2.strokeStyle = getCanvasFillStyle(
+          style._stroke,
+          context2,
+          metrics,
+          strokePadding,
+          offsetX,
+          offsetY
+        );
+      }
+    }
+    /**
+     * Sets up the canvas context for drop shadow rendering.
+     * @param context - The canvas context
+     * @param style - The text style containing drop shadow options
+     * @param resolution - The resolution multiplier
+     * @param dsOffsetShadow - The shadow Y offset
+     */
+    _setupDropShadow(context2, style, resolution, dsOffsetShadow) {
+      context2.fillStyle = "black";
+      context2.strokeStyle = "black";
+      const shadowOptions = style.dropShadow;
+      const dropShadowColor = shadowOptions.color;
+      const dropShadowAlpha = shadowOptions.alpha;
+      context2.shadowColor = Color.shared.setValue(dropShadowColor).setAlpha(dropShadowAlpha).toRgbaString();
+      const dropShadowBlur = shadowOptions.blur * resolution;
+      const dropShadowDistance = shadowOptions.distance * resolution;
+      context2.shadowBlur = dropShadowBlur;
+      context2.shadowOffsetX = Math.cos(shadowOptions.angle) * dropShadowDistance;
+      context2.shadowOffsetY = Math.sin(shadowOptions.angle) * dropShadowDistance + dsOffsetShadow;
+    }
+    /**
+     * Calculates the X offset for text alignment.
+     * @param lineWidth - The width of the current line
+     * @param alignWidth - The width to align against (maxLineWidth or wordWrapWidth)
+     * @param align - The text alignment
+     * @returns The X offset for this line
+     */
+    _getAlignmentOffset(lineWidth, alignWidth, align) {
+      if (align === "right") {
+        return alignWidth - lineWidth;
+      } else if (align === "center") {
+        return (alignWidth - lineWidth) / 2;
+      }
+      return 0;
+    }
+    /**
+     * Render the text with letter-spacing.
+     *
+     * This method handles rendering text with the correct letter spacing, using either:
+     * 1. Native letter spacing if supported by the browser
+     * 2. Manual letter spacing calculation if not natively supported
+     *
+     * For manual letter spacing, it calculates the position of each character
+     * based on its width and the desired spacing.
+     * @param text - The text to draw
+     * @param style - The text style to apply
+     * @param canvasAndContext - The canvas and context to draw to
+     * @param x - Horizontal position to draw the text
+     * @param y - Vertical position to draw the text
+     * @param isStroke - Whether to render the stroke (true) or fill (false)
+     * @param wordSpacing - Extra spacing to add between words (for justify alignment)
+     * @private
+     */
+    _drawLetterSpacing(text, style, canvasAndContext, x2, y2, isStroke = false, wordSpacing = 0) {
+      const { context: context2 } = canvasAndContext;
+      const letterSpacing = style.letterSpacing;
+      let useExperimentalLetterSpacing = false;
+      if (CanvasTextMetrics.experimentalLetterSpacingSupported) {
+        if (CanvasTextMetrics.experimentalLetterSpacing) {
+          context2.letterSpacing = `${letterSpacing}px`;
+          context2.textLetterSpacing = `${letterSpacing}px`;
+          useExperimentalLetterSpacing = true;
+        } else {
+          context2.letterSpacing = "0px";
+          context2.textLetterSpacing = "0px";
+        }
+      }
+      if ((letterSpacing === 0 || useExperimentalLetterSpacing) && wordSpacing === 0) {
+        if (isStroke) {
+          context2.strokeText(text, x2, y2);
+        } else {
+          context2.fillText(text, x2, y2);
+        }
+        return;
+      }
+      if (wordSpacing !== 0 && (letterSpacing === 0 || useExperimentalLetterSpacing)) {
+        const words = text.split(" ");
+        let currentPosition2 = x2;
+        const spaceWidth = context2.measureText(" ").width;
+        for (let i2 = 0; i2 < words.length; i2++) {
+          if (isStroke) {
+            context2.strokeText(words[i2], currentPosition2, y2);
+          } else {
+            context2.fillText(words[i2], currentPosition2, y2);
+          }
+          currentPosition2 += context2.measureText(words[i2]).width + spaceWidth + wordSpacing;
+        }
+        return;
+      }
+      let currentPosition = x2;
+      const stringArray = CanvasTextMetrics.graphemeSegmenter(text);
+      let previousWidth = context2.measureText(text).width;
+      let currentWidth = 0;
+      for (let i2 = 0; i2 < stringArray.length; ++i2) {
+        const currentChar = stringArray[i2];
+        if (isStroke) {
+          context2.strokeText(currentChar, currentPosition, y2);
+        } else {
+          context2.fillText(currentChar, currentPosition, y2);
+        }
+        let textStr = "";
+        for (let j2 = i2 + 1; j2 < stringArray.length; ++j2) {
+          textStr += stringArray[j2];
+        }
+        currentWidth = context2.measureText(textStr).width;
+        currentPosition += previousWidth - currentWidth + letterSpacing;
+        if (currentChar === " ") currentPosition += wordSpacing;
+        previousWidth = currentWidth;
+      }
+    }
+  };
+  var CanvasTextGenerator = new CanvasTextGeneratorClass();
+
+  // node_modules/pixi.js/lib/scene/text/Text.mjs
+  init_CanvasTextMetrics();
+  init_TextStyle();
+
+  // node_modules/pixi.js/lib/scene/text/init.mjs
+  init_Extensions();
+
+  // node_modules/pixi.js/lib/scene/text/canvas/CanvasTextPipe.mjs
+  init_Extensions();
+  init_GCManagedHash();
+
+  // node_modules/pixi.js/lib/scene/text/utils/updateTextBounds.mjs
+  init_updateQuadBounds();
+  function updateTextBounds(batchableSprite, text) {
+    const { texture, bounds } = batchableSprite;
+    const padding = text._style._getFinalPadding();
+    updateQuadBounds(bounds, text._anchor, texture);
+    const paddingOffset = text._anchor._x * padding * 2;
+    const paddingOffsetY = text._anchor._y * padding * 2;
+    bounds.minX -= padding - paddingOffset;
+    bounds.minY -= padding - paddingOffsetY;
+    bounds.maxX -= padding - paddingOffset;
+    bounds.maxY -= padding - paddingOffsetY;
+  }
+
+  // node_modules/pixi.js/lib/scene/text/canvas/BatchableText.mjs
+  init_BatchableSprite();
+  var BatchableText = class extends BatchableSprite {
+  };
+
+  // node_modules/pixi.js/lib/scene/text/canvas/CanvasTextPipe.mjs
+  var CanvasTextPipe = class {
+    constructor(renderer) {
+      this._renderer = renderer;
+      renderer.runners.resolutionChange.add(this);
+      this._managedTexts = new GCManagedHash({
+        renderer,
+        type: "renderable",
+        onUnload: this.onTextUnload.bind(this),
+        name: "canvasText"
+      });
+    }
+    resolutionChange() {
+      for (const key in this._managedTexts.items) {
+        const text = this._managedTexts.items[key];
+        if (text?._autoResolution) text.onViewUpdate();
+      }
+    }
+    validateRenderable(text) {
+      const gpuText = this._getGpuText(text);
+      const newKey = text.styleKey;
+      if (gpuText.currentKey !== newKey) return true;
+      return text._didTextUpdate;
+    }
+    addRenderable(text, instructionSet) {
+      const batchableText = this._getGpuText(text);
+      if (text._didTextUpdate) {
+        const resolution = text._autoResolution ? this._renderer.resolution : text.resolution;
+        if (batchableText.currentKey !== text.styleKey || text._resolution !== resolution) {
+          this._updateGpuText(text);
+        }
+        text._didTextUpdate = false;
+        updateTextBounds(batchableText, text);
+      }
+      this._renderer.renderPipes.batch.addToBatch(batchableText, instructionSet);
+    }
+    updateRenderable(text) {
+      const batchableText = this._getGpuText(text);
+      batchableText._batcher.updateElement(batchableText);
+    }
+    _updateGpuText(text) {
+      const batchableText = this._getGpuText(text);
+      if (batchableText.texture) {
+        this._renderer.canvasText.decreaseReferenceCount(batchableText.currentKey);
+      }
+      text._resolution = text._autoResolution ? this._renderer.resolution : text.resolution;
+      batchableText.texture = this._renderer.canvasText.getManagedTexture(text);
+      batchableText.currentKey = text.styleKey;
+    }
+    _getGpuText(text) {
+      return text._gpuData[this._renderer.uid] || this.initGpuText(text);
+    }
+    initGpuText(text) {
+      const batchableText = new BatchableText();
+      batchableText.currentKey = "--";
+      batchableText.renderable = text;
+      batchableText.transform = text.groupTransform;
+      batchableText.bounds = { minX: 0, maxX: 1, minY: 0, maxY: 0 };
+      batchableText.roundPixels = this._renderer._roundPixels | text._roundPixels;
+      text._gpuData[this._renderer.uid] = batchableText;
+      this._managedTexts.add(text);
+      return batchableText;
+    }
+    onTextUnload(text) {
+      const gpuData = text._gpuData[this._renderer.uid];
+      if (!gpuData) return;
+      const { canvasText } = this._renderer;
+      const refCount = canvasText.getReferenceCount(gpuData.currentKey);
+      if (refCount > 0) {
+        canvasText.decreaseReferenceCount(gpuData.currentKey);
+      } else if (gpuData.texture) {
+        canvasText.returnTexture(gpuData.texture);
+      }
+    }
+    destroy() {
+      this._managedTexts.destroy();
+      this._renderer = null;
+    }
+  };
+  CanvasTextPipe.extension = {
+    type: [
+      ExtensionType.WebGLPipes,
+      ExtensionType.WebGPUPipes,
+      ExtensionType.CanvasPipes
+    ],
+    name: "text"
+  };
+
+  // node_modules/pixi.js/lib/scene/text/canvas/CanvasTextSystem.mjs
+  init_Extensions();
+
+  // node_modules/pixi.js/lib/scene/text/shared/AbstractTextSystem.mjs
+  init_TexturePool();
+  init_TextureStyle();
+  init_deprecation();
+  init_TextStyle();
+
+  // node_modules/pixi.js/lib/scene/text/utils/getPo2TextureFromSource.mjs
+  init_TexturePool();
+  init_Bounds();
+  var tempBounds4 = new Bounds();
+  function getPo2TextureFromSource(image, width, height, resolution, autoGenerateMipmaps = false) {
+    const bounds = tempBounds4;
+    bounds.minX = 0;
+    bounds.minY = 0;
+    bounds.maxX = image.width / resolution | 0;
+    bounds.maxY = image.height / resolution | 0;
+    const texture = TexturePool.getOptimalTexture(
+      bounds.width,
+      bounds.height,
+      resolution,
+      false,
+      autoGenerateMipmaps
+    );
+    texture.source.uploadMethodId = "image";
+    texture.source.resource = image;
+    texture.source.alphaMode = "premultiply-alpha-on-upload";
+    texture.frame.width = width / resolution;
+    texture.frame.height = height / resolution;
+    texture.source.emit("update", texture.source);
+    texture.updateUvs();
+    return texture;
+  }
+
+  // node_modules/pixi.js/lib/scene/text/shared/AbstractTextSystem.mjs
+  var AbstractTextSystem = class {
+    constructor(renderer, retainCanvasContext) {
+      this._activeTextures = {};
+      this._renderer = renderer;
+      this._retainCanvasContext = retainCanvasContext;
+    }
+    getTexture(options, _resolution, _style, _textKey) {
+      if (typeof options === "string") {
+        deprecation("8.0.0", "CanvasTextSystem.getTexture: Use object TextOptions instead of separate arguments");
+        options = {
+          text: options,
+          style: _style,
+          resolution: _resolution
+        };
+      }
+      if (!(options.style instanceof TextStyle)) {
+        options.style = new TextStyle(options.style);
+      }
+      if (!(options.textureStyle instanceof TextureStyle)) {
+        options.textureStyle = new TextureStyle(options.textureStyle);
+      }
+      if (typeof options.text !== "string") {
+        options.text = options.text.toString();
+      }
+      const { text, style, textureStyle, autoGenerateMipmaps } = options;
+      const resolution = options.resolution ?? this._renderer.resolution;
+      const { frame, canvasAndContext } = CanvasTextGenerator.getCanvasAndContext({
+        text,
+        style,
+        resolution
+      });
+      const texture = getPo2TextureFromSource(
+        canvasAndContext.canvas,
+        frame.width,
+        frame.height,
+        resolution,
+        autoGenerateMipmaps
+      );
+      if (textureStyle) texture.source.style = textureStyle;
+      if (style.trim) {
+        frame.pad(style.padding);
+        texture.frame.copyFrom(frame);
+        texture.frame.scale(1 / resolution);
+        texture.updateUvs();
+      }
+      if (style.filters) {
+        const filteredTexture = this._applyFilters(texture, style.filters);
+        this.returnTexture(texture);
+        CanvasTextGenerator.returnCanvasAndContext(canvasAndContext);
+        return filteredTexture;
+      }
+      this._renderer.texture.initSource(texture._source);
+      if (!this._retainCanvasContext) {
+        CanvasTextGenerator.returnCanvasAndContext(canvasAndContext);
+      }
+      return texture;
+    }
+    /**
+     * Returns a texture that was created wit the above `getTexture` function.
+     * Handy if you are done with a texture and want to return it to the pool.
+     * @param texture - The texture to be returned.
+     */
+    returnTexture(texture) {
+      const source3 = texture.source;
+      const resource = source3.resource;
+      if (this._retainCanvasContext && resource?.getContext) {
+        const context2 = resource.getContext("2d");
+        if (context2) {
+          CanvasTextGenerator.returnCanvasAndContext({ canvas: resource, context: context2 });
+        }
+      }
+      source3.resource = null;
+      source3.uploadMethodId = "unknown";
+      source3.alphaMode = "no-premultiply-alpha";
+      TexturePool.returnTexture(texture, true);
+    }
+    /**
+     * Renders text to its canvas, and updates its texture.
+     * @deprecated since 8.10.0
+     */
+    renderTextToCanvas() {
+      deprecation(
+        "8.10.0",
+        "CanvasTextSystem.renderTextToCanvas: no longer supported, use CanvasTextSystem.getTexture instead"
+      );
+    }
+    /**
+     * Gets or creates a managed texture for a Text object. This method handles texture reuse and reference counting.
+     * @param text - The Text object that needs a texture
+     * @returns A Texture instance that represents the rendered text
+     * @remarks
+     * This method performs the following:
+     * 1. Sets the appropriate resolution based on auto-resolution settings
+     * 2. Checks if a texture already exists for the text's style
+     * 3. Creates a new texture if needed or returns an existing one
+     * 4. Manages reference counting for texture reuse
+     */
+    getManagedTexture(text) {
+      text._resolution = text._autoResolution ? this._renderer.resolution : text.resolution;
+      const textKey = text.styleKey;
+      if (this._activeTextures[textKey]) {
+        this._increaseReferenceCount(textKey);
+        return this._activeTextures[textKey].texture;
+      }
+      const texture = this.getTexture({
+        text: text.text,
+        style: text.style,
+        resolution: text._resolution,
+        textureStyle: text.textureStyle,
+        autoGenerateMipmaps: text.autoGenerateMipmaps
+      });
+      this._activeTextures[textKey] = {
+        texture,
+        usageCount: 1
+      };
+      return texture;
+    }
+    /**
+     * Decreases the reference count for a texture associated with a text key.
+     * When the reference count reaches zero, the texture is returned to the pool.
+     * @param textKey - The unique key identifying the text style configuration
+     * @remarks
+     * This method is crucial for memory management, ensuring textures are properly
+     * cleaned up when they are no longer needed by any Text instances.
+     */
+    decreaseReferenceCount(textKey) {
+      const activeTexture = this._activeTextures[textKey];
+      if (!activeTexture) return;
+      activeTexture.usageCount--;
+      if (activeTexture.usageCount === 0) {
+        this.returnTexture(activeTexture.texture);
+        this._activeTextures[textKey] = null;
+      }
+    }
+    /**
+     * Gets the current reference count for a texture associated with a text key.
+     * @param textKey - The unique key identifying the text style configuration
+     * @returns The number of Text instances currently using this texture
+     */
+    getReferenceCount(textKey) {
+      return this._activeTextures[textKey]?.usageCount ?? 0;
+    }
+    _increaseReferenceCount(textKey) {
+      this._activeTextures[textKey].usageCount++;
+    }
+    /**
+     * Applies the specified filters to the given texture.
+     *
+     * This method takes a texture and a list of filters, applies the filters to the texture,
+     * and returns the resulting texture. It also ensures that the alpha mode of the resulting
+     * texture is set to 'premultiplied-alpha'.
+     * @param {Texture} texture - The texture to which the filters will be applied.
+     * @param {Filter[]} filters - The filters to apply to the texture.
+     * @returns {Texture} The resulting texture after all filters have been applied.
+     */
+    _applyFilters(texture, filters) {
+      const currentRenderTarget = this._renderer.renderTarget.renderTarget;
+      const resultTexture = this._renderer.filter.generateFilteredTexture({
+        texture,
+        filters
+      });
+      this._renderer.renderTarget.bind(currentRenderTarget, false);
+      return resultTexture;
+    }
+    destroy() {
+      this._renderer = null;
+      for (const key in this._activeTextures) {
+        if (this._activeTextures[key]) this.returnTexture(this._activeTextures[key].texture);
+      }
+      this._activeTextures = null;
+    }
+  };
+
+  // node_modules/pixi.js/lib/scene/text/canvas/CanvasTextSystem.mjs
+  var CanvasRendererTextSystem = class extends AbstractTextSystem {
+    constructor(renderer) {
+      super(renderer, true);
+    }
+  };
+  CanvasRendererTextSystem.extension = {
+    type: [
+      ExtensionType.CanvasSystem
+    ],
+    name: "canvasText"
+  };
+
+  // node_modules/pixi.js/lib/scene/text/shared/GpuTextSystem.mjs
+  init_Extensions();
+  var CanvasTextSystem = class extends AbstractTextSystem {
+    constructor(renderer) {
+      super(renderer, false);
+    }
+  };
+  CanvasTextSystem.extension = {
+    type: [
+      ExtensionType.WebGLSystem,
+      ExtensionType.WebGPUSystem
+    ],
+    name: "canvasText"
+  };
+
+  // node_modules/pixi.js/lib/scene/text/init.mjs
+  extensions.add(CanvasRendererTextSystem);
+  extensions.add(CanvasTextSystem);
+  extensions.add(CanvasTextPipe);
+
+  // node_modules/pixi.js/lib/scene/text/Text.mjs
+  var Text = class extends AbstractText {
+    constructor(...args) {
+      const options = ensureTextOptions(args, "Text");
+      super(options, TextStyle);
+      this.renderPipeId = "text";
+      if (options.textureStyle) {
+        this.textureStyle = options.textureStyle instanceof TextureStyle ? options.textureStyle : new TextureStyle(options.textureStyle);
+      }
+      this.autoGenerateMipmaps = options.autoGenerateMipmaps ?? TextureSource.defaultOptions.autoGenerateMipmaps;
+    }
+    /** @private */
+    updateBounds() {
+      const bounds = this._bounds;
+      const anchor = this._anchor;
+      let width = 0;
+      let height = 0;
+      if (this._style.trim) {
+        const { frame, canvasAndContext } = CanvasTextGenerator.getCanvasAndContext({
+          text: this.text,
+          style: this._style,
+          resolution: 1
+        });
+        CanvasTextGenerator.returnCanvasAndContext(canvasAndContext);
+        width = frame.width;
+        height = frame.height;
+      } else {
+        const canvasMeasurement = CanvasTextMetrics.measureText(
+          this._text,
+          this._style
+        );
+        width = canvasMeasurement.width;
+        height = canvasMeasurement.height;
+      }
+      bounds.minX = -anchor._x * width;
+      bounds.maxX = bounds.minX + width;
+      bounds.minY = -anchor._y * height;
+      bounds.maxY = bounds.minY + height;
+    }
+  };
+
   // node_modules/pixi.js/lib/index.mjs
   init_textureFrom();
   init_Container();
@@ -45249,46 +46576,1158 @@ ${e2}`);
     }
   };
 
-  // src/renderer/pixi/layers/CharacterLayer.ts
+  // src/systems/dna/Chromosome.ts
+  var Chromosome = class _Chromosome {
+    constructor(id) {
+      this.id = id;
+      this.type = id === 23 ? "sex" : "autosome";
+      this.genes = /* @__PURE__ */ new Map();
+      this.paternalValues = /* @__PURE__ */ new Map();
+      this.maternalValues = /* @__PURE__ */ new Map();
+      this.initializeGenes();
+    }
+    /**
+     * 初始化基因
+     */
+    initializeGenes() {
+      const geneCount = this.id === 23 ? 3 : 8;
+      for (let i2 = 0; i2 < geneCount; i2++) {
+        const geneName = `gene_${this.id}_${i2}`;
+        const effect = this.getRandomEffect();
+        const paternalValue = this.randomAllele();
+        const maternalValue = this.randomAllele();
+        this.paternalValues.set(geneName, paternalValue);
+        this.maternalValues.set(geneName, maternalValue);
+        this.genes.set(geneName, {
+          locus: {
+            chromosome: this.id,
+            band: this.randomBand(),
+            position: Math.floor(Math.random() * 1e8),
+            gene: geneName,
+            effect
+          },
+          paternalAllele: { value: paternalValue },
+          maternalAllele: { value: maternalValue },
+          dominance: this.randomDominance()
+        });
+      }
+    }
+    /**
+     * 随机等位基因（0-1）
+     * 包含少量极端值（模拟真实遗传多样性）
+     */
+    randomAllele() {
+      const r2 = Math.random();
+      if (r2 < 0.1) return Math.random() * 0.3;
+      if (r2 > 0.9) return 0.7 + Math.random() * 0.3;
+      return 0.3 + Math.random() * 0.4;
+    }
+    /**
+     * 随机显性类型
+     */
+    randomDominance() {
+      const types = ["full" /* FULL_DOMINANT */, "incomplete" /* INCOMPLETE */, "codominant" /* CODOMINANT */, "recessive" /* RECESSIVE */];
+      return types[Math.floor(Math.random() * types.length)];
+    }
+    /**
+     * 随机基因效果
+     */
+    getRandomEffect() {
+      const effects = [
+        "strength",
+        "agility",
+        "intelligence",
+        "perception",
+        "constitution",
+        "endurance",
+        "bravery",
+        "curiosity",
+        "aggression",
+        "empathy",
+        "sociability",
+        "patience",
+        "sensitivity",
+        "fearResponse",
+        "riskAversion",
+        "socialNeed",
+        "selfInterest",
+        "altruism",
+        "metabolism",
+        "lifespan",
+        "fertility",
+        "immunity",
+        "skinTone",
+        "height",
+        "hairColor",
+        "eyeColor"
+      ];
+      return effects[Math.floor(Math.random() * effects.length)];
+    }
+    /**
+     * 随机染色体带
+     */
+    randomBand() {
+      const arms = ["p", "q"];
+      const arm = arms[Math.floor(Math.random() * arms.length)];
+      const band = Math.floor(Math.random() * 37) + 1;
+      return `${arm}${band}`;
+    }
+    /**
+     * 获取基因值
+     */
+    getGeneValues() {
+      const values = {};
+      for (const [name, gene] of this.genes) {
+        values[gene.locus.effect] = this.calculateExpression(gene);
+      }
+      return values;
+    }
+    /**
+     * 计算基因表达
+     */
+    calculateExpression(gene) {
+      const pVal = gene.paternalAllele.value;
+      const mVal = gene.maternalAllele.value;
+      switch (gene.dominance) {
+        case "full" /* FULL_DOMINANT */:
+          return Math.max(pVal, mVal);
+        case "incomplete" /* INCOMPLETE */:
+          return (pVal + mVal) / 2 * 0.8 + 0.1;
+        case "codominant" /* CODOMINANT */:
+          return (pVal + mVal) / 2;
+        case "recessive" /* RECESSIVE */:
+          return pVal === mVal ? pVal : (pVal + mVal) / 4;
+        default:
+          return (pVal + mVal) / 2;
+      }
+    }
+    /**
+     * 减数分裂 - 随机选择一条染色体传递给配子
+     */
+    meiosis() {
+      const gamete = new _Chromosome(this.id);
+      gamete.paternalValues.clear();
+      gamete.maternalValues.clear();
+      for (const [name, gene] of this.genes) {
+        const fromPaternal = Math.random() > 0.5;
+        const value = fromPaternal ? gene.paternalAllele.value : gene.maternalAllele.value;
+        const mutatedValue = this.maybeMutate(value);
+        gamete.paternalValues.set(name, mutatedValue);
+      }
+      return gamete;
+    }
+    /**
+     * 突变
+     */
+    maybeMutate(value) {
+      if (Math.random() < 0.01) {
+        const change = (Math.random() - 0.5) * 0.3;
+        return Math.max(0, Math.min(1, value + change));
+      }
+      return value;
+    }
+    /**
+     * 组合两条配子染色体
+     */
+    static combine(maternal, paternal, id) {
+      const child = new _Chromosome(id);
+      for (const [name, value] of maternal.paternalValues) {
+        child.paternalValues.set(name, value);
+      }
+      for (const [name, value] of paternal.paternalValues) {
+        child.maternalValues.set(name, value);
+      }
+      return child;
+    }
+    /**
+     * 获取特定效果的基因值
+     */
+    getEffectValue(effect) {
+      let sum = 0;
+      let count2 = 0;
+      for (const gene of this.genes.values()) {
+        if (gene.locus.effect === effect) {
+          sum += this.calculateExpression(gene);
+          count2++;
+        }
+      }
+      return count2 > 0 ? sum / count2 : 0.5;
+    }
+  };
+
+  // src/systems/dna/DNA.ts
+  var DNA = class _DNA {
+    constructor(data) {
+      this.data = data;
+    }
+    /**
+     * 创建初始DNA（亚当和夏娃）
+     */
+    static createInitial() {
+      const chromosomes = [];
+      for (let i2 = 1; i2 <= 23; i2++) {
+        chromosomes.push(new Chromosome(i2));
+      }
+      const phenotype = _DNA.expressPhenotype(chromosomes);
+      return new _DNA({
+        chromosomes,
+        sexChromosome: Math.random() > 0.5 ? "XX" : "XY",
+        phenotype,
+        mutations: [],
+        epigeneticMarks: [],
+        generation: 1
+      });
+    }
+    /**
+     * 从父母创建子代DNA
+     */
+    static inherit(mother, father) {
+      const childChromosomes = [];
+      for (let i2 = 0; i2 < 23; i2++) {
+        const maternalChromosome = mother.data.chromosomes[i2];
+        const paternalChromosome = father.data.chromosomes[i2];
+        const maternalGamete = maternalChromosome.meiosis();
+        const paternalGamete = paternalChromosome.meiosis();
+        const childChromosome = Chromosome.combine(maternalGamete, paternalGamete, i2 + 1);
+        childChromosomes.push(childChromosome);
+      }
+      const sexChromosome = _DNA.determineSex(mother, father);
+      const phenotype = _DNA.expressPhenotype(childChromosomes);
+      return new _DNA({
+        chromosomes: childChromosomes,
+        sexChromosome,
+        phenotype,
+        fatherId: father.getId(),
+        motherId: mother.getId(),
+        mutations: [],
+        epigeneticMarks: [],
+        generation: Math.max(mother.data.generation, father.data.generation) + 1
+      });
+    }
+    /**
+     * 确定性别
+     */
+    static determineSex(mother, father) {
+      return Math.random() > 0.5 ? "XX" : "XY";
+    }
+    /**
+     * 从基因型表达表现型
+     */
+    static expressPhenotype(chromosomes) {
+      const geneValues = chromosomes.map((c2) => c2.getGeneValues());
+      return {
+        // 体质属性（从多个基因取平均）
+        strength: _DNA.average(geneValues, "strength"),
+        agility: _DNA.average(geneValues, "agility"),
+        intelligence: _DNA.average(geneValues, "intelligence"),
+        perception: _DNA.average(geneValues, "perception"),
+        constitution: _DNA.average(geneValues, "constitution"),
+        endurance: _DNA.average(geneValues, "endurance"),
+        // 性格
+        bravery: _DNA.average(geneValues, "bravery"),
+        curiosity: _DNA.average(geneValues, "curiosity"),
+        aggression: _DNA.average(geneValues, "aggression"),
+        empathy: _DNA.average(geneValues, "empathy"),
+        sociability: _DNA.average(geneValues, "sociability"),
+        patience: _DNA.average(geneValues, "patience"),
+        // 需求相关
+        hungerThreshold: 0.3,
+        hungerSensitivity: _DNA.average(geneValues, "sensitivity"),
+        thirstThreshold: 0.3,
+        thirstSensitivity: _DNA.average(geneValues, "sensitivity"),
+        fearResponse: _DNA.average(geneValues, "fearResponse"),
+        riskAversion: _DNA.average(geneValues, "riskAversion"),
+        socialNeed: _DNA.average(geneValues, "socialNeed"),
+        selfInterest: _DNA.average(geneValues, "selfInterest"),
+        altruismTendency: _DNA.average(geneValues, "altruism"),
+        // 生理
+        metabolism: 0.8 + _DNA.average(geneValues, "metabolism") * 1.2,
+        lifespan: 600 + _DNA.average(geneValues, "lifespan") * 600,
+        fertility: _DNA.average(geneValues, "fertility"),
+        immuneStrength: _DNA.average(geneValues, "immunity"),
+        // 外观
+        skinTone: _DNA.average(geneValues, "skinTone"),
+        height: 0.9 + _DNA.average(geneValues, "height") * 0.4,
+        hairColor: _DNA.average(geneValues, "hairColor"),
+        eyeColor: _DNA.average(geneValues, "eyeColor")
+      };
+    }
+    /**
+     * 计算平均值
+     */
+    static average(values, trait) {
+      const relevant = values.filter((v2) => v2[trait] !== void 0);
+      if (relevant.length === 0) return 0.5;
+      const sum = relevant.reduce((acc, v2) => acc + v2[trait], 0);
+      return Math.max(0, Math.min(1, sum / relevant.length));
+    }
+    // Getter方法
+    getData() {
+      return this.data;
+    }
+    getPhenotype() {
+      return this.data.phenotype;
+    }
+    getChromosomes() {
+      return this.data.chromosomes;
+    }
+    getSex() {
+      return this.data.sexChromosome;
+    }
+    getGeneration() {
+      return this.data.generation;
+    }
+    getFatherId() {
+      return this.data.fatherId;
+    }
+    getMotherId() {
+      return this.data.motherId;
+    }
+    /**
+     * 获取唯一ID（用于追踪）
+     */
+    getId() {
+      return `dna_${this.data.generation}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+    /**
+     * 克隆DNA
+     */
+    clone() {
+      return new _DNA(JSON.parse(JSON.stringify(this.data)));
+    }
+  };
+
+  // src/systems/needs/NeedsCalculator.ts
+  var NeedsCalculator = class {
+    /**
+     * 计算所有动态需求
+     */
+    calculate(individual, worldState, dna) {
+      return {
+        hunger: this.calculateHunger(individual, dna),
+        thirst: this.calculateThirst(individual, dna),
+        energy: this.calculateEnergy(individual, worldState, dna),
+        safety: this.calculateSafety(individual, worldState, dna),
+        social: this.calculateSocial(individual, worldState, dna),
+        curiosity: this.calculateCuriosity(individual, worldState, dna),
+        reproduction: this.calculateReproduction(individual, worldState, dna)
+      };
+    }
+    /**
+     * 饥饿需求
+     */
+    calculateHunger(individual, dna) {
+      const timeSinceMeal = Math.max(0, individual.lastMealTime);
+      const metabolism = dna.metabolism;
+      const baseHunger = Math.min(1, timeSinceMeal / 600 * metabolism);
+      const foodBuffer = individual.storedFood / 10;
+      const bufferedHunger = Math.max(0, baseHunger - foodBuffer * 0.1);
+      const sensitivity = dna.hungerSensitivity;
+      const threshold = dna.hungerThreshold;
+      const hunger = Math.min(1, bufferedHunger * sensitivity);
+      if (hunger < threshold) {
+        return hunger / threshold * 0.3;
+      }
+      return hunger;
+    }
+    /**
+     * 口渴需求
+     */
+    calculateThirst(individual, dna) {
+      const timeSinceDrink = Math.max(0, individual.lastDrinkTime);
+      const metabolism = dna.metabolism;
+      const baseThirst = Math.min(1, timeSinceDrink / 300 * metabolism);
+      const waterBuffer = individual.storedWater / 10;
+      const bufferedThirst = Math.max(0, baseThirst - waterBuffer * 0.15);
+      const sensitivity = dna.thirstSensitivity;
+      return Math.min(1, bufferedThirst * sensitivity);
+    }
+    /**
+     * 精力需求
+     */
+    calculateEnergy(individual, worldState, dna) {
+      const timeSinceRest = Math.max(0, individual.lastRestTime);
+      let energyDrain = timeSinceRest / 900;
+      if (worldState.isNight) {
+        energyDrain *= 1.2;
+      }
+      const constitution = dna.constitution;
+      energyDrain *= 1.5 - constitution / 100;
+      return Math.min(1, energyDrain);
+    }
+    /**
+     * 安全需求
+     */
+    calculateSafety(individual, worldState, dna) {
+      let safetyScore = 1;
+      for (const threat of worldState.threats) {
+        if (threat.distance < 50) {
+          safetyScore *= 0.3;
+        } else if (threat.distance < 100) {
+          safetyScore *= 0.6;
+        } else if (threat.distance < 200) {
+          safetyScore *= 0.8;
+        }
+      }
+      if (worldState.isNight) {
+        safetyScore *= 0.7;
+      }
+      const fearResponse = dna.fearResponse;
+      const riskAversion = dna.riskAversion;
+      safetyScore *= 1.5 - fearResponse * 0.5;
+      return Math.max(0, Math.min(1, 1 - safetyScore));
+    }
+    /**
+     * 社交需求
+     */
+    calculateSocial(individual, worldState, dna) {
+      const aloneTime = individual.aloneTime;
+      const socialNeed = dna.socialNeed;
+      const baseSocial = Math.min(1, aloneTime / 600 * socialNeed);
+      if (worldState.nearbyIndividuals > 0) {
+        const nearbyReduction = Math.min(0.5, worldState.nearbyIndividuals * 0.1);
+        return Math.max(0, baseSocial - nearbyReduction);
+      }
+      return baseSocial;
+    }
+    /**
+     * 好奇心需求
+     */
+    calculateCuriosity(individual, worldState, dna) {
+      const curiosity = dna.curiosity;
+      let curiosityScore = curiosity * 0.3;
+      curiosityScore += Math.random() * 0.2;
+      return Math.min(1, curiosityScore);
+    }
+    /**
+     * 繁殖需求
+     */
+    calculateReproduction(individual, worldState, dna) {
+      const fertileAge = individual.age > 60 && individual.age < 600;
+      const fertility = dna.fertility;
+      if (!fertileAge) return 0;
+      let reproductionScore = fertility * 0.2;
+      if (worldState.nearbyIndividuals > 0) {
+        reproductionScore += 0.3;
+      }
+      if (individual.aloneTime > 300) {
+        reproductionScore *= 0.5;
+      }
+      return Math.min(1, reproductionScore);
+    }
+    /**
+     * 获取最高需求
+     */
+    getDominantNeed(needs2) {
+      const entries = Object.entries(needs2);
+      let maxNeed = { name: "hunger", value: 0 };
+      for (const [name, value] of entries) {
+        if (value > maxNeed.value) {
+          maxNeed = { name, value };
+        }
+      }
+      return maxNeed.name;
+    }
+    /**
+     * 获取需求描述
+     */
+    static getNeedDescription(needName) {
+      const descriptions = {
+        hunger: "\u9965\u997F",
+        thirst: "\u53E3\u6E34",
+        energy: "\u75B2\u60EB",
+        safety: "\u5B89\u5168\u611F",
+        social: "\u5B64\u72EC",
+        curiosity: "\u597D\u5947\u5FC3",
+        reproduction: "\u7E41\u6B96"
+      };
+      return descriptions[needName] || needName;
+    }
+  };
+
+  // src/systems/ai/AIController.ts
+  var ACTION_EFFECTS = {
+    ["find_food" /* FIND_FOOD */]: {
+      satisfies: ["hunger"],
+      foodValue: 0.5,
+      waterValue: 0,
+      energyValue: 0,
+      safetyValue: 0,
+      socialValue: 0,
+      curiosityValue: 0.2,
+      reproductionValue: 0,
+      energyCost: 0.2,
+      foodCost: 0,
+      waterCost: 0,
+      risky: false,
+      exploration: true,
+      social: false,
+      duration: 30
+    },
+    ["hunt" /* HUNT */]: {
+      satisfies: ["hunger"],
+      foodValue: 0.8,
+      waterValue: 0,
+      energyValue: 0,
+      safetyValue: 0,
+      socialValue: 0,
+      curiosityValue: 0.1,
+      reproductionValue: 0,
+      energyCost: 0.4,
+      foodCost: 0,
+      waterCost: 0,
+      risky: true,
+      exploration: false,
+      social: false,
+      duration: 60
+    },
+    ["gather" /* GATHER */]: {
+      satisfies: ["hunger"],
+      foodValue: 0.4,
+      waterValue: 0,
+      energyValue: 0,
+      safetyValue: 0,
+      socialValue: 0,
+      curiosityValue: 0.1,
+      reproductionValue: 0,
+      energyCost: 0.15,
+      foodCost: 0,
+      waterCost: 0,
+      risky: false,
+      exploration: false,
+      social: false,
+      duration: 20
+    },
+    ["eat" /* EAT */]: {
+      satisfies: ["hunger"],
+      foodValue: 0.9,
+      waterValue: 0.1,
+      energyValue: 0.1,
+      safetyValue: 0,
+      socialValue: 0,
+      curiosityValue: 0,
+      reproductionValue: 0,
+      energyCost: 0,
+      foodCost: 1,
+      waterCost: 0,
+      risky: false,
+      exploration: false,
+      social: false,
+      duration: 5
+    },
+    ["find_water" /* FIND_WATER */]: {
+      satisfies: ["thirst"],
+      foodValue: 0,
+      waterValue: 0.4,
+      energyValue: 0,
+      safetyValue: 0,
+      socialValue: 0,
+      curiosityValue: 0.2,
+      reproductionValue: 0,
+      energyCost: 0.15,
+      foodCost: 0,
+      waterCost: 0,
+      risky: false,
+      exploration: true,
+      social: false,
+      duration: 25
+    },
+    ["drink" /* DRINK */]: {
+      satisfies: ["thirst"],
+      foodValue: 0,
+      waterValue: 0.95,
+      energyValue: 0,
+      safetyValue: 0,
+      socialValue: 0,
+      curiosityValue: 0,
+      reproductionValue: 0,
+      energyCost: 0,
+      foodCost: 0,
+      waterCost: 0.5,
+      risky: false,
+      exploration: false,
+      social: false,
+      duration: 3
+    },
+    ["rest" /* REST */]: {
+      satisfies: ["energy"],
+      foodValue: 0,
+      waterValue: 0,
+      energyValue: 0.6,
+      safetyValue: 0.2,
+      socialValue: 0,
+      curiosityValue: 0,
+      reproductionValue: 0,
+      energyCost: 0,
+      foodCost: 0,
+      waterCost: 0.1,
+      risky: false,
+      exploration: false,
+      social: false,
+      duration: 30
+    },
+    ["sleep" /* SLEEP */]: {
+      satisfies: ["energy"],
+      foodValue: 0,
+      waterValue: 0,
+      energyValue: 0.95,
+      safetyValue: 0.3,
+      socialValue: 0,
+      curiosityValue: 0,
+      reproductionValue: 0,
+      energyCost: 0,
+      foodCost: 0.2,
+      waterCost: 0.2,
+      risky: false,
+      exploration: false,
+      social: false,
+      duration: 120
+    },
+    ["flee" /* FLEE */]: {
+      satisfies: ["safety"],
+      foodValue: 0,
+      waterValue: 0,
+      energyValue: 0,
+      safetyValue: 0.9,
+      socialValue: 0,
+      curiosityValue: 0,
+      reproductionValue: 0,
+      energyCost: 0.35,
+      foodCost: 0,
+      waterCost: 0,
+      risky: true,
+      exploration: false,
+      social: false,
+      duration: 10
+    },
+    ["hide" /* HIDE */]: {
+      satisfies: ["safety"],
+      foodValue: 0,
+      waterValue: 0,
+      energyValue: 0.1,
+      safetyValue: 0.7,
+      socialValue: 0,
+      curiosityValue: 0,
+      reproductionValue: 0,
+      energyCost: 0.05,
+      foodCost: 0,
+      waterCost: 0,
+      risky: false,
+      exploration: false,
+      social: false,
+      duration: 20
+    },
+    ["defend" /* DEFEND */]: {
+      satisfies: ["safety"],
+      foodValue: 0,
+      waterValue: 0,
+      energyValue: 0,
+      safetyValue: 0.6,
+      socialValue: 0.1,
+      curiosityValue: 0,
+      reproductionValue: 0,
+      energyCost: 0.3,
+      foodCost: 0,
+      waterCost: 0,
+      risky: true,
+      exploration: false,
+      social: false,
+      duration: 15
+    },
+    ["attack" /* ATTACK */]: {
+      satisfies: ["safety"],
+      foodValue: 0,
+      waterValue: 0,
+      energyValue: 0,
+      safetyValue: 0.5,
+      socialValue: -0.2,
+      curiosityValue: 0,
+      reproductionValue: 0,
+      energyCost: 0.4,
+      foodCost: 0,
+      waterCost: 0,
+      risky: true,
+      exploration: false,
+      social: false,
+      duration: 10
+    },
+    ["socialize" /* SOCIALIZE */]: {
+      satisfies: ["social"],
+      foodValue: 0,
+      waterValue: 0,
+      energyValue: 0,
+      safetyValue: 0.1,
+      socialValue: 0.8,
+      curiosityValue: 0.1,
+      reproductionValue: 0.1,
+      energyCost: 0.05,
+      foodCost: 0,
+      waterCost: 0,
+      risky: false,
+      exploration: false,
+      social: true,
+      duration: 60
+    },
+    ["communicate" /* COMMUNICATE */]: {
+      satisfies: ["social", "curiosity"],
+      foodValue: 0,
+      waterValue: 0,
+      energyValue: 0,
+      safetyValue: 0.05,
+      socialValue: 0.5,
+      curiosityValue: 0.3,
+      reproductionValue: 0,
+      energyCost: 0.02,
+      foodCost: 0,
+      waterCost: 0,
+      risky: false,
+      exploration: false,
+      social: true,
+      duration: 30
+    },
+    ["explore" /* EXPLORE */]: {
+      satisfies: ["curiosity"],
+      foodValue: 0.1,
+      waterValue: 0.05,
+      energyValue: 0,
+      safetyValue: -0.2,
+      socialValue: 0,
+      curiosityValue: 0.7,
+      reproductionValue: 0,
+      energyCost: 0.25,
+      foodCost: 0,
+      waterCost: 0,
+      risky: true,
+      exploration: true,
+      social: false,
+      duration: 120
+    },
+    ["mate" /* MATE */]: {
+      satisfies: ["reproduction", "social"],
+      foodValue: 0,
+      waterValue: 0,
+      energyValue: 0,
+      safetyValue: 0,
+      socialValue: 0.3,
+      curiosityValue: 0,
+      reproductionValue: 0.9,
+      energyCost: 0.2,
+      foodCost: 0,
+      waterCost: 0,
+      risky: false,
+      exploration: false,
+      social: true,
+      duration: 30
+    },
+    ["build" /* BUILD */]: {
+      satisfies: [],
+      foodValue: 0,
+      waterValue: 0,
+      energyValue: 0,
+      safetyValue: 0.3,
+      socialValue: 0.1,
+      curiosityValue: 0.2,
+      reproductionValue: 0,
+      energyCost: 0.3,
+      foodCost: 0,
+      waterCost: 0,
+      risky: false,
+      exploration: false,
+      social: true,
+      duration: 180
+    }
+  };
+  var AIController = class {
+    constructor(dna) {
+      this.personality = this.derivePersonality(dna);
+    }
+    /**
+     * 从DNA派生性格权重
+     */
+    derivePersonality(dna) {
+      return {
+        // 需求权重
+        hungerWeight: 0.8 + (1 - dna.hungerSensitivity) * 0.2,
+        thirstWeight: 0.8 + (1 - dna.thirstSensitivity) * 0.2,
+        energyWeight: 0.6,
+        safetyWeight: 0.7 + dna.fearResponse * 0.3,
+        socialWeight: 0.4 + dna.socialNeed * 0.4,
+        curiosityWeight: 0.3 + dna.curiosity * 0.4,
+        reproductionWeight: 0.2 + dna.fertility * 0.3,
+        // 性格修正
+        braveryModifier: dna.bravery,
+        aggressionModifier: dna.aggression,
+        empathyModifier: dna.empathy,
+        curiosityModifier: dna.curiosity,
+        // 风险承受
+        riskTolerance: dna.bravery * (1 - dna.riskAversion),
+        // 代谢影响
+        metabolismRate: dna.metabolism
+      };
+    }
+    /**
+     * 决定下一步行动
+     */
+    decideAction(needs2, individual, worldState) {
+      const availableActions = this.getAvailableActions(individual, worldState);
+      const scoredActions = availableActions.map(
+        (action) => this.scoreAction(action, needs2, worldState)
+      );
+      return this.softmaxSelect(scoredActions);
+    }
+    /**
+     * 获取可用行动
+     */
+    getAvailableActions(individual, worldState) {
+      const actions = [];
+      actions.push("rest" /* REST */);
+      actions.push("sleep" /* SLEEP */);
+      if (worldState.nearbyFood.length > 0) {
+        actions.push("gather" /* GATHER */);
+        actions.push("eat" /* EAT */);
+      }
+      if (worldState.nearbyWater.length > 0) {
+        actions.push("drink" /* DRINK */);
+      }
+      if (worldState.threats.length > 0) {
+        actions.push("flee" /* FLEE */);
+        actions.push("hide" /* HIDE */);
+        if (this.personality.aggressionModifier > 0.6) {
+          actions.push("attack" /* ATTACK */);
+        }
+      }
+      if (worldState.nearbyIndividuals > 0) {
+        actions.push("socialize" /* SOCIALIZE */);
+        actions.push("communicate" /* COMMUNICATE */);
+        if (needs.reproduction > 0.5 && individual.sex === "female") {
+          actions.push("mate" /* MATE */);
+        }
+      }
+      if (this.personality.curiosityModifier > 0.5) {
+        actions.push("explore" /* EXPLORE */);
+        actions.push("investigate" /* INVESTIGATE */);
+      }
+      actions.push("find_food" /* FIND_FOOD */);
+      actions.push("find_water" /* FIND_WATER */);
+      if (this.personality.intelligence > 50) {
+        actions.push("build" /* BUILD */);
+      }
+      return [...new Set(actions)];
+    }
+    /**
+     * 评分单个行动
+     */
+    scoreAction(action, needs2, worldState) {
+      const effects = ACTION_EFFECTS[action];
+      const needSatisfaction = this.calculateNeedSatisfaction(action, needs2);
+      const dnaAlignment = this.calculateDNAAlignment(action);
+      const riskAssessment = this.assessRisk(action, worldState);
+      const energyEfficiency = 1 - effects.energyCost;
+      const totalScore = needSatisfaction * 0.4 + dnaAlignment * 0.25 + riskAssessment * 0.2 + energyEfficiency * 0.15;
+      return {
+        action,
+        totalScore,
+        needSatisfaction,
+        dnaAlignment,
+        riskAssessment,
+        energyEfficiency
+      };
+    }
+    /**
+     * 计算需求满足度
+     */
+    calculateNeedSatisfaction(action, needs2) {
+      const effects = ACTION_EFFECTS[action];
+      let score = 0;
+      for (const need of effects.satisfies) {
+        const needValue = needs2[need] || 0;
+        const effectValue = effects[`${need}Value`] || 0;
+        score += needValue * effectValue;
+      }
+      if (effects.satisfies.length === 0) {
+        score = 0.1;
+      }
+      return Math.min(1, Math.max(0, score));
+    }
+    /**
+     * 计算DNA性格契合度
+     */
+    calculateDNAAlignment(action) {
+      const effects = ACTION_EFFECTS[action];
+      let score = 0.5;
+      if (effects.exploration) {
+        score += this.personality.curiosityModifier * 0.3;
+      }
+      if (effects.social) {
+        score += this.personality.empathyModifier * 0.2;
+      }
+      if (effects.risky) {
+        score += (this.personality.braveryModifier - 0.5) * 0.3;
+      }
+      if (action === "attack" /* ATTACK */ || action === "defend" /* DEFEND */) {
+        score += (this.personality.aggressionModifier - 0.5) * 0.3;
+      }
+      return Math.min(1, Math.max(0, score));
+    }
+    /**
+     * 风险评估
+     */
+    assessRisk(action, worldState) {
+      const effects = ACTION_EFFECTS[action];
+      if (!effects.risky) return 0.9;
+      if (worldState.isNight) {
+        return 0.3 * this.personality.riskTolerance;
+      }
+      if (worldState.threats.length > 0) {
+        return 0.4 * this.personality.riskTolerance;
+      }
+      return 0.6 * this.personality.riskTolerance;
+    }
+    /**
+     * Softmax选择（带随机性）
+     */
+    softmaxSelect(scoredActions) {
+      const temperature = 0.5;
+      const expScores = scoredActions.map(
+        (s2) => Math.exp(s2.totalScore / temperature)
+      );
+      const sum = expScores.reduce((a2, b2) => a2 + b2, 0);
+      let random = Math.random() * sum;
+      for (const scored of scoredActions) {
+        random -= Math.exp(scored.totalScore / temperature);
+        if (random <= 0) return scored.action;
+      }
+      return scoredActions[0].action;
+    }
+    /**
+     * 获取最高分的行动（贪心）
+     */
+    getGreedyAction(needs2, individual, worldState) {
+      const availableActions = this.getAvailableActions(individual, worldState);
+      const scoredActions = availableActions.map(
+        (action) => this.scoreAction(action, needs2, worldState)
+      );
+      scoredActions.sort((a2, b2) => b2.totalScore - a2.totalScore);
+      return scoredActions[0].action;
+    }
+  };
+
+  // src/entities/Character.ts
   var TILE_SIZE3 = 64;
-  var CHARACTER_SIZE = 32;
   var Character = class {
-    constructor(type, x2, y2) {
-      this.targetX = null;
-      this.targetY = null;
+    // 构造函数
+    constructor(type, x2, y2, name) {
+      this.currentAction = null;
+      this.actionTarget = null;
+      this.actionTimer = 0;
+      this.id = `char_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       this.type = type;
+      this.name = name || (type === "adam" ? "\u4E9A\u5F53" : "\u590F\u5A03");
+      this.dna = DNA.createInitial();
+      this.phenotype = this.dna.getPhenotype();
       this.x = x2;
       this.y = y2;
-      this.pixelX = x2 * TILE_SIZE3 + TILE_SIZE3 / 2;
-      this.pixelY = y2 * TILE_SIZE3 + TILE_SIZE3 / 2;
+      this.state = {
+        storedFood: 5,
+        storedWater: 3,
+        health: 100,
+        lastMealTime: 0,
+        lastDrinkTime: 0,
+        lastRestTime: 0,
+        lastSocialTime: 0,
+        position: { x: x2, y: y2 },
+        age: 0,
+        sex: type === "adam" ? "male" : "female",
+        aloneTime: 0
+      };
+      this.needsCalculator = new NeedsCalculator();
+      this.aiController = new AIController(this.phenotype);
     }
-    setTarget(x2, y2) {
-      this.targetX = x2;
-      this.targetY = y2;
+    // 每帧更新
+    update(deltaTime, worldState) {
+      this.state.age += deltaTime;
+      this.state.lastRestTime += deltaTime;
+      this.state.aloneTime += deltaTime;
+      if (this.actionTarget) {
+        this.moveToTarget();
+        if (Math.abs(this.x - this.actionTarget.x) < 0.5 && Math.abs(this.y - this.actionTarget.y) < 0.5) {
+          this.actionTarget = null;
+          this.currentAction = null;
+          this.actionTimer = 0;
+        }
+        return;
+      }
+      if (this.currentAction) {
+        this.actionTimer += deltaTime;
+        return;
+      }
+      this.makeDecision(worldState);
     }
-    update() {
-      if (this.targetX === null || this.targetY === null) return;
-      const dx = this.targetX - this.x;
-      const dy = this.targetY - this.y;
+    // AI决策
+    makeDecision(worldState) {
+      const needs2 = this.needsCalculator.calculate(this.state, worldState, this.phenotype);
+      const action = this.aiController.decideAction(needs2, this.state, worldState);
+      this.currentAction = action;
+      this.actionTimer = 0;
+      this.setActionTarget(action, worldState);
+    }
+    // 设置行动目标
+    setActionTarget(action, worldState) {
+      switch (action) {
+        case "find_food" /* FIND_FOOD */:
+        case "gather" /* GATHER */:
+          if (worldState.nearbyFood.length > 0) {
+            const food = worldState.nearbyFood[0];
+            this.actionTarget = { x: food.position.x, y: food.position.y };
+          } else {
+            this.randomMove();
+          }
+          break;
+        case "find_water" /* FIND_WATER */:
+          if (worldState.nearbyWater.length > 0) {
+            const water = worldState.nearbyWater[0];
+            this.actionTarget = { x: water.position.x, y: water.position.y };
+          } else {
+            this.randomMove();
+          }
+          break;
+        case "drink" /* DRINK */:
+        case "eat" /* EAT */:
+          this.consumeResources(action);
+          this.actionTarget = null;
+          this.currentAction = null;
+          break;
+        case "rest" /* REST */:
+        case "sleep" /* SLEEP */:
+          this.state.lastRestTime = 0;
+          this.state.health = Math.min(100, this.state.health + 10);
+          this.actionTarget = null;
+          this.currentAction = null;
+          break;
+        case "socialize" /* SOCIALIZE */:
+          if (worldState.nearbyCharacters > 1) {
+            this.randomMove();
+          }
+          break;
+        case "explore" /* EXPLORE */:
+          this.randomMove();
+          break;
+        case "flee" /* FLEE */:
+          this.fleeFromThreat(worldState);
+          break;
+        default:
+          this.randomMove();
+      }
+    }
+    // 向目标移动
+    moveToTarget() {
+      if (!this.actionTarget) return;
+      const dx = this.actionTarget.x - this.x;
+      const dy = this.actionTarget.y - this.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist < 0.1) {
-        this.x = this.targetX;
-        this.y = this.targetY;
-        this.targetX = null;
-        this.targetY = null;
+        this.x = this.actionTarget.x;
+        this.y = this.actionTarget.y;
       } else {
-        const speed = 0.02;
+        const speed = 0.01 + this.phenotype.agility / 100 * 0.02;
         this.x += dx / dist * speed;
         this.y += dy / dist * speed;
       }
-      this.pixelX = this.x * TILE_SIZE3 + TILE_SIZE3 / 2;
-      this.pixelY = this.y * TILE_SIZE3 + TILE_SIZE3 / 2;
+      this.state.position = { x: this.x, y: this.y };
+      this.state.lastRestTime += 0.016;
+    }
+    // 随机移动
+    randomMove() {
+      const directions = [
+        { dx: 1, dy: 0 },
+        { dx: -1, dy: 0 },
+        { dx: 0, dy: 1 },
+        { dx: 0, dy: -1 },
+        { dx: 1, dy: 1 },
+        { dx: -1, dy: -1 }
+      ];
+      const dir = directions[Math.floor(Math.random() * directions.length)];
+      this.actionTarget = {
+        x: Math.max(0, Math.min(99, this.x + dir.dx * 5)),
+        y: Math.max(0, Math.min(49, this.y + dir.dy * 5))
+      };
+    }
+    // 逃离威胁
+    fleeFromThreat(worldState) {
+      if (worldState.threats.length === 0) {
+        this.randomMove();
+        return;
+      }
+      const threat = worldState.threats[0];
+      this.actionTarget = {
+        x: this.x - (threat.x - this.x) * 2,
+        y: this.y - (threat.y - this.y) * 2
+      };
+    }
+    // 消耗资源
+    consumeResources(action) {
+      if (action === "eat" /* EAT */ && this.state.storedFood > 0) {
+        this.state.storedFood -= 1;
+        this.state.lastMealTime = 0;
+      } else if (action === "drink" /* DRINK */ && this.state.storedWater > 0) {
+        this.state.storedWater -= 1;
+        this.state.lastDrinkTime = 0;
+      }
+    }
+    // 获取像素位置
+    getPixelPosition() {
+      return {
+        x: this.x * TILE_SIZE3 + TILE_SIZE3 / 2,
+        y: this.y * TILE_SIZE3 + TILE_SIZE3 / 2
+      };
+    }
+    // 获取当前状态
+    getState() {
+      return this.state;
+    }
+    // 获取表现型
+    getPhenotype() {
+      return this.phenotype;
+    }
+    // 获取当前行动描述
+    getActionDescription() {
+      if (!this.currentAction) return "\u95F2\u7F6E";
+      const descriptions = {
+        ["find_food" /* FIND_FOOD */]: "\u5BFB\u627E\u98DF\u7269",
+        ["hunt" /* HUNT */]: "\u72E9\u730E\u4E2D",
+        ["gather" /* GATHER */]: "\u91C7\u96C6\u4E2D",
+        ["eat" /* EAT */]: "\u8FDB\u98DF\u4E2D",
+        ["find_water" /* FIND_WATER */]: "\u5BFB\u627E\u6C34\u6E90",
+        ["drink" /* DRINK */]: "\u996E\u6C34\u4E2D",
+        ["rest" /* REST */]: "\u4F11\u606F\u4E2D",
+        ["sleep" /* SLEEP */]: "\u7761\u7720\u4E2D",
+        ["flee" /* FLEE */]: "\u9003\u8DD1\u4E2D",
+        ["hide" /* HIDE */]: "\u8EB2\u85CF\u4E2D",
+        ["defend" /* DEFEND */]: "\u9632\u5FA1\u4E2D",
+        ["attack" /* ATTACK */]: "\u653B\u51FB\u4E2D",
+        ["socialize" /* SOCIALIZE */]: "\u793E\u4EA4\u4E2D",
+        ["communicate" /* COMMUNICATE */]: "\u4EA4\u6D41\u4E2D",
+        ["trade" /* TRADE */]: "\u4EA4\u6613\u4E2D",
+        ["mate" /* MATE */]: "\u7E41\u6B96\u4E2D",
+        ["care_offspring" /* CARE_OFFSPRING */]: "\u7167\u987E\u540E\u4EE3",
+        ["explore" /* EXPLORE */]: "\u63A2\u7D22\u4E2D",
+        ["investigate" /* INVESTIGATE */]: "\u8C03\u67E5\u4E2D",
+        ["learn" /* LEARN */]: "\u5B66\u4E60\u4E2D",
+        ["build" /* BUILD */]: "\u5EFA\u9020\u4E2D",
+        ["craft" /* CRAFT */]: "\u5236\u4F5C\u4E2D",
+        ["gather_materials" /* GATHER_MATERIALS */]: "\u6536\u96C6\u6750\u6599"
+      };
+      return descriptions[this.currentAction] || "\u884C\u52A8\u4E2D";
     }
   };
+
+  // src/renderer/pixi/layers/CharacterLayer.ts
+  var CHARACTER_SIZE = 32;
   var CharacterLayer = class {
     constructor(map) {
       this.characters = [];
       this.sprites = /* @__PURE__ */ new Map();
+      this.labels = /* @__PURE__ */ new Map();
       this.textureCache = /* @__PURE__ */ new Map();
       this.ASSETS = {
         "adam": "img/\u4E9A\u5F53.png",
@@ -45296,18 +47735,20 @@ ${e2}`);
       };
       this.map = map;
       this.container = new Container();
+      this.worldState = {
+        time: 0,
+        threats: [],
+        nearbyFood: this.findNearbyFood(),
+        nearbyWater: this.findNearbyWater(),
+        nearbyIndividuals: 0,
+        temperature: 25,
+        isNight: false
+      };
     }
     async init() {
-      this.createCharacters();
       await this.loadTextures();
+      this.createCharacters();
       this.render();
-    }
-    createCharacters() {
-      const mapSize = this.map.getSize();
-      const centerX = Math.floor(mapSize.width / 2);
-      const centerY = Math.floor(mapSize.height / 2);
-      this.characters.push(new Character("adam", centerX, centerY));
-      this.characters.push(new Character("eve", centerX + 1, centerY));
     }
     async loadTextures() {
       for (const [type, path2] of Object.entries(this.ASSETS)) {
@@ -45319,54 +47760,111 @@ ${e2}`);
         }
       }
     }
+    createCharacters() {
+      const mapSize = this.map.getSize();
+      const centerX = Math.floor(mapSize.width / 2);
+      const centerY = Math.floor(mapSize.height / 2);
+      const adam = new Character("adam", centerX, centerY);
+      const eve = new Character("eve", centerX + 1, centerY);
+      this.characters.push(adam);
+      this.characters.push(eve);
+    }
     render() {
       for (const char of this.characters) {
         const texture = this.textureCache.get(char.type);
         if (!texture) continue;
         const sprite = new Sprite(texture);
-        sprite.x = char.pixelX - CHARACTER_SIZE / 2;
-        sprite.y = char.pixelY - CHARACTER_SIZE / 2;
+        const pos = char.getPixelPosition();
+        sprite.x = pos.x - CHARACTER_SIZE / 2;
+        sprite.y = pos.y - CHARACTER_SIZE / 2;
         sprite.width = CHARACTER_SIZE;
         sprite.height = CHARACTER_SIZE;
         this.container.addChild(sprite);
         this.sprites.set(char, sprite);
+        const label = new Text({
+          text: char.name,
+          style: {
+            fontSize: 10,
+            fill: 16777215,
+            stroke: { color: 0, width: 2 }
+          }
+        });
+        label.x = pos.x - label.width / 2;
+        label.y = pos.y - CHARACTER_SIZE / 2 - 12;
+        this.container.addChild(label);
+        this.labels.set(char, label);
+        const actionLabel = new Text({
+          text: char.getActionDescription(),
+          style: {
+            fontSize: 8,
+            fill: 16776960,
+            stroke: { color: 0, width: 1 }
+          }
+        });
+        actionLabel.x = pos.x - actionLabel.width / 2;
+        actionLabel.y = pos.y + CHARACTER_SIZE / 2 + 2;
+        this.container.addChild(actionLabel);
       }
     }
-    isWalkable(x2, y2) {
-      const tile = this.map.getTile(Math.floor(x2), Math.floor(y2));
-      if (!tile) return false;
-      const blocked = ["ocean" /* OCEAN */, "lake" /* LAKE */, "river" /* RIVER */, "mountain" /* MOUNTAIN */, "swamp" /* SWAMP */];
-      return !blocked.includes(tile.type);
-    }
-    update() {
+    // 更新所有角色
+    update(deltaTime) {
+      this.updateWorldState();
       for (const char of this.characters) {
-        if (char.targetX === null && Math.random() < 0.02) {
-          const directions = [
-            { dx: 1, dy: 0 },
-            { dx: -1, dy: 0 },
-            { dx: 0, dy: 1 },
-            { dx: 0, dy: -1 }
-          ];
-          for (let i2 = directions.length - 1; i2 > 0; i2--) {
-            const j2 = Math.floor(Math.random() * (i2 + 1));
-            [directions[i2], directions[j2]] = [directions[j2], directions[i2]];
-          }
-          for (const dir of directions) {
-            const newX = Math.floor(char.x + dir.dx);
-            const newY = Math.floor(char.y + dir.dy);
-            if (this.isWalkable(newX, newY)) {
-              char.setTarget(newX, newY);
-              break;
-            }
-          }
-        }
-        char.update();
+        char.update(deltaTime, this.worldState);
         const sprite = this.sprites.get(char);
         if (sprite) {
-          sprite.x = char.pixelX - CHARACTER_SIZE / 2;
-          sprite.y = char.pixelY - CHARACTER_SIZE / 2;
+          const pos = char.getPixelPosition();
+          sprite.x = pos.x - CHARACTER_SIZE / 2;
+          sprite.y = pos.y - CHARACTER_SIZE / 2;
+        }
+        const label = this.labels.get(char);
+        if (label) {
+          const pos = char.getPixelPosition();
+          label.x = pos.x - label.width / 2;
+          label.y = pos.y - CHARACTER_SIZE / 2 - 12;
         }
       }
+    }
+    // 更新世界状态
+    updateWorldState() {
+      this.worldState.nearbyFood = this.findNearbyFood();
+      this.worldState.nearbyWater = this.findNearbyWater();
+      this.worldState.nearbyIndividuals = this.characters.length;
+      if (Math.random() < 1e-3) {
+        this.worldState.threats = [];
+      }
+    }
+    // 查找附近的食物
+    findNearbyFood() {
+      const foods = [];
+      for (let i2 = 0; i2 < 3; i2++) {
+        const mapSize = this.map.getSize();
+        foods.push({
+          type: ["berry", "fruit"][Math.floor(Math.random() * 2)],
+          position: {
+            x: Math.floor(Math.random() * mapSize.width),
+            y: Math.floor(Math.random() * mapSize.height)
+          }
+        });
+      }
+      return foods;
+    }
+    // 查找附近的水源
+    findNearbyWater() {
+      const waters = [];
+      const mapSize = this.map.getSize();
+      for (let y2 = 0; y2 < mapSize.height; y2++) {
+        for (let x2 = 0; x2 < mapSize.width; x2++) {
+          const tile = this.map.getTile(x2, y2);
+          if (tile && (tile.type === "river" /* RIVER */ || tile.type === "lake" /* LAKE */)) {
+            waters.push({
+              type: tile.type === "river" /* RIVER */ ? "river" : "lake",
+              position: { x: x2, y: y2 }
+            });
+          }
+        }
+      }
+      return waters;
     }
     getContainer() {
       return this.container;
@@ -45504,7 +48002,7 @@ ${e2}`);
       this.worldContainer.addChild(this.characterLayer.getContainer());
       await this.tileLayer.init();
       await this.itemLayer.init();
-      this.characterLayer.init();
+      await this.characterLayer.init();
       const worldWidth = this.map.getSize().width * 64;
       const worldHeight = this.map.getSize().height * 64;
       this.camera.setWorldSize(worldWidth, worldHeight);
@@ -45525,8 +48023,8 @@ ${e2}`);
       return this.characterLayer;
     }
     startTick() {
-      this.app.ticker.add(() => {
-        this.characterLayer.update();
+      this.app.ticker.add((ticker) => {
+        this.characterLayer.update(ticker.deltaTime);
       });
     }
     destroy() {

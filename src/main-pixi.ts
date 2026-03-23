@@ -134,4 +134,4 @@ async function main() {
 
 main().catch(console.error);
 
-(window as any).edenWorld = { version: '0.7.0-alpha-pixi' };
+(window as any).edenWorld = { version: '0.9.0-alpha-ai' };

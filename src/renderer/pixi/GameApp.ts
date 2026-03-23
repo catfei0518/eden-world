@@ -56,7 +56,7 @@ export class GameApp {
         // 初始化各层
         await this.tileLayer.init();
         await this.itemLayer.init();
-        this.characterLayer.init();
+        await this.characterLayer.init();
         
         // 设置相机
         const worldWidth = this.map.getSize().width * 64;
@@ -91,8 +91,8 @@ export class GameApp {
     }
     
     startTick(): void {
-        this.app.ticker.add(() => {
-            this.characterLayer.update();
+        this.app.ticker.add((ticker) => {
+            this.characterLayer.update(ticker.deltaTime);
         });
     }
     
