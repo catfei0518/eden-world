@@ -127,8 +127,8 @@ export class Chromosome {
                     gene: geneName,
                     effect
                 },
-                paternalAllele: { value: paternalValue },
-                maternalAllele: { value: maternalValue },
+                paternalAllele: { value: paternalValue, methylated: false },
+                maternalAllele: { value: maternalValue, methylated: false },
                 dominance: this.randomDominance()
             });
         }

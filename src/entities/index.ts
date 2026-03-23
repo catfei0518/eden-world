@@ -2,4 +2,4 @@
  * 实体模块
  */
 
-export { Character, CharacterData, CharacterType } from './Character';
+export { Character, CharacterType, CharacterData } from './Character';

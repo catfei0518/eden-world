@@ -251,6 +251,60 @@ const ACTION_EFFECTS: Record<ActionType, ActionEffects> = {
         risky: false, exploration: false, social: true,
         duration: 180
     },
+    
+    [ActionType.CRAFT]: {
+        satisfies: ['curiosity'],
+        foodValue: 0, waterValue: 0, energyValue: 0,
+        safetyValue: 0.1, socialValue: 0, curiosityValue: 0.3, reproductionValue: 0,
+        energyCost: 0.25, foodCost: 0, waterCost: 0,
+        risky: false, exploration: false, social: false,
+        duration: 90
+    },
+    
+    [ActionType.GATHER_MATERIALS]: {
+        satisfies: ['curiosity'],
+        foodValue: 0.1, waterValue: 0, energyValue: 0,
+        safetyValue: 0, socialValue: 0, curiosityValue: 0.2, reproductionValue: 0,
+        energyCost: 0.15, foodCost: 0, waterCost: 0,
+        risky: false, exploration: true, social: false,
+        duration: 45
+    },
+    
+    [ActionType.TRADE]: {
+        satisfies: ['social'],
+        foodValue: 0, waterValue: 0, energyValue: 0,
+        safetyValue: 0.1, socialValue: 0.7, curiosityValue: 0.1, reproductionValue: 0,
+        energyCost: 0.05, foodCost: 0, waterCost: 0,
+        risky: false, exploration: false, social: true,
+        duration: 30
+    },
+    
+    [ActionType.CARE_OFFSPRING]: {
+        satisfies: ['social', 'reproduction'],
+        foodValue: 0, waterValue: 0, energyValue: -0.1,
+        safetyValue: 0.3, socialValue: 0.6, curiosityValue: 0, reproductionValue: 0.5,
+        energyCost: 0.15, foodCost: 0, waterCost: 0,
+        risky: false, exploration: false, social: true,
+        duration: 60
+    },
+    
+    [ActionType.INVESTIGATE]: {
+        satisfies: ['curiosity'],
+        foodValue: 0, waterValue: 0, energyValue: 0,
+        safetyValue: -0.1, socialValue: 0, curiosityValue: 0.8, reproductionValue: 0,
+        energyCost: 0.2, foodCost: 0, waterCost: 0,
+        risky: true, exploration: true, social: false,
+        duration: 40
+    },
+    
+    [ActionType.LEARN]: {
+        satisfies: ['curiosity'],
+        foodValue: 0, waterValue: 0, energyValue: 0,
+        safetyValue: 0, socialValue: 0.2, curiosityValue: 0.9, reproductionValue: 0,
+        energyCost: 0.1, foodCost: 0, waterCost: 0,
+        risky: false, exploration: false, social: false,
+        duration: 120
+    },
 };
 
 /**
@@ -287,7 +341,10 @@ export class AIController {
             riskTolerance: dna.bravery * (1 - dna.riskAversion),
             
             // 代谢影响
-            metabolismRate: dna.metabolism
+            metabolismRate: dna.metabolism,
+            
+            // 智力
+            intelligence: dna.intelligence
         };
     }
     
@@ -300,7 +357,7 @@ export class AIController {
         worldState: WorldState
     ): ActionType {
         // 获取所有可用行动
-        const availableActions = this.getAvailableActions(individual, worldState);
+        const availableActions = this.getAvailableActions(individual, worldState, needs);
         
         // 评分所有行动
         const scoredActions = availableActions.map(action => 
@@ -316,7 +373,8 @@ export class AIController {
      */
     private getAvailableActions(
         individual: IndividualState,
-        worldState: WorldState
+        worldState: WorldState,
+        needs: DynamicNeeds
     ): ActionType[] {
         const actions: ActionType[] = [];
         
@@ -366,8 +424,8 @@ export class AIController {
         actions.push(ActionType.FIND_FOOD);
         actions.push(ActionType.FIND_WATER);
         
-        // 可以建造
-        if (this.personality.intelligence > 50) {
+        // 可以建造（智力高于0.5）
+        if (this.personality.intelligence > 0.5) {
             actions.push(ActionType.BUILD);
         }
         
@@ -513,7 +571,7 @@ export class AIController {
         individual: IndividualState,
         worldState: WorldState
     ): ActionType {
-        const availableActions = this.getAvailableActions(individual, worldState);
+        const availableActions = this.getAvailableActions(individual, worldState, needs);
         const scoredActions = availableActions.map(action => 
             this.scoreAction(action, needs, worldState)
         );
@@ -548,4 +606,7 @@ interface PersonalityWeights {
     
     // 代谢
     metabolismRate: number;
+    
+    // 智力
+    intelligence: number;
 }

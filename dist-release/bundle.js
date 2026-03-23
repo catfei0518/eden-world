@@ -46092,6 +46092,7 @@ ${e2}`);
   // node_modules/pixi.js/lib/index.mjs
   init_textureFrom();
   init_Container();
+  init_Graphics();
   init_Sprite();
   init_eventemitter3();
   extensions.add(browserExt, webworkerExt);
@@ -46397,44 +46398,127 @@ ${e2}`);
   var TileLayer = class {
     constructor(map) {
       this.textureCache = /* @__PURE__ */ new Map();
+      this.currentSeason = "summer";
+      this.tileSprites = [];
+      // 按季节的地形纹理
       this.TEXTURES = {
-        ["plain" /* PLAIN */]: "img/64x64\u50CF\u7D20\u8349\u5E73\u539F.png",
-        ["grass" /* GRASS */]: "img/64x64\u50CF\u7D20\u8349\u5730\u6625.png",
-        ["desert" /* DESERT */]: "img/64x64\u50CF\u7D20\u6C99\u6F20.png",
-        ["forest" /* FOREST */]: "img/64x64\u50CF\u7D20\u68EE\u6797\u6625\u590F.png",
-        ["ocean" /* OCEAN */]: "img/\u6D77\u6D0B.png",
-        ["lake" /* LAKE */]: "img/\u6E56\u6CCA\u6625\u590F\u79CB.png",
-        ["river" /* RIVER */]: "img/\u6CB3\u6D41.png",
-        ["swamp" /* SWAMP */]: "img/\u6CBC\u6CFD.png",
-        ["mountain" /* MOUNTAIN */]: "img/\u5C71\u5730.png",
-        ["hill" /* HILL */]: "img/\u5C71\u4E18.png",
-        ["cave" /* CAVE */]: "img/\u77F3\u5934.png",
-        ["beach" /* BEACH */]: "img/\u6C99\u6EE9.png"
+        ["plain" /* PLAIN */]: {
+          spring: "img/64x64\u50CF\u7D20\u8349\u5E73\u539F.png",
+          summer: "img/64x64\u50CF\u7D20\u8349\u5E73\u539F.png",
+          autumn: "img/64x64\u50CF\u7D20\u8349\u5E73\u539F.png",
+          winter: "img/64x64\u50CF\u7D20\u8349\u5E73\u539F\u96EA.png"
+        },
+        ["grass" /* GRASS */]: {
+          spring: "img/64x64\u50CF\u7D20\u8349\u5730\u6625\u590F.png",
+          summer: "img/64x64\u50CF\u7D20\u8349\u5730\u6625\u590F.png",
+          autumn: "img/64x64\u50CF\u7D20\u8349\u5730\u79CB.png",
+          winter: "img/64x64\u50CF\u7D20\u8349\u5730\u51AC.png"
+        },
+        ["desert" /* DESERT */]: {
+          spring: "img/64x64\u50CF\u7D20\u6C99\u6F20.png",
+          summer: "img/64x64\u50CF\u7D20\u6C99\u6F20.png",
+          autumn: "img/64x64\u50CF\u7D20\u6C99\u6F20.png",
+          winter: "img/64x64\u50CF\u7D20\u6C99\u6F20\u96EA.png"
+        },
+        ["forest" /* FOREST */]: {
+          spring: "img/64x64\u50CF\u7D20\u68EE\u6797\u6625\u590F.png",
+          summer: "img/64x64\u50CF\u7D20\u68EE\u6797\u6625\u590F.png",
+          autumn: "img/64x64\u50CF\u7D20\u68EE\u6797\u79CB.png",
+          winter: "img/64x64\u50CF\u7D20\u68EE\u6797\u51AC.png"
+        },
+        ["ocean" /* OCEAN */]: {
+          spring: "img/\u6D77\u6D0B.png",
+          summer: "img/\u6D77\u6D0B.png",
+          autumn: "img/\u6D77\u6D0B.png",
+          winter: "img/\u6D77\u6D0B.png"
+        },
+        ["lake" /* LAKE */]: {
+          spring: "img/\u6E56\u6CCA\u6625\u590F\u79CB.png",
+          summer: "img/\u6E56\u6CCA\u6625\u590F\u79CB.png",
+          autumn: "img/\u6E56\u6CCA\u6625\u590F\u79CB.png",
+          winter: "img/\u6E56\u6CCA\u51AC.png"
+        },
+        ["river" /* RIVER */]: {
+          spring: "img/\u6CB3\u6D41.png",
+          summer: "img/\u6CB3\u6D41.png",
+          autumn: "img/\u6CB3\u6D41.png",
+          winter: "img/\u6CB3\u6D41.png"
+        },
+        ["swamp" /* SWAMP */]: {
+          spring: "img/\u6CBC\u6CFD.png",
+          summer: "img/\u6CBC\u6CFD.png",
+          autumn: "img/\u6CBC\u6CFD.png",
+          winter: "img/\u6CBC\u6CFD\u96EA.png"
+        },
+        ["mountain" /* MOUNTAIN */]: {
+          spring: "img/\u5C71\u5730.png",
+          summer: "img/\u5C71\u5730.png",
+          autumn: "img/\u5C71\u5730.png",
+          winter: "img/\u5C71\u5730\u96EA.png"
+        },
+        ["hill" /* HILL */]: {
+          spring: "img/\u5C71\u4E18.png",
+          summer: "img/\u5C71\u4E18.png",
+          autumn: "img/\u5C71\u4E18.png",
+          winter: "img/\u5C71\u4E18\u96EA.png"
+        },
+        ["cave" /* CAVE */]: {
+          spring: "img/\u77F3\u5934.png",
+          summer: "img/\u77F3\u5934.png",
+          autumn: "img/\u77F3\u5934.png",
+          winter: "img/\u77F3\u5934.png"
+        },
+        ["beach" /* BEACH */]: {
+          spring: "img/\u6C99\u6EE9.png",
+          summer: "img/\u6C99\u6EE9.png",
+          autumn: "img/\u6C99\u6EE9.png",
+          winter: "img/\u6C99\u6EE9\u96EA.png"
+        }
       };
       this.map = map;
       this.container = new Container();
+    }
+    // 设置季节
+    setSeason(season) {
+      this.currentSeason = season;
+      this.updateAllTiles();
+      console.log(`\u{1F30D} \u5730\u5F62\u5207\u6362\u4E3A: ${season}`);
     }
     async init() {
       await this.loadTextures();
       this.render();
     }
     async loadTextures() {
-      console.log("\u{1F504} \u5F00\u59CB\u52A0\u8F7D\u7EB9\u7406...");
-      for (const [type, path2] of Object.entries(this.TEXTURES)) {
-        console.log(`  \u52A0\u8F7D: ${path2}`);
+      console.log("\u{1F504} \u5F00\u59CB\u52A0\u8F7D\u5730\u5F62\u7EB9\u7406...");
+      const toLoad = [];
+      const seasons = ["spring", "summer", "autumn", "winter"];
+      for (const tileType of Object.keys(this.TEXTURES)) {
+        for (const season of seasons) {
+          const path2 = this.TEXTURES[tileType][season];
+          if (!toLoad.includes(path2)) {
+            toLoad.push(path2);
+          }
+        }
+      }
+      for (const path2 of toLoad) {
         try {
           const texture = await Assets.load(path2);
           this.textureCache.set(path2, texture);
-          console.log(`  \u2705 \u6210\u529F: ${path2}`);
+          console.log(`  \u2705 ${path2}`);
         } catch (e2) {
-          console.warn(`  \u274C \u5931\u8D25: ${path2}`, e2);
+          console.warn(`  \u274C \u52A0\u8F7D\u5931\u8D25: ${path2}`);
         }
       }
-      console.log("\u2705 \u7EB9\u7406\u52A0\u8F7D\u5B8C\u6210");
+      console.log(`\u2705 \u5730\u5F62\u7EB9\u7406\u52A0\u8F7D\u5B8C\u6210 (${this.textureCache.size} \u4E2A)`);
+    }
+    getTexture(tileType) {
+      const path2 = this.TEXTURES[tileType][this.currentSeason];
+      return this.textureCache.get(path2) || null;
     }
     render() {
       console.log("\u{1F3A8} \u5F00\u59CB\u6E32\u67D3\u5730\u5F62...");
       this.container.removeChildren();
+      this.tileSprites = [];
       const mapSize = this.map.getSize();
       console.log(`  \u5730\u56FE\u5C3A\u5BF8: ${mapSize.width}x${mapSize.height}`);
       const SCALED_SIZE = TILE_SIZE * SCALE;
@@ -46444,9 +46528,7 @@ ${e2}`);
         for (let x2 = 0; x2 < mapSize.width; x2++) {
           const tile = this.map.getTile(x2, y2);
           if (!tile) continue;
-          const path2 = this.TEXTURES[tile.type];
-          if (!path2) continue;
-          const texture = this.textureCache.get(path2);
+          const texture = this.getTexture(tile.type);
           if (!texture) continue;
           const sprite = new Sprite(texture);
           sprite.x = x2 * TILE_SIZE - OFFSET3;
@@ -46454,10 +46536,27 @@ ${e2}`);
           sprite.width = SCALED_SIZE;
           sprite.height = SCALED_SIZE;
           this.container.addChild(sprite);
+          this.tileSprites.push(sprite);
           count2++;
         }
       }
       console.log(`\u2705 \u6E32\u67D3\u4E86 ${count2} \u4E2A\u5730\u5F62\u5757`);
+    }
+    // 更新所有地形纹理（季节切换时调用）
+    updateAllTiles() {
+      const mapSize = this.map.getSize();
+      let index = 0;
+      for (let y2 = 0; y2 < mapSize.height; y2++) {
+        for (let x2 = 0; x2 < mapSize.width; x2++) {
+          const tile = this.map.getTile(x2, y2);
+          if (!tile) continue;
+          const texture = this.getTexture(tile.type);
+          if (texture && index < this.tileSprites.length) {
+            this.tileSprites[index].texture = texture;
+          }
+          index++;
+        }
+      }
     }
     getContainer() {
       return this.container;
@@ -46466,26 +46565,95 @@ ${e2}`);
 
   // src/renderer/pixi/layers/ItemLayer.ts
   var TILE_SIZE2 = 64;
-  var Item = class {
+  var GameItem = class {
     constructor(type, x2, y2, layer) {
+      // 耐久相关（用于灌木/浆果丛）
+      this.durability = 0;
+      this.maxDurability = 0;
       this.type = type;
       this.x = x2;
       this.y = y2;
       this.layer = layer;
     }
+    // 获取物品名称
+    getName() {
+      const names = {
+        "tree": "\u6811",
+        "bush": "\u704C\u6728",
+        "rock": "\u77F3\u5934",
+        "stick": "\u6728\u68CD",
+        "berry": "\u6D46\u679C\u4E1B",
+        "flower": "\u82B1\u6735",
+        "branch": "\u6811\u679D"
+      };
+      return names[this.type] || "\u672A\u77E5\u7269\u54C1";
+    }
+    // 是否还有资源
+    hasResources() {
+      return this.durability > 0;
+    }
+    // 采集（返回采集数量）
+    harvest(amount = 1) {
+      if (this.durability <= 0) return 0;
+      const harvested = Math.min(this.durability, amount);
+      this.durability -= harvested;
+      return harvested;
+    }
   };
   var ItemLayer = class {
     constructor(map) {
       this.items = [];
+      this.sprites = /* @__PURE__ */ new Map();
+      this.hitboxes = /* @__PURE__ */ new Map();
       this.textureCache = /* @__PURE__ */ new Map();
+      this.currentSeason = "summer";
+      // 默认夏天
+      // 点击回调
+      this.onItemClick = null;
+      // 物品贴图（按季节）
       this.ASSETS = {
-        "tree": "img/\u6811.png",
-        "bush": "img/\u704C\u6728.png",
-        "rock": "img/\u77F3\u5934.png",
-        "stick": "img/\u6728\u68CD.png",
-        "berry": "img/\u6D46\u679C.png",
-        "flower": "img/\u82B1.png",
-        "branch": "img/\u6811\u679D.png"
+        "tree": {
+          spring: "img/\u6811.png",
+          summer: "img/\u6811.png",
+          autumn: "img/\u6811.png",
+          winter: "img/\u6811\u51AC.png"
+        },
+        "bush": {
+          spring: "img/\u704C\u6728\u82B1.png",
+          summer: "img/\u704C\u6728\u679C.png",
+          autumn: "img/\u704C\u6728\u679C.png",
+          winter: "img/\u704C\u6728\u51AC.png"
+        },
+        "rock": {
+          spring: "img/\u77F3\u5934.png",
+          summer: "img/\u77F3\u5934.png",
+          autumn: "img/\u77F3\u5934.png",
+          winter: "img/\u77F3\u5934.png"
+        },
+        "stick": {
+          spring: "img/\u6728\u68CD.png",
+          summer: "img/\u6728\u68CD.png",
+          autumn: "img/\u6728\u68CD.png",
+          winter: "img/\u6728\u68CD.png"
+        },
+        "berry": {
+          spring: "img/\u704C\u6728\u82B1.png",
+          summer: "img/\u704C\u6728\u679C.png",
+          autumn: "img/\u704C\u6728\u679C.png",
+          winter: "img/\u704C\u6728\u51AC.png"
+        },
+        "flower": {
+          spring: "img/\u82B1.png",
+          summer: "img/\u82B1.png",
+          autumn: "img/\u82B1.png",
+          winter: "img/\u82B1.png"
+        },
+        "branch": {
+          spring: "img/\u6811\u679D.png",
+          summer: "img/\u6811\u679D.png",
+          autumn: "img/\u6811\u679D.png",
+          winter: "img/\u6811\u679D.png"
+        }
       };
       this.SIZES = {
         "ground": 40,
@@ -46494,6 +46662,67 @@ ${e2}`);
       };
       this.map = map;
       this.container = new Container();
+    }
+    // 设置季节
+    setSeason(season) {
+      this.currentSeason = season;
+      if (season === "spring") {
+        this.generateSeasonalItems();
+      } else {
+        this.removeSeasonalItems();
+      }
+      this.updateAllSprites();
+    }
+    // 生成季节性物品（春天生成花朵）
+    generateSeasonalItems() {
+      const hasFlowers = this.items.some((i2) => i2.type === "flower");
+      if (hasFlowers) return;
+      console.log("\u{1F338} \u6625\u5929\u751F\u6210\u82B1\u6735...");
+      const mapSize = this.map.getSize();
+      let count2 = 0;
+      for (let y2 = 0; y2 < mapSize.height; y2++) {
+        for (let x2 = 0; x2 < mapSize.width; x2++) {
+          const tile = this.map.getTile(x2, y2);
+          if (!tile) continue;
+          const rand = Math.random();
+          if (tile.type === "grass" /* GRASS */ && rand < 0.05) {
+            const item = new GameItem("flower", x2, y2, "ground");
+            this.items.push(item);
+            this.createSprite(item);
+            count2++;
+          } else if (tile.type === "plain" /* PLAIN */ && rand < 0.02) {
+            const item = new GameItem("flower", x2, y2, "ground");
+            this.items.push(item);
+            this.createSprite(item);
+            count2++;
+          }
+        }
+      }
+      console.log(`\u{1F338} \u751F\u6210\u4E86 ${count2} \u6735\u82B1`);
+    }
+    // 删除季节性物品（其他季节删除花朵）
+    removeSeasonalItems() {
+      const flowers = this.items.filter((i2) => i2.type === "flower");
+      if (flowers.length === 0) return;
+      console.log(`\u{1F343} \u79FB\u9664 ${flowers.length} \u6735\u82B1...`);
+      for (const flower of flowers) {
+        const sprite = this.sprites.get(flower);
+        if (sprite) {
+          this.container.removeChild(sprite);
+          sprite.destroy();
+          this.sprites.delete(flower);
+        }
+        const hitbox = this.hitboxes.get(flower);
+        if (hitbox) {
+          this.container.removeChild(hitbox);
+          hitbox.destroy();
+          this.hitboxes.delete(flower);
+        }
+        const index = this.items.indexOf(flower);
+        if (index > -1) {
+          this.items.splice(index, 1);
+        }
+      }
     }
     async init() {
       this.generateItems();
@@ -46509,57 +46738,109 @@ ${e2}`);
           const rand = Math.random();
           switch (tile.type) {
             case "forest" /* FOREST */:
-              if (rand < 0.12) this.items.push(new Item("tree", x2, y2, "high"));
-              else if (rand < 0.22) this.items.push(new Item("bush", x2, y2, "low"));
-              else if (rand < 0.28) this.items.push(new Item("branch", x2, y2, "ground"));
-              else if (rand < 0.35) this.items.push(new Item("berry", x2, y2, "ground"));
+              if (rand < 0.12) {
+                const item = new GameItem("tree", x2, y2, "high");
+                this.items.push(item);
+              } else if (rand < 0.25) {
+                const item = new GameItem("bush", x2, y2, "low");
+                item.maxDurability = 10 + Math.floor(Math.random() * 11);
+                item.durability = item.maxDurability;
+                this.items.push(item);
+              } else if (rand < 0.3) {
+                const item = new GameItem("branch", x2, y2, "ground");
+                item.maxDurability = 1 + Math.floor(Math.random() * 3);
+                item.durability = item.maxDurability;
+                this.items.push(item);
+              }
               break;
             case "grass" /* GRASS */:
-              if (rand < 0.05) this.items.push(new Item("flower", x2, y2, "ground"));
-              else if (rand < 0.1) this.items.push(new Item("berry", x2, y2, "ground"));
-              else if (rand < 0.13) this.items.push(new Item("branch", x2, y2, "ground"));
+              if (rand < 0.08) {
+                const item = new GameItem("bush", x2, y2, "low");
+                item.maxDurability = 8 + Math.floor(Math.random() * 9);
+                item.durability = item.maxDurability;
+                this.items.push(item);
+              }
               break;
             case "plain" /* PLAIN */:
-              if (rand < 0.15) this.items.push(new Item("stick", x2, y2, "ground"));
-              else if (rand < 0.22) this.items.push(new Item("flower", x2, y2, "ground"));
-              else if (rand < 0.28) this.items.push(new Item("branch", x2, y2, "ground"));
+              if (rand < 0.15) this.items.push(new GameItem("stick", x2, y2, "ground"));
+              else if (rand < 0.26) {
+                const item = new GameItem("branch", x2, y2, "ground");
+                item.maxDurability = 1 + Math.floor(Math.random() * 2);
+                item.durability = item.maxDurability;
+                this.items.push(item);
+              }
               break;
             case "hill" /* HILL */:
-              if (rand < 0.08) this.items.push(new Item("rock", x2, y2, "ground"));
-              else if (rand < 0.14) this.items.push(new Item("bush", x2, y2, "low"));
-              else if (rand < 0.18) this.items.push(new Item("branch", x2, y2, "ground"));
+              if (rand < 0.08) this.items.push(new GameItem("rock", x2, y2, "ground"));
+              else if (rand < 0.15) {
+                const item = new GameItem("bush", x2, y2, "low");
+                item.maxDurability = 5 + Math.floor(Math.random() * 6);
+                item.durability = item.maxDurability;
+                this.items.push(item);
+              }
               break;
             case "mountain" /* MOUNTAIN */:
-              if (rand < 0.1) this.items.push(new Item("rock", x2, y2, "ground"));
-              else if (rand < 0.15) this.items.push(new Item("branch", x2, y2, "ground"));
+              if (rand < 0.1) this.items.push(new GameItem("rock", x2, y2, "ground"));
               break;
           }
         }
       }
+      console.log(`\u{1F4E6} \u751F\u6210\u4E86 ${this.items.length} \u4E2A\u7269\u54C1`);
+      const bushes = this.items.filter((i2) => i2.type === "bush");
+      console.log(`\u{1F33F} \u5176\u4E2D ${bushes.length} \u4E2A\u704C\u6728`);
     }
     async loadTextures() {
-      for (const [type, path2] of Object.entries(this.ASSETS)) {
+      const toLoad = [];
+      const seasons = ["spring", "summer", "autumn", "winter"];
+      for (const type of Object.keys(this.ASSETS)) {
+        for (const season of seasons) {
+          const path2 = this.ASSETS[type][season];
+          if (!toLoad.includes(path2)) {
+            toLoad.push(path2);
+          }
+        }
+      }
+      for (const path2 of toLoad) {
         try {
           const texture = await Assets.load(path2);
-          this.textureCache.set(type, texture);
+          this.textureCache.set(path2, texture);
         } catch (e2) {
-          console.warn(`Failed to load item texture: ${path2}`);
+          console.warn(`Failed to load: ${path2}`);
+        }
+      }
+      console.log(`\u2705 \u52A0\u8F7D\u4E86 ${this.textureCache.size} \u4E2A\u7269\u54C1\u7EB9\u7406`);
+    }
+    // 获取物品贴图
+    getTexture(item) {
+      let path2;
+      if (item.type === "bush") {
+        if (this.currentSeason === "winter") {
+          path2 = this.ASSETS.bush.winter;
+        } else if (this.currentSeason === "spring") {
+          path2 = this.ASSETS.bush.spring;
+        } else {
+          path2 = item.durability > 0 ? this.ASSETS.bush.summer : "img/\u704C\u6728.png";
+        }
+      } else if (item.type === "flower") {
+        if (this.currentSeason === "spring") {
+          path2 = this.ASSETS.flower.spring;
+        } else {
+          return null;
+        }
+      } else {
+        path2 = this.ASSETS[item.type][this.currentSeason];
+      }
+      return this.textureCache.get(path2) || null;
+    }
+    render() {
+      for (const layer of ["ground", "low", "high"]) {
+        for (const item of this.items.filter((i2) => i2.layer === layer)) {
+          this.createSprite(item);
         }
       }
     }
-    render() {
-      for (const item of this.items.filter((i2) => i2.layer === "ground")) {
-        this.createSprite(item);
-      }
-      for (const item of this.items.filter((i2) => i2.layer === "low")) {
-        this.createSprite(item);
-      }
-      for (const item of this.items.filter((i2) => i2.layer === "high")) {
-        this.createSprite(item);
-      }
-    }
     createSprite(item) {
-      const texture = this.textureCache.get(item.type);
+      const texture = this.getTexture(item);
       if (!texture) return;
       const sprite = new Sprite(texture);
       const size = this.SIZES[item.layer];
@@ -46570,6 +46851,58 @@ ${e2}`);
       sprite.width = size;
       sprite.height = size;
       this.container.addChild(sprite);
+      this.sprites.set(item, sprite);
+      if (item.maxDurability > 0) {
+        const hitbox = new Graphics();
+        hitbox.beginFill(16777215, 1e-3);
+        hitbox.drawRect(0, 0, size, size);
+        hitbox.endFill();
+        hitbox.x = sprite.x;
+        hitbox.y = sprite.y;
+        hitbox.eventMode = "static";
+        hitbox.cursor = "pointer";
+        hitbox.on("pointerdown", (e2) => {
+          e2.stopPropagation();
+          if (this.onItemClick) {
+            this.onItemClick(item);
+          }
+        });
+        this.container.addChild(hitbox);
+        this.hitboxes.set(item, hitbox);
+      }
+    }
+    // 更新所有物品贴图（季节变化时调用）
+    updateAllSprites() {
+      for (const [item, sprite] of this.sprites) {
+        const texture = this.getTexture(item);
+        if (texture) {
+          sprite.texture = texture;
+        }
+      }
+    }
+    // 更新单个物品（采集后调用）
+    updateItem(item) {
+      const sprite = this.sprites.get(item);
+      const hitbox = this.hitboxes.get(item);
+      if (!sprite) return;
+      const texture = this.getTexture(item);
+      if (texture) {
+        sprite.texture = texture;
+        sprite.visible = true;
+      } else {
+        sprite.visible = false;
+      }
+      if (hitbox) {
+        hitbox.visible = item.durability > 0 && sprite.visible;
+      }
+    }
+    // 获取所有物品
+    getItems() {
+      return this.items;
+    }
+    // 获取特定类型的物品
+    getItemsByType(type) {
+      return this.items.filter((i2) => i2.type === type);
     }
     getContainer() {
       return this.container;
@@ -46606,8 +46939,8 @@ ${e2}`);
             gene: geneName,
             effect
           },
-          paternalAllele: { value: paternalValue },
-          maternalAllele: { value: maternalValue },
+          paternalAllele: { value: paternalValue, methylated: false },
+          maternalAllele: { value: maternalValue, methylated: false },
           dominance: this.randomDominance()
         });
       }
@@ -46897,974 +47230,313 @@ ${e2}`);
     }
   };
 
-  // src/systems/needs/NeedsCalculator.ts
-  var NeedsCalculator = class {
-    /**
-     * 计算所有动态需求
-     */
-    calculate(individual, worldState, dna) {
-      return {
-        hunger: this.calculateHunger(individual, dna),
-        thirst: this.calculateThirst(individual, dna),
-        energy: this.calculateEnergy(individual, worldState, dna),
-        safety: this.calculateSafety(individual, worldState, dna),
-        social: this.calculateSocial(individual, worldState, dna),
-        curiosity: this.calculateCuriosity(individual, worldState, dna),
-        reproduction: this.calculateReproduction(individual, worldState, dna)
-      };
-    }
-    /**
-     * 饥饿需求
-     */
-    calculateHunger(individual, dna) {
-      const timeSinceMeal = Math.max(0, individual.lastMealTime);
-      const metabolism = dna.metabolism;
-      const baseHunger = Math.min(1, timeSinceMeal / 600 * metabolism);
-      const foodBuffer = individual.storedFood / 10;
-      const bufferedHunger = Math.max(0, baseHunger - foodBuffer * 0.1);
-      const sensitivity = dna.hungerSensitivity;
-      const threshold = dna.hungerThreshold;
-      const hunger = Math.min(1, bufferedHunger * sensitivity);
-      if (hunger < threshold) {
-        return hunger / threshold * 0.3;
-      }
-      return hunger;
-    }
-    /**
-     * 口渴需求
-     */
-    calculateThirst(individual, dna) {
-      const timeSinceDrink = Math.max(0, individual.lastDrinkTime);
-      const metabolism = dna.metabolism;
-      const baseThirst = Math.min(1, timeSinceDrink / 300 * metabolism);
-      const waterBuffer = individual.storedWater / 10;
-      const bufferedThirst = Math.max(0, baseThirst - waterBuffer * 0.15);
-      const sensitivity = dna.thirstSensitivity;
-      return Math.min(1, bufferedThirst * sensitivity);
-    }
-    /**
-     * 精力需求
-     */
-    calculateEnergy(individual, worldState, dna) {
-      const timeSinceRest = Math.max(0, individual.lastRestTime);
-      let energyDrain = timeSinceRest / 900;
-      if (worldState.isNight) {
-        energyDrain *= 1.2;
-      }
-      const constitution = dna.constitution;
-      energyDrain *= 1.5 - constitution / 100;
-      return Math.min(1, energyDrain);
-    }
-    /**
-     * 安全需求
-     */
-    calculateSafety(individual, worldState, dna) {
-      let safetyScore = 1;
-      for (const threat of worldState.threats) {
-        if (threat.distance < 50) {
-          safetyScore *= 0.3;
-        } else if (threat.distance < 100) {
-          safetyScore *= 0.6;
-        } else if (threat.distance < 200) {
-          safetyScore *= 0.8;
-        }
-      }
-      if (worldState.isNight) {
-        safetyScore *= 0.7;
-      }
-      const fearResponse = dna.fearResponse;
-      const riskAversion = dna.riskAversion;
-      safetyScore *= 1.5 - fearResponse * 0.5;
-      return Math.max(0, Math.min(1, 1 - safetyScore));
-    }
-    /**
-     * 社交需求
-     */
-    calculateSocial(individual, worldState, dna) {
-      const aloneTime = individual.aloneTime;
-      const socialNeed = dna.socialNeed;
-      const baseSocial = Math.min(1, aloneTime / 600 * socialNeed);
-      if (worldState.nearbyIndividuals > 0) {
-        const nearbyReduction = Math.min(0.5, worldState.nearbyIndividuals * 0.1);
-        return Math.max(0, baseSocial - nearbyReduction);
-      }
-      return baseSocial;
-    }
-    /**
-     * 好奇心需求
-     */
-    calculateCuriosity(individual, worldState, dna) {
-      const curiosity = dna.curiosity;
-      let curiosityScore = curiosity * 0.3;
-      curiosityScore += Math.random() * 0.2;
-      return Math.min(1, curiosityScore);
-    }
-    /**
-     * 繁殖需求
-     */
-    calculateReproduction(individual, worldState, dna) {
-      const fertileAge = individual.age > 60 && individual.age < 600;
-      const fertility = dna.fertility;
-      if (!fertileAge) return 0;
-      let reproductionScore = fertility * 0.2;
-      if (worldState.nearbyIndividuals > 0) {
-        reproductionScore += 0.3;
-      }
-      if (individual.aloneTime > 300) {
-        reproductionScore *= 0.5;
-      }
-      return Math.min(1, reproductionScore);
-    }
-    /**
-     * 获取最高需求
-     */
-    getDominantNeed(needs2) {
-      const entries = Object.entries(needs2);
-      let maxNeed = { name: "hunger", value: 0 };
-      for (const [name, value] of entries) {
-        if (value > maxNeed.value) {
-          maxNeed = { name, value };
-        }
-      }
-      return maxNeed.name;
-    }
-    /**
-     * 获取需求描述
-     */
-    static getNeedDescription(needName) {
-      const descriptions = {
-        hunger: "\u9965\u997F",
-        thirst: "\u53E3\u6E34",
-        energy: "\u75B2\u60EB",
-        safety: "\u5B89\u5168\u611F",
-        social: "\u5B64\u72EC",
-        curiosity: "\u597D\u5947\u5FC3",
-        reproduction: "\u7E41\u6B96"
-      };
-      return descriptions[needName] || needName;
-    }
-  };
-
-  // src/systems/ai/AIController.ts
-  var ACTION_EFFECTS = {
-    ["find_food" /* FIND_FOOD */]: {
-      satisfies: ["hunger"],
-      foodValue: 0.5,
-      waterValue: 0,
-      energyValue: 0,
-      safetyValue: 0,
-      socialValue: 0,
-      curiosityValue: 0.2,
-      reproductionValue: 0,
-      energyCost: 0.2,
-      foodCost: 0,
-      waterCost: 0,
-      risky: false,
-      exploration: true,
-      social: false,
-      duration: 30
-    },
-    ["hunt" /* HUNT */]: {
-      satisfies: ["hunger"],
-      foodValue: 0.8,
-      waterValue: 0,
-      energyValue: 0,
-      safetyValue: 0,
-      socialValue: 0,
-      curiosityValue: 0.1,
-      reproductionValue: 0,
-      energyCost: 0.4,
-      foodCost: 0,
-      waterCost: 0,
-      risky: true,
-      exploration: false,
-      social: false,
-      duration: 60
-    },
-    ["gather" /* GATHER */]: {
-      satisfies: ["hunger"],
-      foodValue: 0.4,
-      waterValue: 0,
-      energyValue: 0,
-      safetyValue: 0,
-      socialValue: 0,
-      curiosityValue: 0.1,
-      reproductionValue: 0,
-      energyCost: 0.15,
-      foodCost: 0,
-      waterCost: 0,
-      risky: false,
-      exploration: false,
-      social: false,
-      duration: 20
-    },
-    ["eat" /* EAT */]: {
-      satisfies: ["hunger"],
-      foodValue: 0.9,
-      waterValue: 0.1,
-      energyValue: 0.1,
-      safetyValue: 0,
-      socialValue: 0,
-      curiosityValue: 0,
-      reproductionValue: 0,
-      energyCost: 0,
-      foodCost: 1,
-      waterCost: 0,
-      risky: false,
-      exploration: false,
-      social: false,
-      duration: 5
-    },
-    ["find_water" /* FIND_WATER */]: {
-      satisfies: ["thirst"],
-      foodValue: 0,
-      waterValue: 0.4,
-      energyValue: 0,
-      safetyValue: 0,
-      socialValue: 0,
-      curiosityValue: 0.2,
-      reproductionValue: 0,
-      energyCost: 0.15,
-      foodCost: 0,
-      waterCost: 0,
-      risky: false,
-      exploration: true,
-      social: false,
-      duration: 25
-    },
-    ["drink" /* DRINK */]: {
-      satisfies: ["thirst"],
-      foodValue: 0,
-      waterValue: 0.95,
-      energyValue: 0,
-      safetyValue: 0,
-      socialValue: 0,
-      curiosityValue: 0,
-      reproductionValue: 0,
-      energyCost: 0,
-      foodCost: 0,
-      waterCost: 0.5,
-      risky: false,
-      exploration: false,
-      social: false,
-      duration: 3
-    },
-    ["rest" /* REST */]: {
-      satisfies: ["energy"],
-      foodValue: 0,
-      waterValue: 0,
-      energyValue: 0.6,
-      safetyValue: 0.2,
-      socialValue: 0,
-      curiosityValue: 0,
-      reproductionValue: 0,
-      energyCost: 0,
-      foodCost: 0,
-      waterCost: 0.1,
-      risky: false,
-      exploration: false,
-      social: false,
-      duration: 30
-    },
-    ["sleep" /* SLEEP */]: {
-      satisfies: ["energy"],
-      foodValue: 0,
-      waterValue: 0,
-      energyValue: 0.95,
-      safetyValue: 0.3,
-      socialValue: 0,
-      curiosityValue: 0,
-      reproductionValue: 0,
-      energyCost: 0,
-      foodCost: 0.2,
-      waterCost: 0.2,
-      risky: false,
-      exploration: false,
-      social: false,
-      duration: 120
-    },
-    ["flee" /* FLEE */]: {
-      satisfies: ["safety"],
-      foodValue: 0,
-      waterValue: 0,
-      energyValue: 0,
-      safetyValue: 0.9,
-      socialValue: 0,
-      curiosityValue: 0,
-      reproductionValue: 0,
-      energyCost: 0.35,
-      foodCost: 0,
-      waterCost: 0,
-      risky: true,
-      exploration: false,
-      social: false,
-      duration: 10
-    },
-    ["hide" /* HIDE */]: {
-      satisfies: ["safety"],
-      foodValue: 0,
-      waterValue: 0,
-      energyValue: 0.1,
-      safetyValue: 0.7,
-      socialValue: 0,
-      curiosityValue: 0,
-      reproductionValue: 0,
-      energyCost: 0.05,
-      foodCost: 0,
-      waterCost: 0,
-      risky: false,
-      exploration: false,
-      social: false,
-      duration: 20
-    },
-    ["defend" /* DEFEND */]: {
-      satisfies: ["safety"],
-      foodValue: 0,
-      waterValue: 0,
-      energyValue: 0,
-      safetyValue: 0.6,
-      socialValue: 0.1,
-      curiosityValue: 0,
-      reproductionValue: 0,
-      energyCost: 0.3,
-      foodCost: 0,
-      waterCost: 0,
-      risky: true,
-      exploration: false,
-      social: false,
-      duration: 15
-    },
-    ["attack" /* ATTACK */]: {
-      satisfies: ["safety"],
-      foodValue: 0,
-      waterValue: 0,
-      energyValue: 0,
-      safetyValue: 0.5,
-      socialValue: -0.2,
-      curiosityValue: 0,
-      reproductionValue: 0,
-      energyCost: 0.4,
-      foodCost: 0,
-      waterCost: 0,
-      risky: true,
-      exploration: false,
-      social: false,
-      duration: 10
-    },
-    ["socialize" /* SOCIALIZE */]: {
-      satisfies: ["social"],
-      foodValue: 0,
-      waterValue: 0,
-      energyValue: 0,
-      safetyValue: 0.1,
-      socialValue: 0.8,
-      curiosityValue: 0.1,
-      reproductionValue: 0.1,
-      energyCost: 0.05,
-      foodCost: 0,
-      waterCost: 0,
-      risky: false,
-      exploration: false,
-      social: true,
-      duration: 60
-    },
-    ["communicate" /* COMMUNICATE */]: {
-      satisfies: ["social", "curiosity"],
-      foodValue: 0,
-      waterValue: 0,
-      energyValue: 0,
-      safetyValue: 0.05,
-      socialValue: 0.5,
-      curiosityValue: 0.3,
-      reproductionValue: 0,
-      energyCost: 0.02,
-      foodCost: 0,
-      waterCost: 0,
-      risky: false,
-      exploration: false,
-      social: true,
-      duration: 30
-    },
-    ["explore" /* EXPLORE */]: {
-      satisfies: ["curiosity"],
-      foodValue: 0.1,
-      waterValue: 0.05,
-      energyValue: 0,
-      safetyValue: -0.2,
-      socialValue: 0,
-      curiosityValue: 0.7,
-      reproductionValue: 0,
-      energyCost: 0.25,
-      foodCost: 0,
-      waterCost: 0,
-      risky: true,
-      exploration: true,
-      social: false,
-      duration: 120
-    },
-    ["mate" /* MATE */]: {
-      satisfies: ["reproduction", "social"],
-      foodValue: 0,
-      waterValue: 0,
-      energyValue: 0,
-      safetyValue: 0,
-      socialValue: 0.3,
-      curiosityValue: 0,
-      reproductionValue: 0.9,
-      energyCost: 0.2,
-      foodCost: 0,
-      waterCost: 0,
-      risky: false,
-      exploration: false,
-      social: true,
-      duration: 30
-    },
-    ["build" /* BUILD */]: {
-      satisfies: [],
-      foodValue: 0,
-      waterValue: 0,
-      energyValue: 0,
-      safetyValue: 0.3,
-      socialValue: 0.1,
-      curiosityValue: 0.2,
-      reproductionValue: 0,
-      energyCost: 0.3,
-      foodCost: 0,
-      waterCost: 0,
-      risky: false,
-      exploration: false,
-      social: true,
-      duration: 180
-    }
-  };
-  var AIController = class {
-    constructor(dna) {
-      this.personality = this.derivePersonality(dna);
-    }
-    /**
-     * 从DNA派生性格权重
-     */
-    derivePersonality(dna) {
-      return {
-        // 需求权重
-        hungerWeight: 0.8 + (1 - dna.hungerSensitivity) * 0.2,
-        thirstWeight: 0.8 + (1 - dna.thirstSensitivity) * 0.2,
-        energyWeight: 0.6,
-        safetyWeight: 0.7 + dna.fearResponse * 0.3,
-        socialWeight: 0.4 + dna.socialNeed * 0.4,
-        curiosityWeight: 0.3 + dna.curiosity * 0.4,
-        reproductionWeight: 0.2 + dna.fertility * 0.3,
-        // 性格修正
-        braveryModifier: dna.bravery,
-        aggressionModifier: dna.aggression,
-        empathyModifier: dna.empathy,
-        curiosityModifier: dna.curiosity,
-        // 风险承受
-        riskTolerance: dna.bravery * (1 - dna.riskAversion),
-        // 代谢影响
-        metabolismRate: dna.metabolism
-      };
-    }
-    /**
-     * 决定下一步行动
-     */
-    decideAction(needs2, individual, worldState) {
-      const availableActions = this.getAvailableActions(individual, worldState);
-      const scoredActions = availableActions.map(
-        (action) => this.scoreAction(action, needs2, worldState)
-      );
-      return this.softmaxSelect(scoredActions);
-    }
-    /**
-     * 获取可用行动
-     */
-    getAvailableActions(individual, worldState) {
-      const actions = [];
-      actions.push("rest" /* REST */);
-      actions.push("sleep" /* SLEEP */);
-      if (worldState.nearbyFood.length > 0) {
-        actions.push("gather" /* GATHER */);
-        actions.push("eat" /* EAT */);
-      }
-      if (worldState.nearbyWater.length > 0) {
-        actions.push("drink" /* DRINK */);
-      }
-      if (worldState.threats.length > 0) {
-        actions.push("flee" /* FLEE */);
-        actions.push("hide" /* HIDE */);
-        if (this.personality.aggressionModifier > 0.6) {
-          actions.push("attack" /* ATTACK */);
-        }
-      }
-      if (worldState.nearbyIndividuals > 0) {
-        actions.push("socialize" /* SOCIALIZE */);
-        actions.push("communicate" /* COMMUNICATE */);
-        if (needs.reproduction > 0.5 && individual.sex === "female") {
-          actions.push("mate" /* MATE */);
-        }
-      }
-      if (this.personality.curiosityModifier > 0.5) {
-        actions.push("explore" /* EXPLORE */);
-        actions.push("investigate" /* INVESTIGATE */);
-      }
-      actions.push("find_food" /* FIND_FOOD */);
-      actions.push("find_water" /* FIND_WATER */);
-      if (this.personality.intelligence > 50) {
-        actions.push("build" /* BUILD */);
-      }
-      return [...new Set(actions)];
-    }
-    /**
-     * 评分单个行动
-     */
-    scoreAction(action, needs2, worldState) {
-      const effects = ACTION_EFFECTS[action];
-      const needSatisfaction = this.calculateNeedSatisfaction(action, needs2);
-      const dnaAlignment = this.calculateDNAAlignment(action);
-      const riskAssessment = this.assessRisk(action, worldState);
-      const energyEfficiency = 1 - effects.energyCost;
-      const totalScore = needSatisfaction * 0.4 + dnaAlignment * 0.25 + riskAssessment * 0.2 + energyEfficiency * 0.15;
-      return {
-        action,
-        totalScore,
-        needSatisfaction,
-        dnaAlignment,
-        riskAssessment,
-        energyEfficiency
-      };
-    }
-    /**
-     * 计算需求满足度
-     */
-    calculateNeedSatisfaction(action, needs2) {
-      const effects = ACTION_EFFECTS[action];
-      let score = 0;
-      for (const need of effects.satisfies) {
-        const needValue = needs2[need] || 0;
-        const effectValue = effects[`${need}Value`] || 0;
-        score += needValue * effectValue;
-      }
-      if (effects.satisfies.length === 0) {
-        score = 0.1;
-      }
-      return Math.min(1, Math.max(0, score));
-    }
-    /**
-     * 计算DNA性格契合度
-     */
-    calculateDNAAlignment(action) {
-      const effects = ACTION_EFFECTS[action];
-      let score = 0.5;
-      if (effects.exploration) {
-        score += this.personality.curiosityModifier * 0.3;
-      }
-      if (effects.social) {
-        score += this.personality.empathyModifier * 0.2;
-      }
-      if (effects.risky) {
-        score += (this.personality.braveryModifier - 0.5) * 0.3;
-      }
-      if (action === "attack" /* ATTACK */ || action === "defend" /* DEFEND */) {
-        score += (this.personality.aggressionModifier - 0.5) * 0.3;
-      }
-      return Math.min(1, Math.max(0, score));
-    }
-    /**
-     * 风险评估
-     */
-    assessRisk(action, worldState) {
-      const effects = ACTION_EFFECTS[action];
-      if (!effects.risky) return 0.9;
-      if (worldState.isNight) {
-        return 0.3 * this.personality.riskTolerance;
-      }
-      if (worldState.threats.length > 0) {
-        return 0.4 * this.personality.riskTolerance;
-      }
-      return 0.6 * this.personality.riskTolerance;
-    }
-    /**
-     * Softmax选择（带随机性）
-     */
-    softmaxSelect(scoredActions) {
-      const temperature = 0.5;
-      const expScores = scoredActions.map(
-        (s2) => Math.exp(s2.totalScore / temperature)
-      );
-      const sum = expScores.reduce((a2, b2) => a2 + b2, 0);
-      let random = Math.random() * sum;
-      for (const scored of scoredActions) {
-        random -= Math.exp(scored.totalScore / temperature);
-        if (random <= 0) return scored.action;
-      }
-      return scoredActions[0].action;
-    }
-    /**
-     * 获取最高分的行动（贪心）
-     */
-    getGreedyAction(needs2, individual, worldState) {
-      const availableActions = this.getAvailableActions(individual, worldState);
-      const scoredActions = availableActions.map(
-        (action) => this.scoreAction(action, needs2, worldState)
-      );
-      scoredActions.sort((a2, b2) => b2.totalScore - a2.totalScore);
-      return scoredActions[0].action;
-    }
-  };
-
   // src/entities/Character.ts
   var TILE_SIZE3 = 64;
   var Character = class {
-    // 构造函数
-    constructor(type, x2, y2, name) {
-      this.currentAction = null;
-      this.actionTarget = null;
-      this.actionTimer = 0;
-      this.id = `char_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    constructor(type, x2, y2, name, canMove) {
+      // 状态
+      this.food = 5;
+      this.water = 5;
+      this.energy = 5;
+      // 5=满, 0=空
+      // 当前行动
+      this.action = "\u95F2\u7F6E";
+      this.target = null;
+      this.id = `char_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
       this.type = type;
       this.name = name || (type === "adam" ? "\u4E9A\u5F53" : "\u590F\u5A03");
       this.dna = DNA.createInitial();
       this.phenotype = this.dna.getPhenotype();
       this.x = x2;
       this.y = y2;
-      this.state = {
-        storedFood: 5,
-        storedWater: 3,
-        health: 100,
-        lastMealTime: 0,
-        lastDrinkTime: 0,
-        lastRestTime: 0,
-        lastSocialTime: 0,
-        position: { x: x2, y: y2 },
-        age: 0,
-        sex: type === "adam" ? "male" : "female",
-        aloneTime: 0
-      };
-      this.needsCalculator = new NeedsCalculator();
-      this.aiController = new AIController(this.phenotype);
+      this.canMove = canMove || (() => true);
+    }
+    // 获取移动速度（受敏捷DNA影响）
+    get moveSpeed() {
+      return 0.017 * (0.5 + this.phenotype.agility * 1.5);
+    }
+    // 获取代谢速度（影响消耗）
+    get metabolismRate() {
+      return this.phenotype.metabolism;
+    }
+    // 获取需求阈值（受DNA影响）
+    get hungerThreshold() {
+      return 3 - (this.phenotype.metabolism - 1) * 0.5;
+    }
+    get thirstThreshold() {
+      return 3 - (this.phenotype.metabolism - 1) * 0.5;
+    }
+    // 获取探索范围（受好奇心DNA影响）
+    get wanderRange() {
+      return Math.floor(8 + this.phenotype.curiosity * 12);
     }
     // 每帧更新
-    update(deltaTime, worldState) {
-      this.state.age += deltaTime;
-      this.state.lastRestTime += deltaTime;
-      this.state.aloneTime += deltaTime;
-      if (this.actionTarget) {
+    update(deltaTime, world) {
+      const consumption = deltaTime * 0.01 * this.metabolismRate;
+      this.food = Math.max(0, this.food - consumption);
+      this.water = Math.max(0, this.water - consumption * 1.5);
+      this.energy = Math.max(0, this.energy - consumption);
+      if (this.target) {
         this.moveToTarget();
-        if (Math.abs(this.x - this.actionTarget.x) < 0.5 && Math.abs(this.y - this.actionTarget.y) < 0.5) {
-          this.actionTarget = null;
-          this.currentAction = null;
-          this.actionTimer = 0;
-        }
+      }
+      this.decide(world);
+    }
+    // 决策（受DNA性格影响）
+    decide(world) {
+      if (this.target) return;
+      if (this.water < this.thirstThreshold) {
+        this.action = "\u5BFB\u627E\u6C34\u6E90";
+        this.goToWater(world);
         return;
       }
-      if (this.currentAction) {
-        this.actionTimer += deltaTime;
+      if (this.food < this.hungerThreshold) {
+        this.action = "\u5BFB\u627E\u98DF\u7269";
+        this.goToFood(world);
         return;
       }
-      this.makeDecision(worldState);
-    }
-    // AI决策
-    makeDecision(worldState) {
-      const needs2 = this.needsCalculator.calculate(this.state, worldState, this.phenotype);
-      const action = this.aiController.decideAction(needs2, this.state, worldState);
-      this.currentAction = action;
-      this.actionTimer = 0;
-      this.setActionTarget(action, worldState);
-    }
-    // 设置行动目标
-    setActionTarget(action, worldState) {
-      switch (action) {
-        case "find_food" /* FIND_FOOD */:
-        case "gather" /* GATHER */:
-          if (worldState.nearbyFood.length > 0) {
-            const food = worldState.nearbyFood[0];
-            this.actionTarget = { x: food.position.x, y: food.position.y };
-          } else {
-            this.randomMove();
-          }
-          break;
-        case "find_water" /* FIND_WATER */:
-          if (worldState.nearbyWater.length > 0) {
-            const water = worldState.nearbyWater[0];
-            this.actionTarget = { x: water.position.x, y: water.position.y };
-          } else {
-            this.randomMove();
-          }
-          break;
-        case "drink" /* DRINK */:
-        case "eat" /* EAT */:
-          this.consumeResources(action);
-          this.actionTarget = null;
-          this.currentAction = null;
-          break;
-        case "rest" /* REST */:
-        case "sleep" /* SLEEP */:
-          this.state.lastRestTime = 0;
-          this.state.health = Math.min(100, this.state.health + 10);
-          this.actionTarget = null;
-          this.currentAction = null;
-          break;
-        case "socialize" /* SOCIALIZE */:
-          if (worldState.nearbyCharacters > 1) {
-            this.randomMove();
-          }
-          break;
-        case "explore" /* EXPLORE */:
-          this.randomMove();
-          break;
-        case "flee" /* FLEE */:
-          this.fleeFromThreat(worldState);
-          break;
-        default:
-          this.randomMove();
+      if (this.energy < 2) {
+        this.action = "\u4F11\u606F\u4E2D";
+        this.target = null;
+        this.energy = Math.min(5, this.energy + 0.15);
+        return;
       }
+      this.action = "\u63A2\u7D22\u4E2D";
+      this.wander();
     }
-    // 向目标移动
-    moveToTarget() {
-      if (!this.actionTarget) return;
-      const dx = this.actionTarget.x - this.x;
-      const dy = this.actionTarget.y - this.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 0.1) {
-        this.x = this.actionTarget.x;
-        this.y = this.actionTarget.y;
+    // 找水
+    goToWater(world) {
+      if (world.nearbyWater.length > 0) {
+        const w2 = world.nearbyWater[0];
+        this.target = { x: w2.position.x, y: w2.position.y };
       } else {
-        const speed = 0.01 + this.phenotype.agility / 100 * 0.02;
-        this.x += dx / dist * speed;
-        this.y += dy / dist * speed;
+        this.wander();
       }
-      this.state.position = { x: this.x, y: this.y };
-      this.state.lastRestTime += 0.016;
     }
-    // 随机移动
-    randomMove() {
-      const directions = [
-        { dx: 1, dy: 0 },
-        { dx: -1, dy: 0 },
-        { dx: 0, dy: 1 },
-        { dx: 0, dy: -1 },
-        { dx: 1, dy: 1 },
-        { dx: -1, dy: -1 }
-      ];
-      const dir = directions[Math.floor(Math.random() * directions.length)];
-      this.actionTarget = {
-        x: Math.max(0, Math.min(99, this.x + dir.dx * 5)),
-        y: Math.max(0, Math.min(49, this.y + dir.dy * 5))
-      };
+    // 找食物
+    goToFood(world) {
+      if (world.nearbyFood.length > 0) {
+        const f2 = world.nearbyFood[0];
+        this.target = { x: f2.position.x, y: f2.position.y };
+      } else {
+        this.wander();
+      }
     }
-    // 逃离威胁
-    fleeFromThreat(worldState) {
-      if (worldState.threats.length === 0) {
-        this.randomMove();
+    // 随机漫游（受好奇心影响范围）
+    wander() {
+      const range = this.wanderRange;
+      for (let i2 = 0; i2 < 20; i2++) {
+        const x2 = Math.floor(this.x) + Math.floor(Math.random() * range * 2) - range;
+        const y2 = Math.floor(this.y) + Math.floor(Math.random() * range * 2) - range;
+        if (x2 < 0 || y2 < 0) continue;
+        if (this.canMove(x2, y2)) {
+          this.target = { x: x2, y: y2 };
+          return;
+        }
+      }
+    }
+    // 移动（受敏捷影响速度）
+    moveToTarget() {
+      if (!this.target) return;
+      const dx = this.target.x - this.x;
+      const dy = this.target.y - this.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 0.3) {
+        this.x = this.target.x;
+        this.y = this.target.y;
+        this.arrive();
         return;
       }
-      const threat = worldState.threats[0];
-      this.actionTarget = {
-        x: this.x - (threat.x - this.x) * 2,
-        y: this.y - (threat.y - this.y) * 2
-      };
-    }
-    // 消耗资源
-    consumeResources(action) {
-      if (action === "eat" /* EAT */ && this.state.storedFood > 0) {
-        this.state.storedFood -= 1;
-        this.state.lastMealTime = 0;
-      } else if (action === "drink" /* DRINK */ && this.state.storedWater > 0) {
-        this.state.storedWater -= 1;
-        this.state.lastDrinkTime = 0;
+      const speed = this.moveSpeed;
+      const nextX = this.x + dx / dist * speed;
+      const nextY = this.y + dy / dist * speed;
+      if (this.canMove(Math.round(nextX), Math.round(nextY))) {
+        this.x = nextX;
+        this.y = nextY;
+      } else {
+        this.target = null;
       }
     }
-    // 获取像素位置
-    getPixelPosition() {
+    // 到达
+    arrive() {
+      this.target = null;
+      if (this.action === "\u5BFB\u627E\u6C34\u6E90") {
+        this.water = Math.min(5, this.water + 2);
+      } else if (this.action === "\u5BFB\u627E\u98DF\u7269") {
+        this.food = Math.min(5, this.food + 2);
+      }
+      this.energy = 5;
+    }
+    getPixelPos() {
       return {
         x: this.x * TILE_SIZE3 + TILE_SIZE3 / 2,
         y: this.y * TILE_SIZE3 + TILE_SIZE3 / 2
       };
     }
-    // 获取当前状态
-    getState() {
-      return this.state;
-    }
-    // 获取表现型
-    getPhenotype() {
-      return this.phenotype;
-    }
-    // 获取当前行动描述
-    getActionDescription() {
-      if (!this.currentAction) return "\u95F2\u7F6E";
-      const descriptions = {
-        ["find_food" /* FIND_FOOD */]: "\u5BFB\u627E\u98DF\u7269",
-        ["hunt" /* HUNT */]: "\u72E9\u730E\u4E2D",
-        ["gather" /* GATHER */]: "\u91C7\u96C6\u4E2D",
-        ["eat" /* EAT */]: "\u8FDB\u98DF\u4E2D",
-        ["find_water" /* FIND_WATER */]: "\u5BFB\u627E\u6C34\u6E90",
-        ["drink" /* DRINK */]: "\u996E\u6C34\u4E2D",
-        ["rest" /* REST */]: "\u4F11\u606F\u4E2D",
-        ["sleep" /* SLEEP */]: "\u7761\u7720\u4E2D",
-        ["flee" /* FLEE */]: "\u9003\u8DD1\u4E2D",
-        ["hide" /* HIDE */]: "\u8EB2\u85CF\u4E2D",
-        ["defend" /* DEFEND */]: "\u9632\u5FA1\u4E2D",
-        ["attack" /* ATTACK */]: "\u653B\u51FB\u4E2D",
-        ["socialize" /* SOCIALIZE */]: "\u793E\u4EA4\u4E2D",
-        ["communicate" /* COMMUNICATE */]: "\u4EA4\u6D41\u4E2D",
-        ["trade" /* TRADE */]: "\u4EA4\u6613\u4E2D",
-        ["mate" /* MATE */]: "\u7E41\u6B96\u4E2D",
-        ["care_offspring" /* CARE_OFFSPRING */]: "\u7167\u987E\u540E\u4EE3",
-        ["explore" /* EXPLORE */]: "\u63A2\u7D22\u4E2D",
-        ["investigate" /* INVESTIGATE */]: "\u8C03\u67E5\u4E2D",
-        ["learn" /* LEARN */]: "\u5B66\u4E60\u4E2D",
-        ["build" /* BUILD */]: "\u5EFA\u9020\u4E2D",
-        ["craft" /* CRAFT */]: "\u5236\u4F5C\u4E2D",
-        ["gather_materials" /* GATHER_MATERIALS */]: "\u6536\u96C6\u6750\u6599"
-      };
-      return descriptions[this.currentAction] || "\u884C\u52A8\u4E2D";
-    }
   };
 
   // src/renderer/pixi/layers/CharacterLayer.ts
-  var CHARACTER_SIZE = 32;
+  var CHAR_SIZE = 32;
+  var HITBOX_SIZE = 48;
   var CharacterLayer = class {
     constructor(map) {
       this.characters = [];
       this.sprites = /* @__PURE__ */ new Map();
       this.labels = /* @__PURE__ */ new Map();
-      this.textureCache = /* @__PURE__ */ new Map();
-      this.ASSETS = {
+      this.textures = /* @__PURE__ */ new Map();
+      this.hitboxes = /* @__PURE__ */ new Map();
+      // 点击回调
+      this.onCharacterClick = null;
+      this.map = map;
+      this.container = new Container();
+    }
+    async init() {
+      console.log("\u{1F3AD} CharacterLayer.init() \u5F00\u59CB");
+      await this.loadTextures();
+      this.spawnCharacters();
+      this.setupInteraction();
+      console.log("\u{1F3AD} CharacterLayer.init() \u5B8C\u6210");
+    }
+    async loadTextures() {
+      console.log("\u{1F504} \u5F00\u59CB\u52A0\u8F7D\u89D2\u8272\u7EB9\u7406...");
+      const sources2 = {
         "adam": "img/\u4E9A\u5F53.png",
         "eve": "img/\u590F\u5A03.png"
       };
-      this.map = map;
-      this.container = new Container();
-      this.worldState = {
-        time: 0,
-        threats: [],
-        nearbyFood: this.findNearbyFood(),
-        nearbyWater: this.findNearbyWater(),
-        nearbyIndividuals: 0,
-        temperature: 25,
-        isNight: false
-      };
-    }
-    async init() {
-      await this.loadTextures();
-      this.createCharacters();
-      this.render();
-    }
-    async loadTextures() {
-      for (const [type, path2] of Object.entries(this.ASSETS)) {
+      for (const [key, path2] of Object.entries(sources2)) {
+        console.log(`  \u52A0\u8F7D: ${path2}`);
         try {
           const texture = await Assets.load(path2);
-          this.textureCache.set(type, texture);
+          this.textures.set(key, texture);
+          console.log(`  \u2705 \u6210\u529F: ${path2}`);
         } catch (e2) {
-          console.warn(`Failed to load character texture: ${path2}`);
+          console.error(`  \u274C \u5931\u8D25: ${path2}`, e2);
         }
       }
+      console.log("\u2705 \u89D2\u8272\u7EB9\u7406\u52A0\u8F7D\u5B8C\u6210");
     }
-    createCharacters() {
-      const mapSize = this.map.getSize();
-      const centerX = Math.floor(mapSize.width / 2);
-      const centerY = Math.floor(mapSize.height / 2);
-      const adam = new Character("adam", centerX, centerY);
-      const eve = new Character("eve", centerX + 1, centerY);
-      this.characters.push(adam);
-      this.characters.push(eve);
-    }
-    render() {
+    spawnCharacters() {
+      console.log("\u{1F3AD} \u5F00\u59CB\u751F\u6210\u89D2\u8272...");
+      const walkable = (x2, y2) => {
+        if (x2 < 0 || y2 < 0) return false;
+        const tile = this.map.getTile(x2, y2);
+        if (!tile) return false;
+        return !["ocean" /* OCEAN */, "lake" /* LAKE */, "river" /* RIVER */, "mountain" /* MOUNTAIN */, "swamp" /* SWAMP */].includes(tile.type);
+      };
+      const centerX = Math.floor(this.map.getSize().width / 2);
+      const centerY = Math.floor(this.map.getSize().height / 2);
+      let spawnX = centerX;
+      let spawnY = centerY;
+      let found = false;
+      for (let r2 = 0; r2 < 30 && !found; r2++) {
+        for (let dx = -r2; dx <= r2 && !found; dx++) {
+          for (let dy = -r2; dy <= r2 && !found; dy++) {
+            const nx = spawnX + dx;
+            const ny = spawnY + dy;
+            if (walkable(nx, ny)) {
+              spawnX = nx;
+              spawnY = ny;
+              found = true;
+            }
+          }
+        }
+      }
+      console.log(`\u{1F3AD} \u51FA\u751F\u70B9: (${spawnX}, ${spawnY})`);
+      const adam = new Character("adam", spawnX, spawnY, "\u4E9A\u5F53", walkable);
+      const eve = new Character("eve", spawnX + 1, spawnY, "\u590F\u5A03", walkable);
+      this.characters.push(adam, eve);
+      console.log(`\u{1F3AD} \u89D2\u8272\u6570\u91CF: ${this.characters.length}, \u4F4D\u7F6E: (${spawnX}, ${spawnY})`);
       for (const char of this.characters) {
-        const texture = this.textureCache.get(char.type);
-        if (!texture) continue;
-        const sprite = new Sprite(texture);
-        const pos = char.getPixelPosition();
-        sprite.x = pos.x - CHARACTER_SIZE / 2;
-        sprite.y = pos.y - CHARACTER_SIZE / 2;
-        sprite.width = CHARACTER_SIZE;
-        sprite.height = CHARACTER_SIZE;
+        const tex = this.textures.get(char.type);
+        console.log(`\u{1F3AD} \u521B\u5EFA${char.name}\u7CBE\u7075, \u7EB9\u7406: ${tex ? "\u6709" : "\u65E0"}`);
+        if (!tex) continue;
+        const sprite = new Sprite(tex);
+        sprite.width = CHAR_SIZE;
+        sprite.height = CHAR_SIZE;
         this.container.addChild(sprite);
         this.sprites.set(char, sprite);
+        const hitbox = new Graphics();
+        hitbox.beginFill(16777215, 1e-3);
+        hitbox.drawRect(0, 0, HITBOX_SIZE, HITBOX_SIZE);
+        hitbox.endFill();
+        hitbox.x = 0;
+        hitbox.y = 0;
+        hitbox.eventMode = "static";
+        hitbox.cursor = "pointer";
+        this.container.addChild(hitbox);
+        this.hitboxes.set(char, hitbox);
+        hitbox.on("pointerdown", (event) => {
+          event.stopPropagation();
+          if (this.onCharacterClick) {
+            this.onCharacterClick(char);
+          }
+        });
         const label = new Text({
           text: char.name,
           style: {
-            fontSize: 10,
+            fontSize: 14,
+            fontWeight: "bold",
             fill: 16777215,
-            stroke: { color: 0, width: 2 }
+            stroke: { color: 0, width: 3 }
           }
         });
-        label.x = pos.x - label.width / 2;
-        label.y = pos.y - CHARACTER_SIZE / 2 - 12;
+        label.resolution = 2;
         this.container.addChild(label);
         this.labels.set(char, label);
-        const actionLabel = new Text({
-          text: char.getActionDescription(),
-          style: {
-            fontSize: 8,
-            fill: 16776960,
-            stroke: { color: 0, width: 1 }
-          }
-        });
-        actionLabel.x = pos.x - actionLabel.width / 2;
-        actionLabel.y = pos.y + CHARACTER_SIZE / 2 + 2;
-        this.container.addChild(actionLabel);
       }
+      console.log(`\u{1F3AD} \u7CBE\u7075\u6570\u91CF: ${this.sprites.size}`);
     }
-    // 更新所有角色
+    setupInteraction() {
+      this.container.eventMode = "static";
+    }
     update(deltaTime) {
-      this.updateWorldState();
+      const world = this.getWorldState();
       for (const char of this.characters) {
-        char.update(deltaTime, this.worldState);
+        char.update(deltaTime, world);
         const sprite = this.sprites.get(char);
+        const hitbox = this.hitboxes.get(char);
         if (sprite) {
-          const pos = char.getPixelPosition();
-          sprite.x = pos.x - CHARACTER_SIZE / 2;
-          sprite.y = pos.y - CHARACTER_SIZE / 2;
+          const pos = char.getPixelPos();
+          sprite.x = pos.x - CHAR_SIZE / 2;
+          sprite.y = pos.y - CHAR_SIZE / 2;
+        }
+        if (hitbox) {
+          const pos = char.getPixelPos();
+          hitbox.x = pos.x - HITBOX_SIZE / 2;
+          hitbox.y = pos.y - HITBOX_SIZE / 2;
         }
         const label = this.labels.get(char);
         if (label) {
-          const pos = char.getPixelPosition();
+          label.text = `${char.name}: ${char.action}`;
+          const pos = char.getPixelPos();
           label.x = pos.x - label.width / 2;
-          label.y = pos.y - CHARACTER_SIZE / 2 - 12;
+          label.y = pos.y - CHAR_SIZE - 14;
         }
       }
     }
-    // 更新世界状态
-    updateWorldState() {
-      this.worldState.nearbyFood = this.findNearbyFood();
-      this.worldState.nearbyWater = this.findNearbyWater();
-      this.worldState.nearbyIndividuals = this.characters.length;
-      if (Math.random() < 1e-3) {
-        this.worldState.threats = [];
-      }
-    }
-    // 查找附近的食物
-    findNearbyFood() {
+    getWorldState() {
       const foods = [];
-      for (let i2 = 0; i2 < 3; i2++) {
-        const mapSize = this.map.getSize();
-        foods.push({
-          type: ["berry", "fruit"][Math.floor(Math.random() * 2)],
-          position: {
-            x: Math.floor(Math.random() * mapSize.width),
-            y: Math.floor(Math.random() * mapSize.height)
-          }
-        });
-      }
-      return foods;
-    }
-    // 查找附近的水源
-    findNearbyWater() {
       const waters = [];
-      const mapSize = this.map.getSize();
-      for (let y2 = 0; y2 < mapSize.height; y2++) {
-        for (let x2 = 0; x2 < mapSize.width; x2++) {
+      const size = this.map.getSize();
+      for (let y2 = 0; y2 < size.height; y2++) {
+        for (let x2 = 0; x2 < size.width; x2++) {
           const tile = this.map.getTile(x2, y2);
-          if (tile && (tile.type === "river" /* RIVER */ || tile.type === "lake" /* LAKE */)) {
-            waters.push({
-              type: tile.type === "river" /* RIVER */ ? "river" : "lake",
-              position: { x: x2, y: y2 }
-            });
+          if (tile?.type === "river" /* RIVER */ || tile?.type === "lake" /* LAKE */) {
+            waters.push({ type: "water", position: { x: x2, y: y2 }, quantity: 100 });
           }
         }
       }
-      return waters;
+      for (let i2 = 0; i2 < 10; i2++) {
+        foods.push({ type: "food", position: { x: Math.random() * 100, y: Math.random() * 50 }, quantity: 50 });
+      }
+      return {
+        time: 0,
+        threats: [],
+        nearbyFood: foods,
+        nearbyWater: waters,
+        nearbyIndividuals: this.characters.length - 1,
+        temperature: 25,
+        isNight: false
+      };
     }
     getContainer() {
       return this.container;
@@ -47974,9 +47646,765 @@ ${e2}`);
     }
   };
 
+  // src/renderer/StatusUI.ts
+  var StatusUI = class {
+    // 防止立即关闭
+    constructor() {
+      this.selectedChar = null;
+      this.characters = [];
+      this.justSelected = false;
+      this.createPanel();
+      this.setupClickOutside();
+      this.setupEscKey();
+    }
+    // ESC键关闭
+    setupEscKey() {
+      document.addEventListener("keydown", (e2) => {
+        if (e2.key === "Escape" && this.selectedChar) {
+          this.hide();
+        }
+      });
+    }
+    createPanel() {
+      this.panel = document.getElementById("status-panel");
+      this.panel.style.display = "none";
+    }
+    // 点击角色时调用
+    showCharacter(char) {
+      this.selectedChar = char;
+      this.panel.style.display = "block";
+      this.justSelected = true;
+      this.update();
+      setTimeout(() => {
+        this.justSelected = false;
+      }, 300);
+    }
+    // 关闭面板
+    hide() {
+      this.selectedChar = null;
+      this.panel.style.display = "none";
+    }
+    // 点击空白处关闭
+    setupClickOutside() {
+      document.addEventListener("pointerdown", (e2) => {
+        const target = e2.target;
+        if (this.justSelected) return;
+        if (target.classList.contains("char-hitbox")) return;
+        if (this.panel.contains(target)) return;
+        if (this.selectedChar) {
+          this.hide();
+        }
+      });
+    }
+    // 更新角色数据
+    updateCharacters(chars) {
+      this.characters = chars;
+      if (this.selectedChar) {
+        if (!chars.includes(this.selectedChar)) {
+          this.hide();
+        } else {
+          this.update();
+        }
+      }
+    }
+    update() {
+      if (!this.selectedChar) return;
+      const char = this.selectedChar;
+      const dna = char.phenotype;
+      const nameElem = document.getElementById("panel-name");
+      const typeElem = document.getElementById("panel-type");
+      if (nameElem) nameElem.textContent = char.name;
+      if (typeElem) typeElem.textContent = char.type === "adam" ? "\u4E9A\u5F53" : "\u590F\u5A03";
+      const avatarElem = document.getElementById("panel-avatar");
+      if (avatarElem) {
+        avatarElem.className = `avatar ${char.type === "adam" ? "adam" : "eve"}`;
+        avatarElem.textContent = char.type === "adam" ? "\u2642" : "\u2640";
+      }
+      const statusIcon = document.getElementById("status-icon");
+      if (statusIcon) {
+        statusIcon.textContent = this.getStatusIcon(char);
+      }
+      const posElem = document.getElementById("panel-position");
+      if (posElem) posElem.textContent = `(${char.x.toFixed(1)}, ${char.y.toFixed(1)})`;
+      const foodPct = Math.round(char.food / 5 * 100);
+      const waterPct = Math.round(char.water / 5 * 100);
+      const energyPct = Math.round(char.energy / 5 * 100);
+      const foodBar = document.getElementById("panel-food-bar");
+      const waterBar = document.getElementById("panel-water-bar");
+      const energyBar = document.getElementById("panel-energy-bar");
+      const foodVal = document.getElementById("panel-food-val");
+      const waterVal = document.getElementById("panel-water-val");
+      const energyVal = document.getElementById("panel-energy-val");
+      if (foodBar) foodBar.style.width = `${foodPct}%`;
+      if (waterBar) waterBar.style.width = `${waterPct}%`;
+      if (energyBar) energyBar.style.width = `${energyPct}%`;
+      if (foodVal) foodVal.textContent = `${foodPct}%`;
+      if (waterVal) waterVal.textContent = `${waterPct}%`;
+      if (energyVal) energyVal.textContent = `${energyPct}%`;
+      const actionElem = document.getElementById("panel-action");
+      if (actionElem) actionElem.textContent = char.action;
+      const dnaContainer = document.getElementById("panel-dna-attrs");
+      if (dnaContainer) {
+        dnaContainer.innerHTML = `
+                <div class="dna-row">
+                    <span>\u{1F3C3} \u654F\u6377</span><span>${(dna.agility * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F525} \u4EE3\u8C22</span><span>${dna.metabolism.toFixed(2)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u2753 \u597D\u5947</span><span>${(dna.curiosity * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F4AA} \u52C7\u6562</span><span>${(dna.bravery * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F6E1}\uFE0F \u98CE\u9669\u89C4\u907F</span><span>${(dna.riskAversion * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u2764\uFE0F \u540C\u7406\u5FC3</span><span>${(dna.empathy * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F91D} \u793E\u4EA4</span><span>${(dna.sociability * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u23F3 \u8010\u5FC3</span><span>${(dna.patience * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F9E0} \u667A\u529B</span><span>${(dna.intelligence * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F441}\uFE0F \u611F\u77E5</span><span>${(dna.perception * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F4AA} \u529B\u91CF</span><span>${(dna.strength * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F3CB}\uFE0F \u4F53\u8D28</span><span>${(dna.constitution * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u{1F3C3} \u8010\u529B</span><span>${(dna.endurance * 100).toFixed(0)}</span>
+                </div>
+                <div class="dna-row">
+                    <span>\u2694\uFE0F \u653B\u51FB</span><span>${(dna.aggression * 100).toFixed(0)}</span>
+                </div>
+            `;
+      }
+    }
+    getStatusIcon(char) {
+      if (char.water < 2) return "\u{1F4A7}\u53E3\u6E34";
+      if (char.food < 2) return "\u{1F356}\u9965\u997F";
+      if (char.energy < 2) return "\u{1F634}\u75B2\u60EB";
+      if (char.action.includes("\u5BFB\u627E")) return "\u{1F50D}\u63A2\u7D22";
+      if (char.action === "\u4F11\u606F\u4E2D") return "\u{1F4A4}\u4F11\u606F";
+      if (char.action === "\u95F2\u7F6E") return "\u{1F9D8}\u5F85\u673A";
+      return "\u{1F6B6}\u79FB\u52A8";
+    }
+    getSelectedCharacter() {
+      return this.selectedChar;
+    }
+  };
+
+  // src/renderer/ItemStatusUI.ts
+  var ItemStatusUI = class {
+    constructor() {
+      this.selectedItem = null;
+      this.lastClickTime = 0;
+      this.createPanel();
+      this.setupClickOutside();
+      this.setupEscKey();
+    }
+    createPanel() {
+      this.panel = document.createElement("div");
+      this.panel.id = "item-status-panel";
+      this.panel.className = "item-status-panel";
+      this.panel.innerHTML = `
+            <h3>
+                <span id="item-panel-title">\u{1F4E6} \u7269\u54C1\u4FE1\u606F</span>
+                <span class="item-icon" id="item-icon">\u{1F33F}</span>
+            </h3>
+            <div class="item-info">
+                <div class="info-row">
+                    <span class="label">\u540D\u79F0\uFF1A</span>
+                    <span class="value" id="item-name">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">\u5750\u6807\uFF1A</span>
+                    <span class="value" id="item-position">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">\u4F4D\u7F6E\uFF1A</span>
+                    <span class="value" id="item-layer">-</span>
+                </div>
+            </div>
+            <div class="durability-section" id="durability-section">
+                <div class="durability-title">\u{1F347} \u8D44\u6E90\u72B6\u6001</div>
+                <div class="durability-bar-container">
+                    <div class="durability-bar">
+                        <div class="durability-fill" id="durability-fill"></div>
+                    </div>
+                    <span class="durability-text" id="durability-text">0/0</span>
+                </div>
+            </div>
+            <div class="action-hint">\u9760\u8FD1\u540E\u81EA\u52A8\u91C7\u96C6</div>
+        `;
+      this.panel.style.display = "none";
+      document.body.appendChild(this.panel);
+      this.addStyles();
+    }
+    addStyles() {
+      const style = document.createElement("style");
+      style.textContent = `
+            .item-status-panel {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(10, 10, 30, 0.95);
+                border: 2px solid #8b5cf6;
+                border-radius: 15px;
+                padding: 20px;
+                min-width: 280px;
+                font-size: 13px;
+                box-shadow: 0 8px 32px rgba(139, 92, 246, 0.3);
+                z-index: 1000;
+            }
+            
+            .item-status-panel h3 {
+                color: #a78bfa;
+                margin-bottom: 15px;
+                font-size: 16px;
+                border-bottom: 1px solid #4c1d95;
+                padding-bottom: 10px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+            
+            .item-icon {
+                font-size: 28px;
+            }
+            
+            .item-info {
+                background: rgba(139, 92, 246, 0.1);
+                border-radius: 8px;
+                padding: 12px;
+                margin-bottom: 15px;
+            }
+            
+            .info-row {
+                display: flex;
+                justify-content: space-between;
+                margin: 5px 0;
+            }
+            
+            .info-row .label {
+                color: #888;
+            }
+            
+            .info-row .value {
+                color: #fff;
+                font-weight: bold;
+            }
+            
+            .durability-section {
+                margin-bottom: 15px;
+            }
+            
+            .durability-title {
+                color: #a78bfa;
+                font-size: 12px;
+                margin-bottom: 8px;
+                font-weight: bold;
+            }
+            
+            .durability-bar-container {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .durability-bar {
+                flex: 1;
+                height: 20px;
+                background: #1a1a2e;
+                border-radius: 10px;
+                overflow: hidden;
+            }
+            
+            .durability-fill {
+                height: 100%;
+                background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+                border-radius: 10px;
+                transition: width 0.3s ease;
+            }
+            
+            .durability-text {
+                color: #a78bfa;
+                font-weight: bold;
+                min-width: 50px;
+                text-align: right;
+            }
+            
+            .action-hint {
+                text-align: center;
+                color: #666;
+                font-size: 12px;
+                padding: 8px;
+                background: rgba(139, 92, 246, 0.1);
+                border-radius: 6px;
+            }
+        `;
+      document.head.appendChild(style);
+    }
+    // 显示物品信息
+    showItem(item) {
+      this.selectedItem = item;
+      this.lastClickTime = Date.now();
+      this.panel.style.display = "block";
+      this.update();
+    }
+    // 关闭面板
+    hide() {
+      this.selectedItem = null;
+      this.panel.style.display = "none";
+    }
+    // 更新显示
+    update() {
+      if (!this.selectedItem) return;
+      const item = this.selectedItem;
+      const iconElem = document.getElementById("item-icon");
+      const icons = {
+        "tree": "\u{1F332}",
+        "bush": "\u{1F33F}",
+        "rock": "\u{1FAA8}",
+        "stick": "\u{1FAB5}",
+        "berry": "\u{1FAD0}",
+        "flower": "\u{1F338}",
+        "branch": "\u{1F333}"
+      };
+      if (iconElem) iconElem.textContent = icons[item.type] || "\u{1F4E6}";
+      const nameElem = document.getElementById("item-name");
+      if (nameElem) nameElem.textContent = item.getName();
+      const posElem = document.getElementById("item-position");
+      if (posElem) posElem.textContent = `(${item.x}, ${item.y})`;
+      const layerElem = document.getElementById("item-layer");
+      const layerNames = {
+        "ground": "\u5730\u9762",
+        "low": "\u4F4E\u5904",
+        "high": "\u9AD8\u5904"
+      };
+      if (layerElem) layerElem.textContent = layerNames[item.layer] || "-";
+      const durSection = document.getElementById("durability-section");
+      const durFill = document.getElementById("durability-fill");
+      const durText = document.getElementById("durability-text");
+      if (item.maxDurability > 0 && durSection && durFill && durText) {
+        durSection.style.display = "block";
+        const pct = item.maxDurability > 0 ? item.durability / item.maxDurability * 100 : 0;
+        durFill.style.width = `${pct}%`;
+        durText.textContent = `${item.durability}/${item.maxDurability}`;
+      } else if (durSection) {
+        durSection.style.display = "none";
+      }
+    }
+    // 点击空白处关闭
+    setupClickOutside() {
+      document.addEventListener("pointerdown", (e2) => {
+        const target = e2.target;
+        if (Date.now() - this.lastClickTime < 200) return;
+        if (this.panel.contains(target)) return;
+        if (this.selectedItem) {
+          this.hide();
+        }
+      });
+    }
+    // ESC键关闭
+    setupEscKey() {
+      document.addEventListener("keydown", (e2) => {
+        if (e2.key === "Escape" && this.selectedItem) {
+          this.hide();
+        }
+      });
+    }
+  };
+
+  // src/systems/CommandSystem.ts
+  var CommandSystem = class {
+    constructor() {
+      this.commands = /* @__PURE__ */ new Map();
+      this.history = [];
+      this.historyIndex = -1;
+      // 输出收集器
+      this.outputBuffer = [];
+      this.outputCallback = null;
+      this.registerBuiltIn();
+    }
+    // 注册命令
+    register(cmd) {
+      this.commands.set(cmd.name.toLowerCase(), cmd);
+    }
+    // 注销命令
+    unregister(name) {
+      return this.commands.delete(name.toLowerCase());
+    }
+    // 设置输出回调
+    setOutputCallback(callback) {
+      this.outputCallback = callback;
+    }
+    // 打印输出（内部使用）
+    print(line) {
+      this.outputBuffer.push(line);
+    }
+    // 执行命令
+    execute(input) {
+      const trimmed = input.trim();
+      if (!trimmed) return "";
+      this.history.push(trimmed);
+      this.historyIndex = this.history.length;
+      this.outputBuffer = [];
+      const parts = trimmed.split(/\s+/);
+      const name = parts[0].toLowerCase();
+      const args = parts.slice(1);
+      const cmd = this.commands.get(name);
+      if (!cmd) {
+        const result = `\u672A\u77E5\u547D\u4EE4: ${name}\uFF0C\u8F93\u5165 help \u67E5\u770B\u53EF\u7528\u547D\u4EE4`;
+        this.outputBuffer.push(result);
+        return result;
+      }
+      try {
+        cmd.execute(args);
+        if (this.outputCallback && this.outputBuffer.length > 0) {
+          this.outputCallback([...this.outputBuffer]);
+        }
+        return `\u2713 \u6267\u884C: ${name}`;
+      } catch (e2) {
+        const result = `\u2717 \u9519\u8BEF: ${e2.message}`;
+        this.outputBuffer.push(result);
+        return result;
+      }
+    }
+    // 获取所有命令
+    getCommands() {
+      return Array.from(this.commands.values());
+    }
+    // 获取历史
+    getHistory(direction) {
+      if (this.history.length === 0) return "";
+      if (direction === "up") {
+        this.historyIndex = Math.max(0, this.historyIndex - 1);
+      } else {
+        this.historyIndex = Math.min(this.history.length, this.historyIndex + 1);
+      }
+      if (this.historyIndex >= this.history.length) return "";
+      return this.history[this.historyIndex];
+    }
+    // 内置命令
+    registerBuiltIn() {
+      this.register({
+        name: "help",
+        desc: "\u663E\u793A\u5E2E\u52A9",
+        usage: "help [\u547D\u4EE4\u540D]",
+        execute: (args) => {
+          if (args[0]) {
+            const cmd = this.commands.get(args[0].toLowerCase());
+            if (cmd) {
+              this.print(`\u{1F4DD} ${cmd.name}`);
+              this.print(`   \u7528\u6CD5: ${cmd.usage}`);
+              this.print(`   \u8BF4\u660E: ${cmd.desc}`);
+            } else {
+              this.print(`\u672A\u77E5\u547D\u4EE4: ${args[0]}`);
+            }
+          } else {
+            this.print("\u{1F4DC} \u53EF\u7528\u547D\u4EE4:");
+            this.print("");
+            this.print("\u{1F33F} \u5B63\u8282\u63A7\u5236:");
+            this.print("  \u5207\u6362\u5B63\u8282-\u6625  \u5207\u6362\u5230\u6625\u5929");
+            this.print("  \u5207\u6362\u5B63\u8282-\u590F  \u5207\u6362\u5230\u590F\u5929");
+            this.print("  \u5207\u6362\u5B63\u8282-\u79CB  \u5207\u6362\u5230\u79CB\u5929");
+            this.print("  \u5207\u6362\u5B63\u8282-\u51AC  \u5207\u6362\u5230\u51AC\u5929");
+            this.print("");
+            this.print("\u{1F4CA} \u4FE1\u606F\u67E5\u770B:");
+            for (const cmd of this.commands.values()) {
+              if (cmd.name.startsWith("char") || cmd.name.startsWith("day") || cmd.name.startsWith("info")) {
+                this.print(`  ${cmd.name.padEnd(12)} - ${cmd.desc}`);
+              }
+            }
+            this.print("");
+            this.print("\u{1F6E0}\uFE0F \u5176\u4ED6:");
+            this.print("  help         \u663E\u793A\u5E2E\u52A9");
+            this.print("  clear        \u6E05\u5C4F");
+          }
+        }
+      });
+      this.register({
+        name: "clear",
+        desc: "\u6E05\u5C4F",
+        usage: "clear",
+        execute: () => {
+        }
+      });
+      this.register({
+        name: "\u5207\u6362\u5B63\u8282-\u6625",
+        desc: "\u5207\u6362\u5230\u6625\u5929",
+        usage: "\u5207\u6362\u5B63\u8282-\u6625",
+        execute: () => {
+          window.dispatchEvent(new CustomEvent("console-season", { detail: "spring" }));
+          this.print("\u2713 \u5207\u6362\u5230\u6625\u5929 \u{1F338}");
+        }
+      });
+      this.register({
+        name: "\u5207\u6362\u5B63\u8282-\u590F",
+        desc: "\u5207\u6362\u5230\u590F\u5929",
+        usage: "\u5207\u6362\u5B63\u8282-\u590F",
+        execute: () => {
+          window.dispatchEvent(new CustomEvent("console-season", { detail: "summer" }));
+          this.print("\u2713 \u5207\u6362\u5230\u590F\u5929 \u2600\uFE0F");
+        }
+      });
+      this.register({
+        name: "\u5207\u6362\u5B63\u8282-\u79CB",
+        desc: "\u5207\u6362\u5230\u79CB\u5929",
+        usage: "\u5207\u6362\u5B63\u8282-\u79CB",
+        execute: () => {
+          window.dispatchEvent(new CustomEvent("console-season", { detail: "autumn" }));
+          this.print("\u2713 \u5207\u6362\u5230\u79CB\u5929 \u{1F342}");
+        }
+      });
+      this.register({
+        name: "\u5207\u6362\u5B63\u8282-\u51AC",
+        desc: "\u5207\u6362\u5230\u51AC\u5929",
+        usage: "\u5207\u6362\u5B63\u8282-\u51AC",
+        execute: () => {
+          window.dispatchEvent(new CustomEvent("console-season", { detail: "winter" }));
+          this.print("\u2713 \u5207\u6362\u5230\u51AC\u5929 \u2744\uFE0F");
+        }
+      });
+      this.register({
+        name: "char",
+        desc: "\u663E\u793A\u89D2\u8272\u4FE1\u606F",
+        usage: "char [\u540D\u5B57]",
+        execute: (args) => {
+          window.dispatchEvent(new CustomEvent("console-char", { detail: args }));
+          this.print("\u{1F4CA} \u6B63\u5728\u67E5\u8BE2\u89D2\u8272\u4FE1\u606F...");
+        }
+      });
+      this.register({
+        name: "day",
+        desc: "\u663E\u793A\u5F53\u524D\u5929\u6570",
+        usage: "day",
+        execute: () => {
+          window.dispatchEvent(new CustomEvent("console-day"));
+          this.print("\u{1F4C5} \u6B63\u5728\u67E5\u8BE2\u65F6\u95F4...");
+        }
+      });
+      this.register({
+        name: "info",
+        desc: "\u663E\u793A\u6E38\u620F\u4FE1\u606F",
+        usage: "info",
+        execute: () => {
+          window.dispatchEvent(new CustomEvent("console-info"));
+          this.print("\u{1F30D} \u6B63\u5728\u67E5\u8BE2\u6E38\u620F\u4FE1\u606F...");
+        }
+      });
+    }
+  };
+  var commandSystem = new CommandSystem();
+
+  // src/renderer/ConsoleUI.ts
+  var ConsoleUI = class {
+    constructor() {
+      this.isOpen = false;
+      this.onCommandExecute = null;
+      this.createUI();
+      this.setupKeyboard();
+      this.log("\u4F0A\u7538\u4E16\u754C\u63A7\u5236\u53F0\u5DF2\u542F\u52A8", "info");
+      this.log("\u6309 ~ \u6216 / \u6253\u5F00\u63A7\u5236\u53F0", "info");
+      this.log("\u8F93\u5165 help \u67E5\u770B\u547D\u4EE4", "info");
+    }
+    createUI() {
+      this.container = document.createElement("div");
+      this.container.id = "game-console";
+      this.container.innerHTML = `
+            <div class="console-header">
+                <span>\u26A1 \u4F0A\u7538\u63A7\u5236\u53F0</span>
+                <span class="console-hint">\u6309 ~ \u5173\u95ED</span>
+            </div>
+            <div class="console-logs" id="console-logs"></div>
+            <div class="console-input-row">
+                <span class="console-prompt">></span>
+                <input type="text" id="console-input" placeholder="\u8F93\u5165\u547D\u4EE4..." autocomplete="off" />
+            </div>
+        `;
+      this.container.style.display = "none";
+      document.body.appendChild(this.container);
+      this.input = document.getElementById("console-input");
+      this.logs = document.getElementById("console-logs");
+      this.input.addEventListener("keydown", (e2) => {
+        if (e2.key === "Enter") {
+          const cmd = this.input.value;
+          if (cmd.trim()) {
+            this.execute(cmd);
+          }
+          this.input.value = "";
+        } else if (e2.key === "ArrowUp") {
+          e2.preventDefault();
+          this.input.value = commandSystem.getHistory("up");
+        } else if (e2.key === "ArrowDown") {
+          e2.preventDefault();
+          this.input.value = commandSystem.getHistory("down");
+        } else if (e2.key === "Escape") {
+          this.close();
+        }
+      });
+      this.addStyles();
+    }
+    addStyles() {
+      const style = document.createElement("style");
+      style.textContent = `
+            #game-console {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 300px;
+                background: rgba(10, 10, 20, 0.95);
+                border-top: 2px solid #4a9;
+                font-family: 'Consolas', 'Monaco', monospace;
+                font-size: 13px;
+                z-index: 9999;
+                display: flex;
+                flex-direction: column;
+            }
+            
+            #game-console.open {
+                display: flex;
+            }
+            
+            .console-header {
+                display: flex;
+                justify-content: space-between;
+                padding: 8px 15px;
+                background: rgba(74, 169, 74, 0.2);
+                border-bottom: 1px solid #4a9;
+                color: #4a9;
+                font-weight: bold;
+            }
+            
+            .console-hint {
+                font-size: 11px;
+                color: #666;
+                font-weight: normal;
+            }
+            
+            .console-logs {
+                flex: 1;
+                overflow-y: auto;
+                padding: 10px 15px;
+                color: #ccc;
+            }
+            
+            .console-logs .log {
+                margin: 3px 0;
+                line-height: 1.4;
+            }
+            
+            .console-logs .log-info { color: #888; }
+            .console-logs .log-success { color: #4a9; }
+            .console-logs .log-error { color: #e74c3c; }
+            .console-logs .log-cmd { color: #f1c40f; }
+            
+            .console-input-row {
+                display: flex;
+                align-items: center;
+                padding: 10px 15px;
+                background: rgba(0,0,0,0.3);
+                border-top: 1px solid #333;
+            }
+            
+            .console-prompt {
+                color: #4a9;
+                font-weight: bold;
+                margin-right: 10px;
+                font-size: 16px;
+            }
+            
+            #console-input {
+                flex: 1;
+                background: transparent;
+                border: none;
+                outline: none;
+                color: #fff;
+                font-family: inherit;
+                font-size: 14px;
+            }
+            
+            #console-input::placeholder {
+                color: #555;
+            }
+        `;
+      document.head.appendChild(style);
+    }
+    setupKeyboard() {
+      document.addEventListener("keydown", (e2) => {
+        if (e2.key === "`" || e2.key === "~" || e2.key === "/" && !e2.ctrlKey && !e2.altKey && !e2.metaKey) {
+          if (document.activeElement === this.input) return;
+          e2.preventDefault();
+          this.toggle();
+        }
+      });
+    }
+    toggle() {
+      this.isOpen = !this.isOpen;
+      this.container.style.display = this.isOpen ? "flex" : "none";
+      if (this.isOpen) {
+        this.input.focus();
+      }
+    }
+    open() {
+      this.isOpen = true;
+      this.container.style.display = "flex";
+      this.input.focus();
+    }
+    close() {
+      this.isOpen = false;
+      this.container.style.display = "none";
+    }
+    execute(cmd) {
+      this.log(`> ${cmd}`, "cmd");
+      commandSystem.setOutputCallback((lines) => {
+        for (const line of lines) {
+          this.log(line, "info");
+        }
+      });
+      const result = commandSystem.execute(cmd);
+      if (result && !result.startsWith("\u2713")) {
+        this.log(result, result.startsWith("\u2713") ? "success" : "error");
+      }
+      if (this.onCommandExecute) {
+        this.onCommandExecute(cmd);
+      }
+    }
+    log(message, type = "info") {
+      const div = document.createElement("div");
+      div.className = `log log-${type}`;
+      div.textContent = message;
+      this.logs.appendChild(div);
+      this.logs.scrollTop = this.logs.scrollHeight;
+    }
+    // 设置命令执行回调
+    setOnCommandExecute(callback) {
+      this.onCommandExecute = callback;
+    }
+    isVisible() {
+      return this.isOpen;
+    }
+  };
+
   // src/renderer/pixi/GameApp.ts
   var GameApp = class {
     constructor(map, width, height) {
+      // 当前季节
+      this.currentSeason = "summer";
       this.map = map;
       this.viewportWidth = width;
       this.viewportHeight = height;
@@ -47986,6 +48414,10 @@ ${e2}`);
       this.tileLayer = new TileLayer(map);
       this.itemLayer = new ItemLayer(map);
       this.characterLayer = new CharacterLayer(map);
+      this.statusUI = new StatusUI();
+      this.itemStatusUI = new ItemStatusUI();
+      this.consoleUI = new ConsoleUI();
+      this.setupConsoleCommands();
     }
     async init() {
       await this.app.init({
@@ -48003,6 +48435,12 @@ ${e2}`);
       await this.tileLayer.init();
       await this.itemLayer.init();
       await this.characterLayer.init();
+      this.characterLayer.onCharacterClick = (char) => {
+        this.statusUI.showCharacter(char);
+      };
+      this.itemLayer.onItemClick = (item) => {
+        this.itemStatusUI.showItem(item);
+      };
       const worldWidth = this.map.getSize().width * 64;
       const worldHeight = this.map.getSize().height * 64;
       this.camera.setWorldSize(worldWidth, worldHeight);
@@ -48025,6 +48463,50 @@ ${e2}`);
     startTick() {
       this.app.ticker.add((ticker) => {
         this.characterLayer.update(ticker.deltaTime);
+        this.statusUI.updateCharacters(this.characterLayer.getCharacters());
+      });
+    }
+    // 设置控制台命令处理
+    setupConsoleCommands() {
+      window.addEventListener("console-season", ((e2) => {
+        const season = e2.detail;
+        this.currentSeason = season;
+        this.tileLayer.setSeason(season);
+        this.itemLayer.setSeason(season);
+      }));
+      window.addEventListener("console-char", ((e2) => {
+        const args = e2.detail;
+        const chars = this.characterLayer.getCharacters();
+        const seasonNames = { spring: "\u6625\u5929", summer: "\u590F\u5929", autumn: "\u79CB\u5929", winter: "\u51AC\u5929" };
+        if (args[0]) {
+          const char = chars.find((c2) => c2.name === args[0]);
+          if (char) {
+            commandSystem.print(`\u{1F4CA} ${char.name}:`);
+            commandSystem.print(`   \u4F4D\u7F6E: (${char.x.toFixed(1)}, ${char.y.toFixed(1)})`);
+            commandSystem.print(`   \u9965\u997F: ${(char.food / 5 * 100).toFixed(0)}%`);
+            commandSystem.print(`   \u6C34: ${(char.water / 5 * 100).toFixed(0)}%`);
+            commandSystem.print(`   \u7CBE\u529B: ${(char.energy / 5 * 100).toFixed(0)}%`);
+            commandSystem.print(`   \u884C\u52A8: ${char.action}`);
+            commandSystem.print(`   \u5B63\u8282: ${seasonNames[this.currentSeason] || this.currentSeason}`);
+          } else {
+            commandSystem.print(`\u672A\u627E\u5230\u89D2\u8272: ${args[0]}`);
+          }
+        } else {
+          commandSystem.print(`\u{1F4CA} \u89D2\u8272\u6570\u91CF: ${chars.length}`);
+          for (const char of chars) {
+            commandSystem.print(`   ${char.name}: (${char.x.toFixed(1)}, ${char.y.toFixed(1)}) - ${char.action}`);
+          }
+        }
+      }));
+      window.addEventListener("console-day", () => {
+        commandSystem.print(`\u{1F4C5} \u5F53\u524D\u5B63\u8282: ${this.currentSeason}`);
+        commandSystem.print(`\u23F0 \u65F6\u95F4\u7CFB\u7EDF\u5C1A\u672A\u5B9E\u73B0`);
+      });
+      window.addEventListener("console-info", () => {
+        commandSystem.print(`\u{1F30D} \u4F0A\u7538\u4E16\u754C v0.10.0-alpha`);
+        commandSystem.print(`\u{1F4E6} \u7269\u54C1\u6570\u91CF: ${this.itemLayer.getItems().length}`);
+        commandSystem.print(`\u{1F465} \u89D2\u8272\u6570\u91CF: ${this.characterLayer.getCharacters().length}`);
+        commandSystem.print(`\u{1F33F} \u5F53\u524D\u5B63\u8282: ${this.currentSeason}`);
       });
     }
     destroy() {
@@ -48128,7 +48610,7 @@ ${e2}`);
     console.log("\u2705 \u6E38\u620F\u542F\u52A8\u5B8C\u6210");
   }
   main().catch(console.error);
-  window.edenWorld = { version: "0.7.0-alpha-pixi" };
+  window.edenWorld = { version: "0.9.0-alpha-ai" };
 })();
 /*! Bundled license information:
 

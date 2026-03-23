@@ -1,14 +1,14 @@
 /**
- * 角色层 - 使用AI决策系统
+ * 角色层
  */
 
 import * as PIXI from 'pixi.js';
 import { GameMap, TileType } from '../../../world/MapGenerator';
-import { Character, CharacterType } from '../../../entities/Character';
-import { WorldState } from '../../../systems/needs/NeedsCalculator';
+import { Character } from '../../../entities/Character';
 
 const TILE_SIZE = 64;
-const CHARACTER_SIZE = 32;
+const CHAR_SIZE = 32;
+const HITBOX_SIZE = 48; // 点击热区大小
 
 export class CharacterLayer {
     private container: PIXI.Container;
@@ -16,184 +16,199 @@ export class CharacterLayer {
     private characters: Character[] = [];
     private sprites: Map<Character, PIXI.Sprite> = new Map();
     private labels: Map<Character, PIXI.Text> = new Map();
-    private textureCache: Map<CharacterType, PIXI.Texture> = new Map();
-    private worldState: WorldState;
+    private textures: Map<string, PIXI.Texture> = new Map();
+    private hitboxes: Map<Character, PIXI.Graphics> = new Map();
     
-    private readonly ASSETS: Record<CharacterType, string> = {
-        'adam': 'img/亚当.png',
-        'eve': 'img/夏娃.png',
-    };
+    // 点击回调
+    public onCharacterClick: ((char: Character) => void) | null = null;
     
     constructor(map: GameMap) {
         this.map = map;
         this.container = new PIXI.Container();
-        
-        // 初始化世界状态
-        this.worldState = {
-            time: 0,
-            threats: [],
-            nearbyFood: this.findNearbyFood(),
-            nearbyWater: this.findNearbyWater(),
-            nearbyIndividuals: 0,
-            temperature: 25,
-            isNight: false
-        };
     }
     
     async init(): Promise<void> {
+        console.log('🎭 CharacterLayer.init() 开始');
         await this.loadTextures();
-        this.createCharacters();
-        this.render();
+        this.spawnCharacters();
+        this.setupInteraction();
+        console.log('🎭 CharacterLayer.init() 完成');
     }
     
     private async loadTextures(): Promise<void> {
-        for (const [type, path] of Object.entries(this.ASSETS)) {
+        console.log('🔄 开始加载角色纹理...');
+        const sources: Record<string, string> = {
+            'adam': 'img/亚当.png',
+            'eve': 'img/夏娃.png'
+        };
+        
+        for (const [key, path] of Object.entries(sources)) {
+            console.log(`  加载: ${path}`);
             try {
                 const texture = await PIXI.Assets.load(path);
-                this.textureCache.set(type as CharacterType, texture);
+                this.textures.set(key, texture);
+                console.log(`  ✅ 成功: ${path}`);
             } catch (e) {
-                console.warn(`Failed to load character texture: ${path}`);
+                console.error(`  ❌ 失败: ${path}`, e);
             }
         }
+        console.log('✅ 角色纹理加载完成');
     }
     
-    private createCharacters(): void {
-        const mapSize = this.map.getSize();
-        const centerX = Math.floor(mapSize.width / 2);
-        const centerY = Math.floor(mapSize.height / 2);
+    private spawnCharacters(): void {
+        console.log('🎭 开始生成角色...');
+        const walkable = (x: number, y: number): boolean => {
+            if (x < 0 || y < 0) return false;
+            const tile = this.map.getTile(x, y);
+            if (!tile) return false;
+            return ![TileType.OCEAN, TileType.LAKE, TileType.RIVER, TileType.MOUNTAIN, TileType.SWAMP].includes(tile.type);
+        };
         
-        // 创建亚当和夏娃
-        const adam = new Character('adam', centerX, centerY);
-        const eve = new Character('eve', centerX + 1, centerY);
+        // 在地图中心区域寻找可行走位置
+        const centerX = Math.floor(this.map.getSize().width / 2);
+        const centerY = Math.floor(this.map.getSize().height / 2);
         
-        this.characters.push(adam);
-        this.characters.push(eve);
-    }
-    
-    private render(): void {
+        let spawnX = centerX;
+        let spawnY = centerY;
+        
+        // 螺旋向外搜索
+        let found = false;
+        for (let r = 0; r < 30 && !found; r++) {
+            for (let dx = -r; dx <= r && !found; dx++) {
+                for (let dy = -r; dy <= r && !found; dy++) {
+                    const nx = spawnX + dx;
+                    const ny = spawnY + dy;
+                    if (walkable(nx, ny)) {
+                        spawnX = nx;
+                        spawnY = ny;
+                        found = true;
+                    }
+                }
+            }
+        }
+        
+        console.log(`🎭 出生点: (${spawnX}, ${spawnY})`);
+        
+        const adam = new Character('adam', spawnX, spawnY, '亚当', walkable);
+        const eve = new Character('eve', spawnX + 1, spawnY, '夏娃', walkable);
+        
+        this.characters.push(adam, eve);
+        console.log(`🎭 角色数量: ${this.characters.length}, 位置: (${spawnX}, ${spawnY})`);
+        
+        // 创建精灵和点击区域
         for (const char of this.characters) {
-            const texture = this.textureCache.get(char.type);
-            if (!texture) continue;
+            const tex = this.textures.get(char.type);
+            console.log(`🎭 创建${char.name}精灵, 纹理: ${tex ? '有' : '无'}`);
+            if (!tex) continue;
             
-            // 创建角色精灵
-            const sprite = new PIXI.Sprite(texture);
-            const pos = char.getPixelPosition();
-            sprite.x = pos.x - CHARACTER_SIZE / 2;
-            sprite.y = pos.y - CHARACTER_SIZE / 2;
-            sprite.width = CHARACTER_SIZE;
-            sprite.height = CHARACTER_SIZE;
-            
+            // 创建精灵
+            const sprite = new PIXI.Sprite(tex);
+            sprite.width = CHAR_SIZE;
+            sprite.height = CHAR_SIZE;
             this.container.addChild(sprite);
             this.sprites.set(char, sprite);
             
-            // 创建名字标签
+            // 创建不可见的点击区域
+            const hitbox = new PIXI.Graphics();
+            hitbox.beginFill(0xffffff, 0.001); // 几乎透明
+            hitbox.drawRect(0, 0, HITBOX_SIZE, HITBOX_SIZE);
+            hitbox.endFill();
+            hitbox.x = 0; // 稍后设置位置
+            hitbox.y = 0;
+            hitbox.eventMode = 'static';
+            hitbox.cursor = 'pointer';
+            this.container.addChild(hitbox);
+            this.hitboxes.set(char, hitbox);
+            
+            // 点击事件
+            hitbox.on('pointerdown', (event: PIXI.FederatedPointerEvent) => {
+                event.stopPropagation();
+                if (this.onCharacterClick) {
+                    this.onCharacterClick(char);
+                }
+            });
+            
+            // 创建标签 - 添加描边更清晰
             const label = new PIXI.Text({
                 text: char.name,
                 style: {
-                    fontSize: 10,
+                    fontSize: 14,
+                    fontWeight: 'bold',
                     fill: 0xffffff,
-                    stroke: { color: 0x000000, width: 2 }
+                    stroke: { color: 0x000000, width: 3 },
                 }
             });
-            label.x = pos.x - label.width / 2;
-            label.y = pos.y - CHARACTER_SIZE / 2 - 12;
+            label.resolution = 2; // 更高分辨率
             this.container.addChild(label);
             this.labels.set(char, label);
-            
-            // 创建状态标签（显示当前行动）
-            const actionLabel = new PIXI.Text({
-                text: char.getActionDescription(),
-                style: {
-                    fontSize: 8,
-                    fill: 0xffff00,
-                    stroke: { color: 0x000000, width: 1 }
-                }
-            });
-            actionLabel.x = pos.x - actionLabel.width / 2;
-            actionLabel.y = pos.y + CHARACTER_SIZE / 2 + 2;
-            this.container.addChild(actionLabel);
         }
+        console.log(`🎭 精灵数量: ${this.sprites.size}`);
     }
     
-    // 更新所有角色
+    private setupInteraction(): void {
+        // 让容器可以点击（用于关闭面板）
+        this.container.eventMode = 'static';
+    }
+    
     update(deltaTime: number): void {
-        // 更新世界状态
-        this.updateWorldState();
+        // 准备世界状态
+        const world = this.getWorldState();
         
-        // 更新每个角色
+        // 更新角色
         for (const char of this.characters) {
-            // AI决策更新
-            char.update(deltaTime, this.worldState);
+            char.update(deltaTime, world);
             
-            // 更新精灵位置
             const sprite = this.sprites.get(char);
+            const hitbox = this.hitboxes.get(char);
             if (sprite) {
-                const pos = char.getPixelPosition();
-                sprite.x = pos.x - CHARACTER_SIZE / 2;
-                sprite.y = pos.y - CHARACTER_SIZE / 2;
+                const pos = char.getPixelPos();
+                sprite.x = pos.x - CHAR_SIZE / 2;
+                sprite.y = pos.y - CHAR_SIZE / 2;
+            }
+            if (hitbox) {
+                const pos = char.getPixelPos();
+                hitbox.x = pos.x - HITBOX_SIZE / 2;
+                hitbox.y = pos.y - HITBOX_SIZE / 2;
             }
             
-            // 更新标签
             const label = this.labels.get(char);
             if (label) {
-                const pos = char.getPixelPosition();
+                label.text = `${char.name}: ${char.action}`;
+                const pos = char.getPixelPos();
                 label.x = pos.x - label.width / 2;
-                label.y = pos.y - CHARACTER_SIZE / 2 - 12;
+                label.y = pos.y - CHAR_SIZE - 14;
             }
         }
     }
     
-    // 更新世界状态
-    private updateWorldState(): void {
-        // 简化：每帧重新扫描附近资源
-        this.worldState.nearbyFood = this.findNearbyFood();
-        this.worldState.nearbyWater = this.findNearbyWater();
-        this.worldState.nearbyIndividuals = this.characters.length;
+    private getWorldState() {
+        const foods: { type: string; position: { x: number; y: number }; quantity: number }[] = [];
+        const waters: { type: string; position: { x: number; y: number }; quantity: number }[] = [];
         
-        // 简化：随机威胁（后续完善）
-        if (Math.random() < 0.001) {
-            this.worldState.threats = [];
-        }
-    }
-    
-    // 查找附近的食物
-    private findNearbyFood(): { type: string; position: { x: number; y: number } }[] {
-        const foods: { type: string; position: { x: number; y: number } }[] = [];
-        
-        // 简化：随机生成食物位置
-        for (let i = 0; i < 3; i++) {
-            const mapSize = this.map.getSize();
-            foods.push({
-                type: ['berry', 'fruit'][Math.floor(Math.random() * 2)],
-                position: {
-                    x: Math.floor(Math.random() * mapSize.width),
-                    y: Math.floor(Math.random() * mapSize.height)
-                }
-            });
-        }
-        
-        return foods;
-    }
-    
-    // 查找附近的水源
-    private findNearbyWater(): { type: string; position: { x: number; y: number } }[] {
-        const waters: { type: string; position: { x: number; y: number } }[] = [];
-        
-        // 简化：查找地图上的水域
-        const mapSize = this.map.getSize();
-        for (let y = 0; y < mapSize.height; y++) {
-            for (let x = 0; x < mapSize.width; x++) {
+        const size = this.map.getSize();
+        for (let y = 0; y < size.height; y++) {
+            for (let x = 0; x < size.width; x++) {
                 const tile = this.map.getTile(x, y);
-                if (tile && (tile.type === TileType.RIVER || tile.type === TileType.LAKE)) {
-                    waters.push({
-                        type: tile.type === TileType.RIVER ? 'river' : 'lake',
-                        position: { x, y }
-                    });
+                if (tile?.type === TileType.RIVER || tile?.type === TileType.LAKE) {
+                    waters.push({ type: 'water', position: { x, y }, quantity: 100 });
                 }
             }
         }
         
-        return waters;
+        // 随机生成食物
+        for (let i = 0; i < 10; i++) {
+            foods.push({ type: 'food', position: { x: Math.random() * 100, y: Math.random() * 50 }, quantity: 50 });
+        }
+        
+        return { 
+            time: 0,
+            threats: [],
+            nearbyFood: foods,
+            nearbyWater: waters,
+            nearbyIndividuals: this.characters.length - 1,
+            temperature: 25,
+            isNight: false
+        };
     }
     
     getContainer(): PIXI.Container {

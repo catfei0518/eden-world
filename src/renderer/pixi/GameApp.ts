@@ -3,11 +3,15 @@
  */
 
 import * as PIXI from 'pixi.js';
-import { GameMap } from '../world/MapGenerator';
+import { GameMap } from '../../world/MapGenerator';
 import { TileLayer } from './layers/TileLayer';
 import { ItemLayer } from './layers/ItemLayer';
 import { CharacterLayer } from './layers/CharacterLayer';
 import { Camera } from './Camera';
+import { StatusUI } from '../StatusUI';
+import { ItemStatusUI } from '../ItemStatusUI';
+import { ConsoleUI } from '../ConsoleUI';
+import { commandSystem } from '../../systems/CommandSystem';
 
 export class GameApp {
     private app: PIXI.Application;
@@ -16,10 +20,16 @@ export class GameApp {
     private tileLayer: TileLayer;
     private itemLayer: ItemLayer;
     private characterLayer: CharacterLayer;
+    private statusUI: StatusUI;
+    private itemStatusUI: ItemStatusUI;
+    private consoleUI: ConsoleUI;
     
     private map: GameMap;
     private viewportWidth: number;
     private viewportHeight: number;
+    
+    // 当前季节
+    private currentSeason: string = 'summer';
     
     constructor(map: GameMap, width: number, height: number) {
         this.map = map;
@@ -32,6 +42,12 @@ export class GameApp {
         this.tileLayer = new TileLayer(map);
         this.itemLayer = new ItemLayer(map);
         this.characterLayer = new CharacterLayer(map);
+        this.statusUI = new StatusUI();
+        this.itemStatusUI = new ItemStatusUI();
+        this.consoleUI = new ConsoleUI();
+        
+        // 设置控制台命令回调
+        this.setupConsoleCommands();
     }
     
     async init(): Promise<void> {
@@ -57,6 +73,16 @@ export class GameApp {
         await this.tileLayer.init();
         await this.itemLayer.init();
         await this.characterLayer.init();
+        
+        // 设置角色点击回调
+        this.characterLayer.onCharacterClick = (char) => {
+            this.statusUI.showCharacter(char);
+        };
+        
+        // 设置物品点击回调
+        this.itemLayer.onItemClick = (item) => {
+            this.itemStatusUI.showItem(item);
+        };
         
         // 设置相机
         const worldWidth = this.map.getSize().width * 64;
@@ -93,6 +119,60 @@ export class GameApp {
     startTick(): void {
         this.app.ticker.add((ticker) => {
             this.characterLayer.update(ticker.deltaTime);
+            this.statusUI.updateCharacters(this.characterLayer.getCharacters());
+        });
+    }
+    
+    // 设置控制台命令处理
+    private setupConsoleCommands(): void {
+        // 季节切换
+        window.addEventListener('console-season', ((e: CustomEvent) => {
+            const season = e.detail as string;
+            this.currentSeason = season;
+            this.tileLayer.setSeason(season as any);
+            this.itemLayer.setSeason(season as any);
+            // 季节切换的消息由CommandSystem输出
+        }) as EventListener);
+        
+        // 角色信息 - 通过事件触发后，由commandSystem的print输出
+        window.addEventListener('console-char', ((e: CustomEvent) => {
+            const args = e.detail as string[];
+            const chars = this.characterLayer.getCharacters();
+            const seasonNames: Record<string, string> = { spring: '春天', summer: '夏天', autumn: '秋天', winter: '冬天' };
+            
+            if (args[0]) {
+                const char = chars.find(c => c.name === args[0]);
+                if (char) {
+                    commandSystem.print(`📊 ${char.name}:`);
+                    commandSystem.print(`   位置: (${char.x.toFixed(1)}, ${char.y.toFixed(1)})`);
+                    commandSystem.print(`   饥饿: ${(char.food/5*100).toFixed(0)}%`);
+                    commandSystem.print(`   水: ${(char.water/5*100).toFixed(0)}%`);
+                    commandSystem.print(`   精力: ${(char.energy/5*100).toFixed(0)}%`);
+                    commandSystem.print(`   行动: ${char.action}`);
+                    commandSystem.print(`   季节: ${seasonNames[this.currentSeason] || this.currentSeason}`);
+                } else {
+                    commandSystem.print(`未找到角色: ${args[0]}`);
+                }
+            } else {
+                commandSystem.print(`📊 角色数量: ${chars.length}`);
+                for (const char of chars) {
+                    commandSystem.print(`   ${char.name}: (${char.x.toFixed(1)}, ${char.y.toFixed(1)}) - ${char.action}`);
+                }
+            }
+        }) as EventListener);
+        
+        // 天数
+        window.addEventListener('console-day', () => {
+            commandSystem.print(`📅 当前季节: ${this.currentSeason}`);
+            commandSystem.print(`⏰ 时间系统尚未实现`);
+        });
+        
+        // 游戏信息
+        window.addEventListener('console-info', () => {
+            commandSystem.print(`🌍 伊甸世界 v0.10.0-alpha`);
+            commandSystem.print(`📦 物品数量: ${this.itemLayer.getItems().length}`);
+            commandSystem.print(`👥 角色数量: ${this.characterLayer.getCharacters().length}`);
+            commandSystem.print(`🌿 当前季节: ${this.currentSeason}`);
         });
     }
     

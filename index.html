@@ -52,12 +52,17 @@
         
         .title {
             position: fixed;
-            top: 20px;
+            top: 15px;
             left: 50%;
             transform: translateX(-50%);
             font-size: 24px;
-            color: #4a9;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            color: #6fc;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            background: rgba(0, 0, 0, 0.6);
+            padding: 8px 24px;
+            border-radius: 25px;
+            border: 1px solid rgba(74, 169, 74, 0.5);
+            z-index: 100;
         }
         
         .loading {
@@ -68,10 +73,237 @@
             font-size: 20px;
             color: #4a9;
         }
+        
+        /* 角色状态面板 - 居中显示 */
+        .status-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(10, 10, 30, 0.95);
+            border: 2px solid #4a9;
+            border-radius: 15px;
+            padding: 20px;
+            min-width: 320px;
+            font-size: 13px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+            z-index: 1000;
+            display: none;
+        }
+        
+        .status-panel h3 {
+            color: #4a9;
+            margin-bottom: 15px;
+            font-size: 16px;
+            border-bottom: 1px solid #4a9;
+            padding-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .character-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+        
+        .character-header .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        
+        .avatar.adam { background: linear-gradient(135deg, #3498db, #2980b9); }
+        .avatar.eve { background: linear-gradient(135deg, #e91e63, #c2185b); }
+        
+        .character-header .info {
+            flex: 1;
+        }
+        
+        .character-header .name {
+            font-weight: bold;
+            font-size: 18px;
+            color: #fff;
+        }
+        
+        .character-header .type {
+            font-size: 12px;
+            color: #888;
+        }
+        
+        .status-icon {
+            font-size: 24px;
+            padding: 5px 10px;
+            background: rgba(74, 169, 74, 0.2);
+            border-radius: 8px;
+        }
+        
+        .position-row {
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            margin-bottom: 15px;
+        }
+        
+        .stat-row {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+        }
+        
+        .stat-label {
+            width: 55px;
+            color: #aaa;
+            font-size: 13px;
+        }
+        
+        .stat-bar {
+            flex: 1;
+            height: 16px;
+            background: #1a1a2e;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 0 10px;
+        }
+        
+        .stat-fill {
+            height: 100%;
+            border-radius: 8px;
+            transition: width 0.3s ease;
+        }
+        
+        .stat-fill.food { background: linear-gradient(90deg, #e74c3c, #f39c12); }
+        .stat-fill.water { background: linear-gradient(90deg, #3498db, #9b59b6); }
+        .stat-fill.energy { background: linear-gradient(90deg, #f1c40f, #27ae60); }
+        
+        .stat-value {
+            width: 40px;
+            text-align: right;
+            font-size: 12px;
+            color: #888;
+        }
+        
+        .action-row {
+            margin: 15px 0;
+            padding: 8px 12px;
+            background: rgba(74, 169, 74, 0.15);
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .action-label {
+            color: #666;
+            font-size: 11px;
+        }
+        
+        .action-value {
+            color: #4a9;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        /* DNA属性 - 完整列表 */
+        .dna-section {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #333;
+        }
+        
+        .dna-title {
+            color: #4a9;
+            font-size: 12px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        
+        .dna-attrs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+            font-size: 11px;
+        }
+        
+        .dna-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 8px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 4px;
+        }
+        
+        .dna-row span:first-child {
+            color: #888;
+        }
+        
+        .dna-row span:last-child {
+            color: #4a9;
+            font-weight: bold;
+        }
+        
+        /* 点击提示 */
+        .click-hint {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #888;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
     <div class="title">🌍 伊甸世界</div>
+    
+    <div class="status-panel" id="status-panel">
+        <h3>
+            <span>📊 角色详情</span>
+            <span class="status-icon" id="status-icon">🚶</span>
+        </h3>
+        <div class="character-header">
+            <div class="avatar adam" id="panel-avatar">♂</div>
+            <div class="info">
+                <div class="name" id="panel-name">亚当</div>
+                <div class="type" id="panel-type">亚当</div>
+            </div>
+        </div>
+        <div class="position-row">坐标: <span id="panel-position">(50, 25)</span></div>
+        <div class="stat-row">
+            <span class="stat-label">🍖 饥饿</span>
+            <div class="stat-bar"><div class="stat-fill food" id="panel-food-bar" style="width:100%"></div></div>
+            <span class="stat-value" id="panel-food-val">100%</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">💧 口渴</span>
+            <div class="stat-bar"><div class="stat-fill water" id="panel-water-bar" style="width:100%"></div></div>
+            <span class="stat-value" id="panel-water-val">100%</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">⚡ 精力</span>
+            <div class="stat-bar"><div class="stat-fill energy" id="panel-energy-bar" style="width:100%"></div></div>
+            <span class="stat-value" id="panel-energy-val">100%</span>
+        </div>
+        <div class="action-row">
+            <span class="action-label">当前行动：</span>
+            <span class="action-value" id="panel-action">闲置</span>
+        </div>
+        <div class="dna-section">
+            <div class="dna-title">🧬 DNA属性</div>
+            <div class="dna-attrs" id="panel-dna-attrs"></div>
+        </div>
+    </div>
+    
+    <div class="click-hint" id="click-hint">👆 点击角色查看详情</div>
     
     <div id="game-container">
         <div class="loading">加载中...</div>
@@ -87,6 +319,6 @@
         鼠标拖拽移动 | 滚轮缩放
     </div>
     
-    <script src="./dist/bundle.js"></script>
+    <script src="./bundle.js"></script>
 </body>
 </html>
