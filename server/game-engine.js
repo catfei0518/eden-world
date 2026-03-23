@@ -64,11 +64,29 @@ class GameEngine {
             tiles.push(row);
         }
         
-        return { tiles };
+        // 生成食物和水源
+        const foods = [];
+        const waters = [];
+        for (let i = 0; i < 10; i++) {
+            foods.push({
+                type: 'berry',
+                x: 30 + Math.floor(Math.random() * 40),
+                y: 10 + Math.floor(Math.random() * 30)
+            });
+            waters.push({
+                type: 'river',
+                x: 20 + Math.floor(Math.random() * 60),
+                y: 10 + Math.floor(Math.random() * 30)
+            });
+        }
+        
+        return { tiles, foods, waters };
     }
     
     createCharacter(id, name, x, y) {
+        console.log(`创建角色: ${name}, x=${x}, y=${y}`);
         const char = new Character(id, name, x, y);
+        console.log(`角色创建后: ${char.name}, x=${char.x}, y=${char.y}`);
         // 亚当和夏娃用LLM
         char.useLLM = true;
         this.characters.set(id, char);
@@ -90,6 +108,8 @@ class GameEngine {
     
     tick() {
         const now = Date.now();
+        const charCount = this.characters.size;
+        console.log(`tick: ${charCount}个角色`);
         
         // 更新所有角色
         for (const char of this.characters.values()) {
@@ -104,6 +124,11 @@ class GameEngine {
     }
     
     updateCharacter(char) {
+        // 调试
+        if (char.x === null || char.y === null) {
+            console.log(`${char.name}: x=${char.x}, y=${char.y} - 位置异常!`);
+        }
+        
         // 消耗
         const consumptionRate = 100 / (6 * 60 * 60);
         const multiplier = 0.5 + char.dna.metabolism;
@@ -112,14 +137,26 @@ class GameEngine {
         char.water = Math.max(0, char.water - consumptionRate * multiplier);
         
         // 移动
-        if (char.target) {
+        if (char.target && char.target.x !== null && char.target.y !== null) {
+            // 确保位置有效
+            if (char.x === null || char.y === null || isNaN(char.x) || isNaN(char.y)) {
+                console.log(`${char.name}: 位置无效，重置`);
+                char.x = 50;
+                char.y = 25;
+                char.target = null;
+                return;
+            }
+            
             const dx = char.target.x - char.x;
             const dy = char.target.y - char.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
             
-            if (dist < 0.3) {
-                char.x = char.target.x;
-                char.y = char.target.y;
+            if (isNaN(dist) || dist < 0.3) {
+                // 到达目标
+                if (char.target.x !== null && char.target.y !== null) {
+                    char.x = char.target.x;
+                    char.y = char.target.y;
+                }
                 char.target = null;
                 this.onArrive(char);
             } else {
@@ -181,11 +218,14 @@ class GameEngine {
     }
     
     goToNearest(char, items) {
+        console.log(`${char.name}: goToNearest, items=${items ? items.length : 'undefined'}`);
         if (!items || items.length === 0) {
+            console.log(`${char.name}: 没有物品，随机漫游`);
             this.randomWander(char);
             return;
         }
         
+        console.log(`${char.name}: 物品: ${JSON.stringify(items[0])}`);
         let nearest = items[0];
         let minDist = Infinity;
         
@@ -223,18 +263,25 @@ class GameEngine {
     }
     
     getState() {
+        const chars = Array.from(this.characters.values()).map(c => ({
+            id: c.id,
+            name: c.name,
+            x: c.x,
+            y: c.y,
+            health: c.health,
+            energy: c.energy,
+            hunger: c.hungerPercent,
+            thirst: c.thirstPercent,
+            action: c.action
+        }));
+        
+        // 调试日志
+        if (chars[0] && chars[0].x === null) {
+            console.log('警告: 角色x坐标为null', chars);
+        }
+        
         return {
-            characters: Array.from(this.characters.values()).map(c => ({
-                id: c.id,
-                name: c.name,
-                x: c.x,
-                y: c.y,
-                health: c.health,
-                energy: c.energy,
-                hunger: c.hungerPercent,
-                thirst: c.thirstPercent,
-                action: c.action
-            })),
+            characters: chars,
             world: this.worldState
         };
     }

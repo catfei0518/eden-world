@@ -5,18 +5,17 @@
 
 const express = require('express');
 const { WebSocketServer } = require('ws');
-const mqtt = require('mqtt');
 const http = require('http');
 const path = require('path');
 const { LLMProxy } = require('./llm-proxy');
 const { GameEngine } = require('./game-engine');
 
-const PORT = 3334;
-const EMQX_URL = 'mqtt://localhost:1883';
+const PORT = 3333;
 
 class EdenServer {
     constructor() {
         this.app = express();
+        this.app.use(express.json());  // 解析JSON body
         this.server = http.createServer(this.app);
         this.wss = new WebSocketServer({ server: this.server });
         
@@ -26,12 +25,8 @@ class EdenServer {
         // 游戏引擎
         this.gameEngine = new GameEngine(this.llmProxy);
         
-        // EMQX客户端
-        this.mqttClient = null;
-        
         this.setupRoutes();
         this.setupWebSocket();
-        this.setupEMQX();
     }
     
     setupRoutes() {
@@ -44,7 +39,7 @@ class EdenServer {
             });
         });
         
-        // LLM代理端点
+        // LLM代理端点（解决CORS问题）
         this.app.post('/api/llm', async (req, res) => {
             try {
                 const body = req.body;
@@ -55,8 +50,27 @@ class EdenServer {
             }
         });
         
+        // LLM状态（前端检查服务器LLM是否可用）
+        this.app.get('/api/llm/status', (req, res) => {
+            res.json({ 
+                available: true, 
+                url: 'server' 
+            });
+        });
+        
+        // 调试接口 - 获取游戏状态
+        this.app.get('/api/state', (req, res) => {
+            res.json(this.gameEngine.getState());
+        });
+        
         // 静态文件
         this.app.use(express.static(path.join(__dirname, '../dist-release')));
+        this.app.use('/static', express.static(path.join(__dirname, '../dist-client')));
+        
+        // 客户端HTML
+        this.app.get('/client', (req, res) => {
+            res.sendFile(path.join(__dirname, '../dist-client/index.html'));
+        });
         
         // SPA fallback
         this.app.get('/{*path}', (req, res) => {
@@ -100,52 +114,6 @@ class EdenServer {
         }
     }
     
-    setupEMQX() {
-        try {
-            this.mqttClient = mqtt.connect(EMQX_URL);
-            
-            this.mqttClient.on('connect', () => {
-                console.log('📡 EMQX已连接');
-                
-                // 订阅游戏状态主题
-                this.mqttClient.subscribe('eden/world/+/state', (err) => {
-                    if (!err) {
-                        console.log('📡 已订阅: eden/world/+/state');
-                    }
-                });
-            });
-            
-            this.mqttClient.on('message', (topic, message) => {
-                this.handleMQTTMessage(topic, message);
-            });
-            
-            this.mqttClient.on('error', (err) => {
-                console.error('📡 EMQX错误:', err.message);
-            });
-        } catch (error) {
-            console.warn('📡 EMQX连接失败，继续使用WebSocket:', error.message);
-        }
-    }
-    
-    handleMQTTMessage(topic, message) {
-        // 处理其他服务器的消息
-        try {
-            const data = JSON.parse(message.toString());
-            
-            // 广播给所有连接的浏览器客户端
-            this.wss.clients.forEach(client => {
-                if (client.readyState === 1) {
-                    client.send(JSON.stringify({
-                        type: 'sync',
-                        data: data
-                    }));
-                }
-            });
-        } catch (e) {
-            // 忽略解析错误
-        }
-    }
-    
     // 广播游戏状态
     broadcastState() {
         const state = this.gameEngine.getState();
@@ -159,11 +127,6 @@ class EdenServer {
                 }));
             }
         });
-        
-        // EMQX广播
-        if (this.mqttClient && this.mqttClient.connected) {
-            this.mqttClient.publish('eden/world/1/state', JSON.stringify(state));
-        }
     }
     
     start() {
@@ -173,8 +136,7 @@ class EdenServer {
 ║       🌟 伊甸世界游戏服务器 🌟              ║
 ╠═══════════════════════════════════════════════╣
 ║  HTTP:      http://114.66.13.167:${PORT}        ║
-║  WebSocket:  ws://114.66.13.167:${PORT}        ║
-║  EMQX:      ${EMQX_URL}            ║
+║  WebSocket: ws://114.66.13.167:${PORT}        ║
 ╚═══════════════════════════════════════════════╝
             `);
         });

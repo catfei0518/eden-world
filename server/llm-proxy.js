@@ -14,7 +14,7 @@ class LLMProxy {
         
         try {
             const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 10000);
+            const timeout = setTimeout(() => controller.abort(), 15000);
             
             const response = await fetch(`${OLLAMA_URL}/api/generate`, {
                 method: 'POST',
@@ -25,7 +25,7 @@ class LLMProxy {
                     think: think,
                     options: {
                         temperature: options.temperature || 0.1,
-                        num_predict: options.num_predict || 100
+                        num_predict: options.num_predict || 50
                     },
                     stream: false
                 }),
@@ -38,11 +38,27 @@ class LLMProxy {
                 throw new Error(`Ollama错误: ${response.status}`);
             }
             
-            const data = await response.json();
+            // 读取所有行
+            const text = await response.text();
+            const lines = text.trim().split('\n');
+            
+            // 取最后一行作为最终结果
+            let finalResponse = '';
+            for (const line of lines) {
+                try {
+                    const json = JSON.parse(line);
+                    if (json.response) {
+                        finalResponse += json.response;
+                    }
+                    if (json.done) break;
+                } catch (e) {
+                    // 忽略解析错误
+                }
+            }
             
             return {
                 success: true,
-                response: data.response,
+                response: finalResponse,
                 duration: Date.now() - startTime,
                 model: model
             };

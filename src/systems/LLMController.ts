@@ -11,7 +11,7 @@ interface LLMAction {
 }
 
 export class LLMController {
-    private ollamaUrl: string = 'http://114.66.13.167:11434';
+    private ollamaUrl: string = '/api/llm';
     private model: string = 'qwen3.5:2b';
     private characters: Map<string, Character> = new Map();
     private lastDecision: Map<string, number> = new Map();
@@ -88,17 +88,17 @@ export class LLMController {
         console.log(`%c   📊 状态: 饥饿${char.hungerPercent}% | 口渴${char.thirstPercent}% | 精力${Math.round(char.energy/5*100)}%`, 'color: #666');
         
         try {
-            // 超时控制：5秒
+            // 超时控制：30秒（Ollama响应较慢）
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
             
-            const response = await fetch(`${this.ollamaUrl}/api/generate`, {
+            const response = await fetch(`${this.ollamaUrl}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: this.model,
                     prompt: prompt,
-                    think: false,  // 禁用思考模式
+                    think: false,
                     options: {
                         temperature: 0.1,
                         num_predict: 50
