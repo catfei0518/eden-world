@@ -154,10 +154,37 @@ export class Character {
     
     // 受到伤害
     public takeDamage(damage: number): void {
+        if (this.isDead) return;
         this.health = Math.max(0, this.health - damage);
         if (this.health <= 0) {
-            this.action = '死亡';
+            this.die(`战斗伤害 (-${damage}HP)`);
         }
+    }
+    
+    // 死亡原因
+    public deathCause: string = '';
+    
+    // 死亡时间（游戏时间戳）
+    public deathTime: number = 0;
+    
+    // 死亡时年龄
+    public deathAge: number = 0;
+    
+    // 死亡标记
+    public isDead: boolean = false;
+    
+    // 死亡方法
+    public die(cause: string = '未知'): void {
+        this.isDead = true;
+        this.action = '死亡';
+        this.deathCause = cause;
+        this.deathTime = Date.now(); // TODO: 接入游戏时间系统
+        this.deathAge = 0; // TODO: 接入年龄系统
+        
+        // 记录死亡日志
+        console.log(`💀 ${this.name} 死亡了！`);
+        console.log(`   死因: ${cause}`);
+        console.log(`   位置: (${this.x.toFixed(1)}, ${this.y.toFixed(1)})`);
     }
     
     // 恢复生命
@@ -184,12 +211,17 @@ export class Character {
         
         // 生命值消耗
         // 口渴为0：每分钟消耗2点生命
-        if (this.water <= 0) {
+        if (this.water <= 0 && !this.isDead) {
             this.health = Math.max(0, this.health - deltaTime * 2 / 60);
         }
         // 饥饿为0：每分钟消耗1点生命
-        if (this.food <= 0) {
+        if (this.food <= 0 && !this.isDead) {
             this.health = Math.max(0, this.health - deltaTime * 1 / 60);
+        }
+        
+        // 死亡检查
+        if (this.health <= 0 && !this.isDead) {
+            this.die('饥饿/口渴耗尽');
         }
         
         // 移动

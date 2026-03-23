@@ -47244,6 +47244,14 @@ ${e2}`);
       // 当前行动
       this.action = "\u95F2\u7F6E";
       this.target = null;
+      // 死亡原因
+      this.deathCause = "";
+      // 死亡时间（游戏时间戳）
+      this.deathTime = 0;
+      // 死亡时年龄
+      this.deathAge = 0;
+      // 死亡标记
+      this.isDead = false;
       this.id = `char_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
       this.type = type;
       this.name = name || (type === "adam" ? "\u4E9A\u5F53" : "\u590F\u5A03");
@@ -47326,10 +47334,22 @@ ${e2}`);
     }
     // 受到伤害
     takeDamage(damage) {
+      if (this.isDead) return;
       this.health = Math.max(0, this.health - damage);
       if (this.health <= 0) {
-        this.action = "\u6B7B\u4EA1";
+        this.die(`\u6218\u6597\u4F24\u5BB3 (-${damage}HP)`);
       }
+    }
+    // 死亡方法
+    die(cause = "\u672A\u77E5") {
+      this.isDead = true;
+      this.action = "\u6B7B\u4EA1";
+      this.deathCause = cause;
+      this.deathTime = Date.now();
+      this.deathAge = 0;
+      console.log(`\u{1F480} ${this.name} \u6B7B\u4EA1\u4E86\uFF01`);
+      console.log(`   \u6B7B\u56E0: ${cause}`);
+      console.log(`   \u4F4D\u7F6E: (${this.x.toFixed(1)}, ${this.y.toFixed(1)})`);
     }
     // 恢复生命
     heal(amount) {
@@ -47348,11 +47368,14 @@ ${e2}`);
       this.food = Math.max(0, this.food - consumption);
       this.water = Math.max(0, this.water - consumption * 1.5);
       this.energy = Math.max(0, this.energy - consumption);
-      if (this.water <= 0) {
+      if (this.water <= 0 && !this.isDead) {
         this.health = Math.max(0, this.health - deltaTime * 2 / 60);
       }
-      if (this.food <= 0) {
+      if (this.food <= 0 && !this.isDead) {
         this.health = Math.max(0, this.health - deltaTime * 1 / 60);
+      }
+      if (this.health <= 0 && !this.isDead) {
+        this.die("\u9965\u997F/\u53E3\u6E34\u8017\u5C3D");
       }
       if (this.target) {
         this.moveToTarget();
@@ -47568,7 +47591,28 @@ ${e2}`);
     }
     update(deltaTime) {
       const world = this.getWorldState();
+      const deadChars = this.characters.filter((c2) => c2.isDead);
+      for (const char of deadChars) {
+        const sprite = this.sprites.get(char);
+        if (sprite) {
+          this.container.removeChild(sprite);
+          sprite.destroy();
+          this.sprites.delete(char);
+        }
+        const hitbox = this.hitboxes.get(char);
+        if (hitbox) {
+          this.container.removeChild(hitbox);
+          hitbox.destroy();
+          this.hitboxes.delete(char);
+        }
+        const label = this.labels.get(char);
+        if (label) {
+          label.text = `\u{1F480} ${char.name}: ${char.action}`;
+          label.style.fill = 8947848;
+        }
+      }
       for (const char of this.characters) {
+        if (char.isDead) continue;
         char.update(deltaTime, world);
         const sprite = this.sprites.get(char);
         const hitbox = this.hitboxes.get(char);

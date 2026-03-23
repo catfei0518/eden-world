@@ -154,8 +154,35 @@ export class CharacterLayer {
         // 准备世界状态
         const world = this.getWorldState();
         
-        // 更新角色
+        // 检查死亡角色，先移除死亡角色
+        const deadChars = this.characters.filter(c => c.isDead);
+        for (const char of deadChars) {
+            // 移除精灵
+            const sprite = this.sprites.get(char);
+            if (sprite) {
+                this.container.removeChild(sprite);
+                sprite.destroy();
+                this.sprites.delete(char);
+            }
+            // 移除点击区域
+            const hitbox = this.hitboxes.get(char);
+            if (hitbox) {
+                this.container.removeChild(hitbox);
+                hitbox.destroy();
+                this.hitboxes.delete(char);
+            }
+            // 保留标签用于显示死亡状态
+            const label = this.labels.get(char);
+            if (label) {
+                label.text = `💀 ${char.name}: ${char.action}`;
+                label.style.fill = 0x888888; // 灰色
+            }
+        }
+        
+        // 更新存活角色
         for (const char of this.characters) {
+            if (char.isDead) continue; // 跳过死亡角色
+            
             char.update(deltaTime, world);
             
             const sprite = this.sprites.get(char);
