@@ -98,9 +98,10 @@ export class LLMController {
                 body: JSON.stringify({
                     model: this.model,
                     prompt: prompt,
+                    think: false,  // 禁用思考模式
                     options: {
                         temperature: 0.1,
-                        num_predict: 50  // 减少输出
+                        num_predict: 50
                     },
                     stream: false
                 }),

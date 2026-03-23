@@ -48917,10 +48917,11 @@ ${e2}`);
           body: JSON.stringify({
             model: this.model,
             prompt,
+            think: false,
+            // 禁用思考模式
             options: {
               temperature: 0.1,
               num_predict: 50
-              // 减少输出
             },
             stream: false
           }),
