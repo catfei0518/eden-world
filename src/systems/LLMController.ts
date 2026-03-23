@@ -83,11 +83,15 @@ export class LLMController {
         const prompt = this.buildPrompt(char, world);
         
         // 记录思考开始
-        console.log(`%c🤖 ${char.name} 思考中...`, 'color: #4CAF50; font-weight: bold');
-        console.log(`%c   状态: 饥饿${char.hungerPercent}% | 口渴${char.thirstPercent}% | 精力${Math.round(char.energy/5*100)}% | 生命${Math.round(char.health)}%`, 'color: #888');
-        console.log(`%c   提示词: ${prompt.substring(0, 100)}...`, 'color: #666');
+        const startTime = Date.now();
+        console.log(`%c🤖 ${char.name} → 思考中...`, 'color: #4CAF50; font-weight: bold');
+        console.log(`%c   📊 状态: 饥饿${char.hungerPercent}% | 口渴${char.thirstPercent}% | 精力${Math.round(char.energy/5*100)}%`, 'color: #666');
         
         try {
+            // 超时控制：5秒
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            
             const response = await fetch(`${this.ollamaUrl}/api/generate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -96,28 +100,35 @@ export class LLMController {
                     prompt: prompt,
                     options: {
                         temperature: 0.1,
-                        num_predict: 80
+                        num_predict: 50  // 减少输出
                     },
                     stream: false
-                })
+                }),
+                signal: controller.signal
             });
+            
+            clearTimeout(timeoutId);
             
             if (!response.ok) {
                 throw new Error(`Ollama错误: ${response.status}`);
             }
             
             const data = await response.json();
+            const elapsed = Date.now() - startTime;
             const result = this.parseResponse(data.response, char);
             
             // 记录思考结果
-            console.log(`%c✅ ${char.name} 决策: ${result.action}`, 'color: #4CAF50; font-weight: bold');
-            if (result.reason) {
-                console.log(`%c   原因: ${result.reason}`, 'color: #888');
-            }
+            console.log(`%c✅ ${char.name} → 决策: ${result.action} (${elapsed}ms)`, 'color: #2196F3; font-weight: bold');
+            console.log(`%c   📝 原始响应: ${data.response.substring(0, 80)}`, 'color: #888');
             
             return result;
-        } catch (error) {
-            console.error(`%c❌ ${char.name} LLM调用失败:`, 'color: #f44336', error);
+        } catch (error: any) {
+            const elapsed = Date.now() - startTime;
+            if (error.name === 'AbortError') {
+                console.log(`%c⏱️ ${char.name} → LLM超时 (${elapsed}ms)`, 'color: #FF9800');
+            } else {
+                console.error(`%c❌ ${char.name} → LLM失败: ${error.message}`, 'color: #f44336');
+            }
             return null;
         }
     }

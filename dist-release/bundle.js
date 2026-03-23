@@ -48905,10 +48905,12 @@ ${e2}`);
      */
     async getDecision(char, world) {
       const prompt = this.buildPrompt(char, world);
-      console.log(`%c\u{1F916} ${char.name} \u601D\u8003\u4E2D...`, "color: #4CAF50; font-weight: bold");
-      console.log(`%c   \u72B6\u6001: \u9965\u997F${char.hungerPercent}% | \u53E3\u6E34${char.thirstPercent}% | \u7CBE\u529B${Math.round(char.energy / 5 * 100)}% | \u751F\u547D${Math.round(char.health)}%`, "color: #888");
-      console.log(`%c   \u63D0\u793A\u8BCD: ${prompt.substring(0, 100)}...`, "color: #666");
+      const startTime = Date.now();
+      console.log(`%c\u{1F916} ${char.name} \u2192 \u601D\u8003\u4E2D...`, "color: #4CAF50; font-weight: bold");
+      console.log(`%c   \u{1F4CA} \u72B6\u6001: \u9965\u997F${char.hungerPercent}% | \u53E3\u6E34${char.thirstPercent}% | \u7CBE\u529B${Math.round(char.energy / 5 * 100)}%`, "color: #666");
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5e3);
         const response = await fetch(`${this.ollamaUrl}/api/generate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -48917,23 +48919,30 @@ ${e2}`);
             prompt,
             options: {
               temperature: 0.1,
-              num_predict: 80
+              num_predict: 50
+              // 减少输出
             },
             stream: false
-          })
+          }),
+          signal: controller.signal
         });
+        clearTimeout(timeoutId);
         if (!response.ok) {
           throw new Error(`Ollama\u9519\u8BEF: ${response.status}`);
         }
         const data = await response.json();
+        const elapsed = Date.now() - startTime;
         const result = this.parseResponse(data.response, char);
-        console.log(`%c\u2705 ${char.name} \u51B3\u7B56: ${result.action}`, "color: #4CAF50; font-weight: bold");
-        if (result.reason) {
-          console.log(`%c   \u539F\u56E0: ${result.reason}`, "color: #888");
-        }
+        console.log(`%c\u2705 ${char.name} \u2192 \u51B3\u7B56: ${result.action} (${elapsed}ms)`, "color: #2196F3; font-weight: bold");
+        console.log(`%c   \u{1F4DD} \u539F\u59CB\u54CD\u5E94: ${data.response.substring(0, 80)}`, "color: #888");
         return result;
       } catch (error) {
-        console.error(`%c\u274C ${char.name} LLM\u8C03\u7528\u5931\u8D25:`, "color: #f44336", error);
+        const elapsed = Date.now() - startTime;
+        if (error.name === "AbortError") {
+          console.log(`%c\u23F1\uFE0F ${char.name} \u2192 LLM\u8D85\u65F6 (${elapsed}ms)`, "color: #FF9800");
+        } else {
+          console.error(`%c\u274C ${char.name} \u2192 LLM\u5931\u8D25: ${error.message}`, "color: #f44336");
+        }
         return null;
       }
     }
