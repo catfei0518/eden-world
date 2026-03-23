@@ -32,6 +32,10 @@
 - [x] **恐惧阈值(fearResponse)** - 逃跑触发难度
 - [x] **攻击性(aggression)** - 主动攻击倾向
 - [x] **性格类型计算** - 根据三个属性计算性格描述
+- [ ] **战斗属性接入AI决策** - 让decide()方法调用战斗属性方法
+  - [ ] shouldExploreDanger() - 影响探索范围
+  - [ ] shouldFlee() - 危险时触发逃跑
+  - [ ] shouldAttack() - 冲突时触发攻击
 - [ ] **社交需求(socialNeed)**
   - [ ] 影响寻找同伴的行为频率
   - [ ] 独处vs群居偏好
