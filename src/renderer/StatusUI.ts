@@ -146,7 +146,6 @@ export class StatusUI {
                 <div class="dna-row" style="background: rgba(74, 169, 74, 0.2);">
                     <span>🌿 生活状态</span><span>${lifestyle}</span>
                 </div>
-                <div style="border-top: 1px solid #333; margin: 5px 0;"></div>
                 <div class="dna-row">
                     <span>⚔️ 胆量</span><span>${(dna.bravery * 100).toFixed(0)}</span>
                 </div>

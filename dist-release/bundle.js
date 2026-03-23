@@ -47942,7 +47942,6 @@ ${e2}`);
                 <div class="dna-row" style="background: rgba(74, 169, 74, 0.2);">
                     <span>\u{1F33F} \u751F\u6D3B\u72B6\u6001</span><span>${lifestyle}</span>
                 </div>
-                <div style="border-top: 1px solid #333; margin: 5px 0;"></div>
                 <div class="dna-row">
                     <span>\u2694\uFE0F \u80C6\u91CF</span><span>${(dna.bravery * 100).toFixed(0)}</span>
                 </div>
