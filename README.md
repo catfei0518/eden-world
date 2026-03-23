@@ -84,6 +84,7 @@ npm run preview
 - [地图系统](./docs/systems/MAP.md)
 - [素材系统](./docs/systems/ASSETS.md)
 - [DNA系统](./docs/systems/DNA_SYSTEM.md) - AI决策与遗传机制
+- [数据库设计](./docs/systems/DATABASE_DESIGN.md) - PostgreSQL表结构
 
 ## 🤝 贡献
 
