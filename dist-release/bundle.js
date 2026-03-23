@@ -47934,10 +47934,15 @@ ${e2}`);
       const dnaContainer = document.getElementById("panel-dna-attrs");
       if (dnaContainer) {
         const personality = charAny.getPersonality ? charAny.getPersonality() : "\u666E\u901A\u4EBA";
+        const lifestyle = charAny.getLifestyleStatus ? charAny.getLifestyleStatus() : "-";
         dnaContainer.innerHTML = `
                 <div class="dna-row" style="background: rgba(74, 169, 74, 0.3); font-weight: bold;">
                     <span>\u{1F3AD} \u6027\u683C</span><span>${personality}</span>
                 </div>
+                <div class="dna-row" style="background: rgba(74, 169, 74, 0.2);">
+                    <span>\u{1F33F} \u751F\u6D3B\u72B6\u6001</span><span>${lifestyle}</span>
+                </div>
+                <div style="border-top: 1px solid #333; margin: 5px 0;"></div>
                 <div class="dna-row">
                     <span>\u2694\uFE0F \u80C6\u91CF</span><span>${(dna.bravery * 100).toFixed(0)}</span>
                 </div>
