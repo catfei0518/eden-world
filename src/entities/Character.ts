@@ -448,8 +448,53 @@ export class Character {
             this.moveToTarget();
         }
         
+        // 吃东西处理
+        if (this.action === '吃东西' && this.heldItem) {
+            // 消耗手中物品，恢复饥饿
+            this.consumeItem();
+            this.gainExp(5);  // 成功进食获得经验
+            this.gainSkillExp('觅食', 5);
+            this.heldItem = null;
+            this.heldItemCount = 0;
+            this.action = '闲置';
+        }
+        
+        // 喝水处理
+        if (this.action === '喝水' && this.heldItem) {
+            this.consumeItem();
+            this.gainExp(5);  // 成功饮水获得经验
+            this.gainSkillExp('找水', 5);
+            this.heldItem = null;
+            this.heldItemCount = 0;
+            this.action = '闲置';
+        }
+        
+        // 存活经验（每秒获得）
+        if (!this.isDead) {
+            this.gainExp(0.01);  // 存活获得少量经验
+        }
+        
         // 决策
         this.decide(world);
+    }
+    
+    // 消耗物品
+    private consumeItem(): void {
+        if (!this.heldItem) return;
+        
+        const itemData = (window as any).itemData;
+        if (!itemData) return;
+        
+        const data = itemData[this.heldItem];
+        if (data) {
+            // 恢复饥饿和口渴
+            if (data.calories) {
+                this.calories = Math.min(100, this.calories + data.calories);
+            }
+            if (data.water) {
+                this.water = Math.min(100, this.water + data.water);
+            }
+        }
     }
     
     // 决策（受DNA性格影响）
@@ -496,6 +541,7 @@ export class Character {
         // 探索（受好奇心影响）
         this.action = '探索中';
         this.wander();
+        this.gainExp(1);  // 探索获得少量经验
     }
     
     // 找水
@@ -583,11 +629,15 @@ export class Character {
             this.heldItem = 'river_water';
             this.heldItemCount = 1;
             this.action = '取水中';
+            this.gainExp(2);  // 找到水源获得经验
+            this.gainSkillExp('找水', 3);
         } else if (this.action === '寻找食物') {
             // 获取食物物品
             this.heldItem = 'berry';
             this.heldItemCount = 1;
             this.action = '采集中';
+            this.gainExp(2);  // 找到食物获得经验
+            this.gainSkillExp('采集', 3);
         }
         
         this.energy = 5; // 完全恢复

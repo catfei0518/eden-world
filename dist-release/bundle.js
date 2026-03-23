@@ -47562,7 +47562,41 @@ ${e2}`);
       if (this.target) {
         this.moveToTarget();
       }
+      if (this.action === "\u5403\u4E1C\u897F" && this.heldItem) {
+        this.consumeItem();
+        this.gainExp(5);
+        this.gainSkillExp("\u89C5\u98DF", 5);
+        this.heldItem = null;
+        this.heldItemCount = 0;
+        this.action = "\u95F2\u7F6E";
+      }
+      if (this.action === "\u559D\u6C34" && this.heldItem) {
+        this.consumeItem();
+        this.gainExp(5);
+        this.gainSkillExp("\u627E\u6C34", 5);
+        this.heldItem = null;
+        this.heldItemCount = 0;
+        this.action = "\u95F2\u7F6E";
+      }
+      if (!this.isDead) {
+        this.gainExp(0.01);
+      }
       this.decide(world);
+    }
+    // 消耗物品
+    consumeItem() {
+      if (!this.heldItem) return;
+      const itemData = window.itemData;
+      if (!itemData) return;
+      const data = itemData[this.heldItem];
+      if (data) {
+        if (data.calories) {
+          this.calories = Math.min(100, this.calories + data.calories);
+        }
+        if (data.water) {
+          this.water = Math.min(100, this.water + data.water);
+        }
+      }
     }
     // 决策（受DNA性格影响）
     decide(world) {
@@ -47595,6 +47629,7 @@ ${e2}`);
       }
       this.action = "\u63A2\u7D22\u4E2D";
       this.wander();
+      this.gainExp(1);
     }
     // 找水
     goToWater(world) {
@@ -47665,10 +47700,14 @@ ${e2}`);
         this.heldItem = "river_water";
         this.heldItemCount = 1;
         this.action = "\u53D6\u6C34\u4E2D";
+        this.gainExp(2);
+        this.gainSkillExp("\u627E\u6C34", 3);
       } else if (this.action === "\u5BFB\u627E\u98DF\u7269") {
         this.heldItem = "berry";
         this.heldItemCount = 1;
         this.action = "\u91C7\u96C6\u4E2D";
+        this.gainExp(2);
+        this.gainSkillExp("\u91C7\u96C6", 3);
       }
       this.energy = 5;
     }
