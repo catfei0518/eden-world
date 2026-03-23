@@ -28,8 +28,11 @@
   },
   "dependencies": {
     "alea": "^1.0.1",
+    "express": "^5.2.1",
     "jimp": "^1.6.0",
+    "mqtt": "^5.15.0",
     "pixi.js": "^8.17.1",
-    "simplex-noise": "^4.0.3"
+    "simplex-noise": "^4.0.3",
+    "ws": "^8.20.0"
   }
 }
