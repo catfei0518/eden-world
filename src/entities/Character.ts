@@ -340,33 +340,29 @@ export class Character {
     // 每帧更新
     update(deltaTime: number, world: WorldState): void {
         // 消耗（受代谢影响）
-        // 每分钟消耗约1/10的每日需求
-        const consumptionPerMinute = deltaTime / 60;
-        const calorieConsumption = (this.dailyCalorieNeed / 10) * consumptionPerMinute;
-        const waterConsumption = (this.dailyWaterNeed / 10) * consumptionPerMinute;
+        // 100%在6小时内耗尽（6*60*60*60帧 at 60fps）
+        // deltaTime约等于1（每帧）
+        const consumptionPerFrame = 100 / (6 * 60 * 60 * 60);  // 约0.000077%/帧
+        const consumptionMultiplier = 0.5 + this.phenotype.metabolism;
         
-        this.calories = Math.max(0, this.calories - calorieConsumption);
-        this.water = Math.max(0, this.water - waterConsumption);
-        this.energy = Math.max(0, this.energy - consumptionPerMinute * 0.1);
+        this.calories = Math.max(0, this.calories - consumptionPerFrame * consumptionMultiplier * deltaTime);
+        this.water = Math.max(0, this.water - consumptionPerFrame * consumptionMultiplier * deltaTime);
+        this.energy = Math.max(0, this.energy - consumptionPerFrame * 0.1 * deltaTime);
         
-        // 在食物/水源附近时恢复（基于代谢）
+        // 在食物/水源附近时恢复
         if (this.action === '寻找食物' && world.nearbyFood.length > 0) {
-            // 在食物附近，每秒恢复少量热量
-            this.calories += 0.5 * this.phenotype.metabolism;
+            this.calories = Math.min(100, this.calories + 0.01 * this.phenotype.metabolism * deltaTime);
         }
         if (this.action === '寻找水源' && world.nearbyWater.length > 0) {
-            // 在水源附近，每秒恢复少量水分
-            this.water += 0.5 * this.phenotype.metabolism;
+            this.water = Math.min(100, this.water + 0.01 * this.phenotype.metabolism * deltaTime);
         }
         
         // 生命值消耗
-        // 热量为0：每分钟消耗生命
         if (this.calories <= 0 && !this.isDead) {
-            this.health = Math.max(0, this.health - deltaTime * 1 / 60);
+            this.health = Math.max(0, this.health - deltaTime * 0.1);
         }
-        // 水分低于10%：每分钟消耗生命
-        if (this.water < this.dailyWaterNeed * 0.1 && !this.isDead) {
-            this.health = Math.max(0, this.health - deltaTime * 2 / 60);
+        if (this.water <= 0 && !this.isDead) {
+            this.health = Math.max(0, this.health - deltaTime * 0.1);
         }
         
         // 死亡检查
