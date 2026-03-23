@@ -338,31 +338,33 @@ export class Character {
     }
     
     // 每帧更新
+    // PIXI的deltaTime约等于1（代表1帧，约16.67ms）
+    // 宪法：1现实秒=1游戏分钟，1游戏天=24现实分钟
+    // 要让100%在6游戏小时（=6现实分钟=360现实秒）内耗尽
+    // 每秒消耗 = 100% / 360秒 ≈ 0.278%/秒
+    // 每帧消耗 ≈ 0.278% / 60帧 ≈ 0.00463%/帧
     update(deltaTime: number, world: WorldState): void {
-        // 消耗（受代谢影响）
-        // 100%在6小时内耗尽 = 100% / (6*60*60)秒 = 0.00463%/秒
-        // deltaTime在PIXI中是毫秒(ms)
-        const consumptionPerMs = 100 / (6 * 60 * 60 * 1000);  // 约0.00000463%/ms
+        const consumptionPerFrame = 100 / (6 * 60 * 60);  // 约0.00463%/帧
         const consumptionMultiplier = 0.5 + this.phenotype.metabolism;
         
-        this.calories = Math.max(0, this.calories - consumptionPerMs * consumptionMultiplier * deltaTime);
-        this.water = Math.max(0, this.water - consumptionPerMs * consumptionMultiplier * deltaTime);
-        this.energy = Math.max(0, this.energy - consumptionPerMs * 0.5 * deltaTime);
+        this.calories = Math.max(0, this.calories - consumptionPerFrame * consumptionMultiplier * deltaTime);
+        this.water = Math.max(0, this.water - consumptionPerFrame * consumptionMultiplier * deltaTime);
+        this.energy = Math.max(0, this.energy - consumptionPerFrame * 0.5 * deltaTime);
         
         // 在食物/水源附近时恢复
         if (this.action === '寻找食物' && world.nearbyFood.length > 0) {
-            this.calories = Math.min(100, this.calories + 0.02 * this.phenotype.metabolism * deltaTime / 1000);
+            this.calories = Math.min(100, this.calories + 0.01 * this.phenotype.metabolism * deltaTime);
         }
         if (this.action === '寻找水源' && world.nearbyWater.length > 0) {
-            this.water = Math.min(100, this.water + 0.02 * this.phenotype.metabolism * deltaTime / 1000);
+            this.water = Math.min(100, this.water + 0.01 * this.phenotype.metabolism * deltaTime);
         }
         
         // 生命值消耗
         if (this.calories <= 0 && !this.isDead) {
-            this.health = Math.max(0, this.health - deltaTime / 1000 * 5);
+            this.health = Math.max(0, this.health - deltaTime * 0.1);
         }
         if (this.water <= 0 && !this.isDead) {
-            this.health = Math.max(0, this.health - deltaTime / 1000 * 5);
+            this.health = Math.max(0, this.health - deltaTime * 0.1);
         }
         
         // 死亡检查
