@@ -462,8 +462,13 @@ export class Character {
     }
     
     // 移动（受敏捷影响速度）
+    private stuckCounter: number = 0;  // 卡住计数器
+    
     private moveToTarget(): void {
-        if (!this.target) return;
+        if (!this.target) {
+            this.stuckCounter = 0;
+            return;
+        }
         
         const dx = this.target.x - this.x;
         const dy = this.target.y - this.y;
@@ -474,6 +479,7 @@ export class Character {
             this.x = this.target.x;
             this.y = this.target.y;
             this.arrive();
+            this.stuckCounter = 0;
             return;
         }
         
@@ -482,25 +488,18 @@ export class Character {
         const nextX = this.x + (dx / dist) * speed;
         const nextY = this.y + (dy / dist) * speed;
         
-        // 检查目标点是否可移动
         if (this.canMove(Math.round(nextX), Math.round(nextY))) {
             this.x = nextX;
             this.y = nextY;
+            this.stuckCounter = 0;
         } else {
-            // 被阻挡，尝试绕行（左右偏移）
-            const offsets = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]];
-            for (const [ox, oy] of offsets) {
-                const altX = Math.round(this.x + ox);
-                const altY = Math.round(this.y + oy);
-                if (this.canMove(altX, altY)) {
-                    this.x = altX;
-                    this.y = altY;
-                    // 仍然尝试朝原目标移动
-                    return;
-                }
+            // 被阻挡，尝试绕行
+            this.stuckCounter++;
+            if (this.stuckCounter > 30) {
+                // 卡住太久，清除目标重新漫游
+                this.target = null;
+                this.stuckCounter = 0;
             }
-            // 完全被卡住，清除目标，重新漫游
-            this.target = null;
         }
     }
     

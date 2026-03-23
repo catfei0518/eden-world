@@ -47277,6 +47277,8 @@ ${e2}`);
         overworkDays: 0
         // 过度劳累天数
       };
+      // 移动（受敏捷影响速度）
+      this.stuckCounter = 0;
       this.id = `char_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
       this.type = type;
       this.name = name || (type === "adam" ? "\u4E9A\u5F53" : "\u590F\u5A03");
@@ -47569,9 +47571,12 @@ ${e2}`);
         }
       }
     }
-    // 移动（受敏捷影响速度）
+    // 卡住计数器
     moveToTarget() {
-      if (!this.target) return;
+      if (!this.target) {
+        this.stuckCounter = 0;
+        return;
+      }
       const dx = this.target.x - this.x;
       const dy = this.target.y - this.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -47579,6 +47584,7 @@ ${e2}`);
         this.x = this.target.x;
         this.y = this.target.y;
         this.arrive();
+        this.stuckCounter = 0;
         return;
       }
       const speed = this.moveSpeed;
@@ -47587,18 +47593,13 @@ ${e2}`);
       if (this.canMove(Math.round(nextX), Math.round(nextY))) {
         this.x = nextX;
         this.y = nextY;
+        this.stuckCounter = 0;
       } else {
-        const offsets = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]];
-        for (const [ox, oy] of offsets) {
-          const altX = Math.round(this.x + ox);
-          const altY = Math.round(this.y + oy);
-          if (this.canMove(altX, altY)) {
-            this.x = altX;
-            this.y = altY;
-            return;
-          }
+        this.stuckCounter++;
+        if (this.stuckCounter > 30) {
+          this.target = null;
+          this.stuckCounter = 0;
         }
-        this.target = null;
       }
     }
     // 到达
