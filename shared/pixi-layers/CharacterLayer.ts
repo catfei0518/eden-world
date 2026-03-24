@@ -110,8 +110,9 @@ export class CharacterLayer {
             
             // 创建不可见的点击区域
             const hitbox = new PIXI.Graphics();
-            hitbox.fill({ color: 0xffffff, alpha: 0.001 }); // 几乎透明
-            hitbox.rect(0, 0, HITBOX_SIZE, HITBOX_SIZE);
+            hitbox.beginFill(0xffffff, 0.001); // 几乎透明
+            hitbox.drawRect(0, 0, HITBOX_SIZE, HITBOX_SIZE);
+            hitbox.endFill();
             hitbox.x = 0; // 稍后设置位置
             hitbox.y = 0;
             hitbox.eventMode = 'static';

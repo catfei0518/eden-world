@@ -12,6 +12,9 @@ export interface ItemData {
     maxDurability?: number;
 }
 
+// 共享的常量
+import { ITEM_ICONS, ITEM_NAMES, LAYER_NAMES } from '../constants';
+
 export class ItemStatusUI {
     private panel: HTMLElement;
     private selectedItem: ItemData | null = null;
@@ -191,40 +194,13 @@ export class ItemStatusUI {
         
         const item = this.selectedItem;
         
-        // 图标和名称映射
-        const icons: Record<string, string> = {
-            'tree': '🌲',
-            'bush': '🌿',
-            'stone': '🪨',
-            'rock': '🪨',
-            'stick': '🪵',
-            'berry': '🫐',
-            'flower': '🌸',
-            'branch': '🌳'
-        };
-        const names: Record<string, string> = {
-            'tree': '树',
-            'bush': '灌木',
-            'stone': '石头',
-            'rock': '石头',
-            'stick': '木棍',
-            'berry': '浆果丛',
-            'flower': '花朵',
-            'branch': '树枝'
-        };
-        const layerNames: Record<string, string> = {
-            'ground': '地面',
-            'low': '低处',
-            'high': '高处'
-        };
-        
         // 更新图标
         const iconElem = document.getElementById('item-icon');
-        if (iconElem) iconElem.textContent = icons[item.type] || '📦';
+        if (iconElem) iconElem.textContent = ITEM_ICONS[item.type] || '📦';
         
         // 更新名称
         const nameElem = document.getElementById('item-name');
-        if (nameElem) nameElem.textContent = names[item.type] || '未知物品';
+        if (nameElem) nameElem.textContent = ITEM_NAMES[item.type] || '未知物品';
         
         // 更新坐标
         const posElem = document.getElementById('item-position');
@@ -232,7 +208,7 @@ export class ItemStatusUI {
         
         // 更新位置层级
         const layerElem = document.getElementById('item-layer');
-        if (layerElem) layerElem.textContent = layerNames[item.layer] || '-';
+        if (layerElem) layerElem.textContent = LAYER_NAMES[item.layer] || '-';
         
         // 耐久条
         const durSection = document.getElementById('durability-section');

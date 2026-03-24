@@ -5,11 +5,14 @@
 
 import * as PIXI from 'pixi.js';
 import { EdenServerClient } from './EdenServerClient';
-import { Camera } from './Camera';
+import { Camera } from '../shared/pixi-layers/Camera';
 import { commandSystem } from './CommandSystem';
+import { ItemStatusUI } from '../shared/ui/ItemStatusUI';
+import type { ItemData } from '../shared/ui/ItemStatusUI';
 
 const MAP_WIDTH = 200;
-const HITBOX_SIZE = 48; // 点击热区大小
+const HITBOX_SIZE = 48; // 角色点击热区大小
+const ITEM_HITBOX_SIZE = 40; // 物品点击热区大小
 const MAP_HEIGHT = 100;
 const TILE_SIZE = 64;
 const SCALE = 1.35;
@@ -25,6 +28,16 @@ interface ServerCharacter {
     thirst: number;
     energy: number;
     action: string;
+    dna?: {
+        bravery: number;
+        aggression: number;
+        curiosity: number;
+        metabolism: number;
+        strength: number;
+        constitution: number;
+        intelligence: number;
+        lifespan: number;
+    };
 }
 
 export class GameApp {
@@ -42,6 +55,10 @@ export class GameApp {
     // 角色状态面板
     private statusPanel!: HTMLElement;
     private selectedCharacter: ServerCharacter | null = null;
+    
+    // 物品状态面板
+    private itemStatusUI!: ItemStatusUI;
+    private itemSprites: Map<string, any> = new Map();
     
     async init() {
         console.log('🌍 伊甸世界在线版启动...');
@@ -77,6 +94,7 @@ export class GameApp {
         this.setupKeyboard();
         this.setupConsole();
         this.setupStatusPanel();
+        this.setupItemStatusUI();
         
         window.addEventListener('resize', () => {
             this.app.renderer.resize(window.innerWidth, window.innerHeight);
@@ -238,17 +256,54 @@ export class GameApp {
         const tex = this.textures.get(type);
         if (!tex) return;
         
+        const container = new PIXI.Container();
+        
         const sprite = new PIXI.Sprite(tex);
         // 与单机版一致：ground=40, low=48, high=64
         const size = type === 'tree' ? 48 : 40;
-        sprite.x = x * TILE_SIZE + TILE_SIZE / 2;
-        sprite.y = y * TILE_SIZE + TILE_SIZE / 2;
         sprite.width = size;
         sprite.height = size;
         sprite.anchor.set(0.5);
-        sprite.zIndex = 2; // 在地形上面，角色下面
-        this.worldContainer.addChild(sprite);
-        this.groundObjects.push(sprite);
+        container.addChild(sprite);
+        
+        // 创建物品数据
+        const itemData: ItemData = {
+            type: type,
+            x: x,
+            y: y,
+            layer: 'ground',
+            durability: type === 'bush' || type === 'berry' ? 100 : 0,
+            maxDurability: type === 'bush' || type === 'berry' ? 100 : 0
+        };
+        
+        // 创建点击热区
+        const hitbox = new PIXI.Graphics();
+        hitbox.rect(-ITEM_HITBOX_SIZE / 2, -ITEM_HITBOX_SIZE / 2, ITEM_HITBOX_SIZE, ITEM_HITBOX_SIZE);
+        hitbox.fill({ color: 0xffffff, alpha: 0.001 });
+        hitbox.eventMode = 'static';
+        hitbox.cursor = 'pointer';
+        
+        // 点击事件
+        hitbox.on('pointerdown', (event: PIXI.FederatedPointerEvent) => {
+            event.stopPropagation();
+            this.showItemStatus(itemData);
+        });
+        
+        container.addChild(hitbox);
+        
+        // 设置位置
+        container.x = x * TILE_SIZE + TILE_SIZE / 2;
+        container.y = y * TILE_SIZE + TILE_SIZE / 2;
+        container.zIndex = 2; // 在地形上面，角色下面
+        
+        this.worldContainer.addChild(container);
+        
+        // 保存物品数据和精灵
+        const itemKey = `${x},${y},${type}`;
+        this.itemSprites.set(itemKey, container);
+        (container as any).itemData = itemData;
+        
+        this.groundObjects.push(container);
     }
     
     private getTerrainType(x: number, y: number): string {
@@ -342,24 +397,27 @@ export class GameApp {
     }
     
     private renderCharacter(data: ServerCharacter) {
-        let sprite = this.characterSprites.get(data.id);
+        let container = this.characterSprites.get(data.id);
         
-        if (!sprite) {
-            sprite = this.createCharacterSprite(data);
-            this.worldContainer.addChild(sprite);
-            this.characterSprites.set(data.id, sprite);
+        if (!container) {
+            container = this.createCharacterSprite(data);
+            this.worldContainer.addChild(container);
+            this.characterSprites.set(data.id, container);
             if (this.terrainSprites.size === 0) {
                 this.renderTerrain();
             }
         }
         
         if (data.x !== null && data.y !== null) {
-            sprite.x = data.x * TILE_SIZE + TILE_SIZE / 2;
-            sprite.y = data.y * TILE_SIZE + TILE_SIZE / 2;
+            const worldX = data.x * TILE_SIZE + TILE_SIZE / 2;
+            const worldY = data.y * TILE_SIZE + TILE_SIZE / 2;
+            // 设置container的位置（不是sprite的位置）
+            container.x = worldX;
+            container.y = worldY;
         }
-        sprite.zIndex = 10;
+        container.zIndex = 10;
         // 与单机版一致：显示 "角色名: 动作"
-        sprite.label.text = `${data.name}: ${data.action || '闲置'}`;
+        (container as any).label.text = `${data.name}: ${data.action || '闲置'}`;
     }
     
     private createCharacterSprite(data: ServerCharacter) {
@@ -407,11 +465,11 @@ export class GameApp {
         (container as any).hungerBar = null;
         (container as any).thirstBar = null;
         
-        // 点击区域 - 透明热区
+        // 点击区域 - 透明热区 (使用路径API)
+        // 注意：rect 在 (0,0) 位置，因为后面会设置 container.x/y
         const hitbox = new PIXI.Graphics();
-        hitbox.beginFill(0xffffff, 0.001);
-        hitbox.drawRect(-HITBOX_SIZE / 2, -HITBOX_SIZE / 2, HITBOX_SIZE, HITBOX_SIZE);
-        hitbox.endFill();
+        hitbox.rect(-HITBOX_SIZE / 2, -HITBOX_SIZE / 2, HITBOX_SIZE, HITBOX_SIZE);
+        hitbox.fill({ color: 0xffffff, alpha: 0.001 });
         hitbox.eventMode = 'static';
         hitbox.cursor = 'pointer';
         
@@ -420,6 +478,9 @@ export class GameApp {
             event.stopPropagation();
             this.showCharacterStatus(data);
         });
+        
+        // 调试：打印 hitbox 信息
+        console.log(`🎯 创建角色热区: ${data.name}, hitbox尺寸: ${HITBOX_SIZE}x${HITBOX_SIZE}`);
         
         container.addChild(hitbox);
         (container as any).hitbox = hitbox;
@@ -503,83 +564,112 @@ export class GameApp {
     }
     
     private showCharacterStatus(char: ServerCharacter) {
-        if (!this.statusPanel) return;
-        
-        this.selectedCharacter = char;
-        
-        // 更新面板内容
-        const nameElem = document.getElementById('panel-name');
-        const typeElem = document.getElementById('panel-type');
-        const avatarElem = document.getElementById('panel-avatar');
-        const posElem = document.getElementById('panel-position');
-        const foodBar = document.getElementById('panel-food-bar');
-        const waterBar = document.getElementById('panel-water-bar');
-        const energyBar = document.getElementById('panel-energy-bar');
-        const foodVal = document.getElementById('panel-food-val');
-        const waterVal = document.getElementById('panel-water-val');
-        const energyVal = document.getElementById('panel-energy-val');
-        const healthBar = document.getElementById('panel-health-bar');
-        const healthVal = document.getElementById('panel-health-val');
-        const actionElem = document.getElementById('panel-action');
-        const dnaContainer = document.getElementById('panel-dna-attrs');
-        
-        if (nameElem) nameElem.textContent = char.name;
-        if (typeElem) typeElem.textContent = char.id === 'adam' ? '亚当' : '夏娃';
-        if (avatarElem) {
-            avatarElem.className = `avatar ${char.id === 'adam' ? 'adam' : 'eve'}`;
-            avatarElem.textContent = char.id === 'adam' ? '♂' : '♀';
-        }
-        if (posElem) posElem.textContent = `(${char.x.toFixed(1)}, ${char.y.toFixed(1)})`;
-        
-        const hungerPct = Math.min(100, Math.round(char.hunger));
-        const thirstPct = Math.min(100, Math.round(char.thirst));
-        const energyPct = Math.round((char.energy / 5) * 100);
-        
-        if (foodBar) foodBar.style.width = `${hungerPct}%`;
-        if (waterBar) waterBar.style.width = `${thirstPct}%`;
-        if (energyBar) energyBar.style.width = `${energyPct}%`;
-        if (foodVal) foodVal.textContent = `${hungerPct}%`;
-        if (waterVal) waterVal.textContent = `${thirstPct}%`;
-        if (energyVal) energyVal.textContent = `${energyPct}%`;
-        
-        if (healthBar) healthBar.style.width = '100%';
-        if (healthVal) healthVal.textContent = '100%';
-        
-        if (actionElem) actionElem.textContent = char.action || '闲置';
-        
-        // DNA属性（在线版本显示基本信息）
-        if (dnaContainer) {
-            dnaContainer.innerHTML = `
-                <div class="dna-row" style="background: rgba(74, 169, 74, 0.3); font-weight: bold;">
-                    <span>🎭 角色</span><span>${char.id === 'adam' ? '亚当' : '夏娃'}</span>
-                </div>
-                <div class="dna-row" style="background: rgba(74, 169, 74, 0.2);">
-                    <span>🌿 状态</span><span>在线同步</span>
-                </div>
-                <div class="dna-row">
-                    <span>🍖 饥饿</span><span>${hungerPct}%</span>
-                </div>
-                <div class="dna-row">
-                    <span>💧 口渴</span><span>${thirstPct}%</span>
-                </div>
-                <div class="dna-row">
-                    <span>⚡ 精力</span><span>${energyPct}%</span>
-                </div>
-                <div class="dna-row">
-                    <span>❤️ 生命</span><span>100%</span>
-                </div>
-            `;
-        }
-        
-        // 显示面板
-        this.statusPanel.style.display = 'block';
+        // 使用 setTimeout 延迟创建，避免 PIXI 事件循环干扰
+        setTimeout(() => {
+            if (!this.statusPanel) return;
+            
+            this.selectedCharacter = char;
+            
+            // 更新面板内容
+            const nameElem = document.getElementById('panel-name');
+            const typeElem = document.getElementById('panel-type');
+            const avatarElem = document.getElementById('panel-avatar');
+            const posElem = document.getElementById('panel-position');
+            const foodBar = document.getElementById('panel-food-bar');
+            const waterBar = document.getElementById('panel-water-bar');
+            const energyBar = document.getElementById('panel-energy-bar');
+            const foodVal = document.getElementById('panel-food-val');
+            const waterVal = document.getElementById('panel-water-val');
+            const energyVal = document.getElementById('panel-energy-val');
+            const healthBar = document.getElementById('panel-health-bar');
+            const healthVal = document.getElementById('panel-health-val');
+            const actionElem = document.getElementById('panel-action');
+            const dnaContainer = document.getElementById('panel-dna-attrs');
+            
+            if (nameElem) nameElem.textContent = char.name;
+            if (typeElem) typeElem.textContent = char.id === 'adam' ? '亚当' : '夏娃';
+            if (avatarElem) {
+                avatarElem.className = `avatar ${char.id === 'adam' ? 'adam' : 'eve'}`;
+                avatarElem.textContent = char.id === 'adam' ? '♂' : '♀';
+            }
+            if (posElem) posElem.textContent = `(${char.x.toFixed(1)}, ${char.y.toFixed(1)})`;
+            
+            const hungerPct = Math.min(100, Math.round(char.hunger));
+            const thirstPct = Math.min(100, Math.round(char.thirst));
+            const energyPct = Math.round((char.energy / 5) * 100);
+            
+            if (foodBar) foodBar.style.width = `${hungerPct}%`;
+            if (waterBar) waterBar.style.width = `${thirstPct}%`;
+            if (energyBar) energyBar.style.width = `${energyPct}%`;
+            if (foodVal) foodVal.textContent = `${hungerPct}%`;
+            if (waterVal) waterVal.textContent = `${thirstPct}%`;
+            if (energyVal) energyVal.textContent = `${energyPct}%`;
+            
+            if (healthBar) healthBar.style.width = '100%';
+            if (healthVal) healthVal.textContent = '100%';
+            
+            if (actionElem) actionElem.textContent = char.action || '闲置';
+            
+            // DNA属性
+            if (dnaContainer && char.dna) {
+                const dna = char.dna;
+                const lifespanText = `${Math.round((dna.lifespan / 1200) * 70)}岁`;
+                dnaContainer.innerHTML = `
+                    <div class="dna-row" style="background: rgba(74, 169, 74, 0.3); font-weight: bold;">
+                        <span>🎭 角色</span><span>${char.id === 'adam' ? '亚当' : '夏娃'}</span>
+                    </div>
+                    <div class="dna-row">
+                        <span>❤️ 寿命</span><span>${lifespanText}</span>
+                    </div>
+                    <div class="dna-row">
+                        <span>🔥 代谢</span><span>${(dna.metabolism * 100).toFixed(0)}</span>
+                    </div>
+                    <div class="dna-row">
+                        <span>💪 力量</span><span>${(dna.strength * 100).toFixed(0)}</span>
+                    </div>
+                    <div class="dna-row">
+                        <span>🏋️ 体质</span><span>${(dna.constitution * 100).toFixed(0)}</span>
+                    </div>
+                    <div class="dna-row">
+                        <span>🧠 智力</span><span>${(dna.intelligence * 100).toFixed(0)}</span>
+                    </div>
+                    <div class="dna-row">
+                        <span>⚔️ 胆量</span><span>${(dna.bravery * 100).toFixed(0)}</span>
+                    </div>
+                    <div class="dna-row">
+                        <span>🤝 社交</span><span>${(dna.aggression * 100).toFixed(0)}</span>
+                    </div>
+                    <div class="dna-row">
+                        <span>🌟 好奇心</span><span>${(dna.curiosity * 100).toFixed(0)}</span>
+                    </div>
+                `;
+            }
+            
+            // 显示面板
+            this.statusPanel.style.cssText = 'display: block; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999;';
+        }, 50);
     }
     
     private hideStatusPanel() {
         this.selectedCharacter = null;
+        // 移除调试面板
+        const debugPanel = document.getElementById('debug-panel');
+        if (debugPanel) debugPanel.remove();
+        // 隐藏状态面板
         if (this.statusPanel) {
-            this.statusPanel.style.display = 'none';
+            this.statusPanel.style.cssText = 'display: none;';
         }
+    }
+    
+    private setupItemStatusUI() {
+        this.itemStatusUI = new ItemStatusUI();
+    }
+    
+    private showItemStatus(item: ItemData) {
+        // 使用 setTimeout 避免 PIXI 事件循环干扰
+        setTimeout(() => {
+            this.itemStatusUI.showItem(item);
+        }, 50);
     }
 }
 

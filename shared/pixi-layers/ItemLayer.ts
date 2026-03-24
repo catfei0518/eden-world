@@ -366,8 +366,9 @@ export class ItemLayer {
         // 添加点击区域（只有有耐久的东西才能点击）
         if (item.maxDurability > 0) {
             const hitbox = new PIXI.Graphics();
-            hitbox.fill({ color: 0xffffff, alpha: 0.001 });
-            hitbox.rect(0, 0, size, size);
+            hitbox.beginFill(0xffffff, 0.001);
+            hitbox.drawRect(0, 0, size, size);
+            hitbox.endFill();
             hitbox.x = sprite.x;
             hitbox.y = sprite.y;
             hitbox.eventMode = 'static';

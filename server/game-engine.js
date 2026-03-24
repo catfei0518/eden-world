@@ -356,7 +356,8 @@ class GameEngine {
             energy: c.energy,
             hunger: c.hungerPercent,
             thirst: c.thirstPercent,
-            action: c.action
+            action: c.action,
+            dna: c.dna
         }));
         
         // 调试日志
