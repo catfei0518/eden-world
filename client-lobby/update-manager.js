@@ -10,7 +10,7 @@ const STORE_NAME = 'resources';
 class UpdateManager {
     constructor() {
         this.db = null;
-        this.currentVersion = 'v0.13.0';      // 游戏版本
+        this.currentVersion = 'v0.14.0';      // 游戏版本
         this.resourceVersion = 'v0.1.1';        // 资源包版本（独立管理，仅资源变更时更新）
         this.resources = [];
         this.downloadProgress = 0;

@@ -61,6 +61,32 @@ class CharacterManager {
         }
         return true;
     }
+    // 验证移动是否合法（碰撞检测）
+    canMoveTo(id, targetX, targetY, worldState) {
+        const char = this.characters.get(id);
+        if (!char)
+            return { allowed: false, reason: '角色不存在' };
+        // 1. 边界检查
+        if (targetX < 0 || targetX >= 200 || targetY < 0 || targetY >= 100) {
+            return { allowed: false, reason: '超出边界' };
+        }
+        // 2. 地形检查
+        const terrain = worldState.getTerrainAt(targetX, targetY);
+        if (!terrain)
+            return { allowed: false, reason: '地形不存在' };
+        const walkable = ['grass', 'plains', 'forest', 'desert', 'beach'];
+        if (!walkable.includes(terrain)) {
+            return { allowed: false, reason: `地形 ${terrain} 不可通行` };
+        }
+        // 3. 距离检查（每Tick最多移动1.5格子）
+        const dx = targetX - char.x;
+        const dy = targetY - char.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance > 1.5) {
+            return { allowed: false, reason: '移动距离太远' };
+        }
+        return { allowed: true };
+    }
     updateCharacterAction(id, action) {
         const char = this.characters.get(id);
         if (!char)

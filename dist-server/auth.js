@@ -118,7 +118,7 @@ function register(username, password) {
     data.users.push(user);
     saveUsers(data);
     
-    return { success: true, user: { id: user.id, username: user.username } };
+    return { success: true, user: { id: user.id, username: user.username, role: user.role || 'user' } };
 }
 
 // 登录
@@ -144,7 +144,7 @@ function login(username, password) {
     return { 
         success: true, 
         token,
-        user: { id: user.id, username: user.username }
+        user: { id: user.id, username: user.username, role: user.role || 'user' }
     };
 }
 
@@ -162,7 +162,7 @@ function getUserInfo(token) {
         return null;
     }
     
-    return { id: user.id, username: user.username, createdAt: user.createdAt };
+    return { id: user.id, username: user.username, role: user.role || 'user', createdAt: user.createdAt };
 }
 
 module.exports = {

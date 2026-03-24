@@ -195,8 +195,25 @@ class WorldState {
     getAllGroundObjects() {
         return this.groundObjects;
     }
+    addGroundObject(item) {
+        this.groundObjects.push(item);
+    }
     getSeason() {
         return this.season;
+    }
+    // 检查地形是否可通行
+    isWalkable(x, y) {
+        const tile = this.tiles.find(t => t.x === Math.floor(x) && t.y === Math.floor(y));
+        if (!tile)
+            return false;
+        // 可通行地形
+        const walkable = ['grass', 'plains', 'forest', 'desert', 'beach'];
+        return walkable.includes(tile.type);
+    }
+    // 获取指定位置的地形类型
+    getTerrainAt(x, y) {
+        const tile = this.tiles.find(t => t.x === Math.floor(x) && t.y === Math.floor(y));
+        return tile?.type || null;
     }
     setSeason(season) {
         this.season = season;

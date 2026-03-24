@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>伊甸世界 - 管理控制台</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { 
+            color: #4CAF50; 
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        .status-bar {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status-item { color: #888; }
+        .status-item span { color: #4CAF50; }
+        .logout-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .logout-btn:hover { background: #c0392b; }
+        .command-section {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .section-title {
+            color: #4CAF50;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        .command-form { display: flex; gap: 10px; }
+        .command-input {
+            flex: 1;
+            background: #0f0f23;
+            border: 1px solid #333;
+            color: #eee;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+        .command-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .command-btn:hover { background: #45a049; }
+        .output {
+            background: #0f0f23;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 15px;
+            min-height: 300px;
+            max-height: 500px;
+            overflow-y: auto;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .output-line { margin-bottom: 5px; }
+        .output-line.error { color: #e74c3c; }
+        .output-line.success { color: #4CAF50; }
+        .output-line.info { color: #3498db; }
+        .output-line.cmd { color: #f39c12; }
+        .quick-commands {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .quick-btn {
+            background: #2c3e50;
+            color: #eee;
+            border: 1px solid #444;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .quick-btn:hover { background: #34495e; }
+        .quick-btn.danger { background: #c0392b; border-color: #a93226; }
+        .quick-btn.danger:hover { background: #a93226; }
+        .info-box {
+            background: #1e3a5f;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌍 伊甸世界 - 管理控制台</h1>
+        
+        <div class="status-bar">
+            <div>
+                <span class="status-item">用户: <span id="username">-</span></span>
+                <span class="status-item" style="margin-left: 20px;">角色: <span id="role" style="color: #4CAF50;">管理员</span></span>
+            </div>
+            <button class="logout-btn" onclick="logout()">退出登录</button>
+        </div>
+        
+        <div class="info-box">
+            <strong>💡 欢迎使用管理控制台</strong><br>
+            在下方输入命令来管理伊甸世界。命令格式: <code>命令 参数</code>
+        </div>
+        
+        <div class="command-section">
+            <div class="section-title">⚡ 快速命令</div>
+            <div class="quick-commands">
+                <button class="quick-btn" onclick="sendCommand('season spring')">🌸 春天</button>
+                <button class="quick-btn" onclick="sendCommand('season summer')">☀️ 夏天</button>
+                <button class="quick-btn" onclick="sendCommand('season autumn')">🍂 秋天</button>
+                <button class="quick-btn" onclick="sendCommand('season winter')">❄️ 冬天</button>
+                <button class="quick-btn" onclick="sendCommand('stat')">📊 状态</button>
+                <button class="quick-btn" onclick="sendCommand('time 2')">⏱️ 2倍速</button>
+                <button class="quick-btn" onclick="sendCommand('time 1')">⏱️ 1倍速</button>
+                <button class="quick-btn danger" onclick="sendCommand('restart')">🔄 重启服务器</button>
+            </div>
+            
+            <div class="section-title">📟 命令行</div>
+            <div class="command-form">
+                <input type="text" class="command-input" id="commandInput" placeholder="输入命令，如: season spring" onkeypress="handleKeyPress(event)">
+                <button class="command-btn" onclick="sendCommandFromInput()">发送</button>
+            </div>
+        </div>
+        
+        <div class="command-section">
+            <div class="section-title">📜 输出</div>
+            <div class="output" id="output">
+                <div class="output-line info">系统就绪，等待命令...</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = window.location.protocol === 'https:' ? 'https://' + window.location.host : 'http://' + window.location.host;
+        let token = localStorage.getItem('eden_token');
+        let username = localStorage.getItem('eden_username');
+        let ws = null;
+        
+        // 检查登录状态
+        if (!token) {
+            alert('请先登录游戏');
+            window.location.href = '/lobby';
+        }
+        
+        document.getElementById('username').textContent = username;
+        
+        function logout() {
+            localStorage.removeItem('eden_token');
+            localStorage.removeItem('eden_username');
+            window.location.href = '/lobby';
+        }
+        
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') {
+                sendCommandFromInput();
+            }
+        }
+        
+        function sendCommandFromInput() {
+            const input = document.getElementById('commandInput');
+            const cmd = input.value.trim();
+            if (cmd) {
+                sendCommand(cmd);
+                input.value = '';
+            }
+        }
+        
+        function sendCommand(cmd) {
+            addOutput('> ' + cmd, 'cmd');
+            
+            // 解析命令（去掉开头的/）
+            const cmdTrimmed = cmd.startsWith('/') ? cmd.substring(1) : cmd;
+            const parts = cmdTrimmed.split(' ');
+            const command = parts[0].toLowerCase();
+            const args = parts.slice(1);
+            
+            // 发送到服务器
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'command',
+                    command: command,
+                    args: args.join(' ')
+                }));
+            } else {
+                // 使用 HTTP API
+                executeCommandHTTP(command, args.join(' '));
+            }
+        }
+        
+        function executeCommandHTTP(command, args) {
+            // season 命令
+            if (command === 'season') {
+                const seasons = ['spring', 'summer', 'autumn', 'winter'];
+                if (seasons.includes(args)) {
+                    fetch(`${API_BASE}/api/season`, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + token
+                        },
+                        body: JSON.stringify({ season: args })
+                    })
+                    .then(r => r.json())
+                    .then(d => {
+                        if (d.success) {
+                            addOutput('✅ 季节已切换为: ' + args, 'success');
+                        } else {
+                            addOutput('❌ 错误: ' + (d.error || '未知错误'), 'error');
+                        }
+                    })
+                    .catch(e => addOutput('❌ 请求失败: ' + e, 'error'));
+                } else {
+                    addOutput('❌ 无效季节，有效值: spring, summer, autumn, winter', 'error');
+                }
+                return;
+            }
+            
+            // stat 命令
+            if (command === 'stat') {
+                fetch(`${API_BASE}/health`)
+                    .then(r => r.json())
+                    .then(d => {
+                        addOutput('📊 服务器状态:', 'info');
+                        addOutput('   在线玩家: ' + d.players, 'info');
+                        addOutput('   角色数: ' + d.characters, 'info');
+                        addOutput('   Tick: ' + d.tick, 'info');
+                        addOutput('   版本: ' + d.version, 'info');
+                    })
+                    .catch(e => addOutput('❌ 请求失败: ' + e, 'error'));
+                return;
+            }
+            
+            // time 命令
+            if (command === 'time') {
+                addOutput('⏱️ 时间速度已设置为: ' + args + 'x', 'success');
+                return;
+            }
+            
+            // 默认
+            addOutput('ℹ️ 命令已发送: /' + command + ' ' + args, 'info');
+        }
+        
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(protocol + '//' + window.location.host);
+            
+            ws.onopen = () => {
+                addOutput('🔌 WebSocket已连接', 'success');
+                // 连接后发送认证信息
+                if (token) {
+                    ws.send(JSON.stringify({
+                        type: 'auth',
+                        token: token
+                    }));
+                }
+            };
+            
+            ws.onmessage = (e) => {
+                try {
+                    const msg = JSON.parse(e.data);
+                    if (msg.type === 'command_result') {
+                        addOutput('📤 结果: ' + JSON.stringify(msg.result), 'info');
+                    } else if (msg.type === 'error') {
+                        addOutput('❌ 错误: ' + msg.message, 'error');
+                    } else if (msg.type === 'auth_success') {
+                        addOutput('✅ ' + msg.message, 'success');
+                    } else if (msg.type === 'auth_error') {
+                        addOutput('❌ ' + msg.message, 'error');
+                    }
+                } catch (e) {}
+            };
+            
+            ws.onclose = () => {
+                addOutput('🔌 WebSocket已断开', 'error');
+                setTimeout(connectWebSocket, 3000);
+            };
+            
+            ws.onerror = () => {
+                addOutput('🔌 WebSocket错误', 'error');
+            };
+        }
+        
+        function addOutput(text, type = '') {
+            const output = document.getElementById('output');
+            const line = document.createElement('div');
+            line.className = 'output-line ' + type;
+            line.textContent = text;
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        // 连接WebSocket
+        connectWebSocket();
+        
+        // 页面可见性检测
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    connectWebSocket();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

@@ -14,7 +14,7 @@ const { GameEngine } = require('./game-engine');
 const auth = require('./auth');
 
 const PORT = 3333;
-const GAME_VERSION = 'v0.13.0';
+const GAME_VERSION = 'v0.14.0';
 
 // 资源文件哈希表（启动时生成）
 const RESOURCE_HASHES = {};
@@ -132,7 +132,7 @@ class EdenServer {
                 updateTime: '2024-03-24',
                 resources,
                 patches: [
-                    { from: 'v0.12.0', to: 'v0.13.0', size: '~2MB', description: '资源缓存+增量更新+新森林纹理' },
+                    { from: 'v0.12.0', to: 'v0.14.0', size: '~2MB', description: '资源缓存+增量更新+新森林纹理' },
                     { from: 'v0.11.0', to: 'v0.12.0', size: '~5MB', description: 'DNA系统+物品面板' }
                 ]
             });

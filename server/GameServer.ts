@@ -14,7 +14,7 @@ import { WebSocketHandler } from './WebSocketHandler';
 import auth from './auth';
 
 const PORT = 3333;
-const GAME_VERSION = 'v0.13.0';
+const GAME_VERSION = 'v0.14.0';
 
 export class GameServer {
     private app: express.Application;
@@ -173,6 +173,29 @@ export class GameServer {
             res.json({ user });
         });
         
+        // 季节切换API
+        this.app.post('/api/season', (req, res) => {
+            const authHeader = req.headers.authorization;
+            if (!authHeader || !authHeader.startsWith('Bearer ')) {
+                return res.status(401).json({ error: '未授权' });
+            }
+            const token = authHeader.substring(7);
+            const user = auth.getUserInfo(token);
+            if (!user || user.role !== 'admin') {
+                return res.status(403).json({ error: '需要管理员权限' });
+            }
+            
+            const { season } = req.body;
+            if (!['spring', 'summer', 'autumn', 'winter'].includes(season)) {
+                return res.status(400).json({ error: '无效的季节' });
+            }
+            
+            this.worldState.setSeason(season);
+            this.wsHandler.broadcast({ type: 'season_changed', season });
+            
+            res.json({ success: true, season });
+        });
+        
         // 客户端HTML
         this.app.get('/client', (req, res) => {
             res.sendFile(path.join(__dirname, '../dist-client/index.html'));
@@ -181,6 +204,11 @@ export class GameServer {
         // 登录页
         this.app.get('/lobby', (req, res) => {
             res.sendFile(path.join(__dirname, '../client-lobby/index.html'));
+        });
+        
+        // 管理控制台
+        this.app.get('/console', (req, res) => {
+            res.sendFile(path.join(__dirname, '../client-console/index.html'));
         });
         
         // 首页重定向到登录页

@@ -5,6 +5,7 @@
       "username": "testuser",
       "passwordHash": "4220b2b45667f6f13a47b1bcbc7d7d8b1759c59aa6b7aa1e1606c9e5b14a2c3fae30f0e63756b8dc5ea2a982c4e4365cf8170f85a7235a70b3003f9442d5e3f3",
       "salt": "7e84484935b8152ee1e4d314dd35a88a",
+      "role": "user",
       "createdAt": "2026-03-24T03:16:03.001Z",
       "lastLogin": "2026-03-24T03:16:13.287Z"
     },
@@ -13,6 +14,7 @@
       "username": "zhaofei",
       "passwordHash": "31c6cde639d028683759322a059003aa4a2fbb12a7be0feeb3e05258bc7517ff2eda7e369bcb465a3a2734f5b532f24dd9bdc7584533002fb92fc75f349a1d98",
       "salt": "e6595fb4ba8a9c6ccaead1f1417b0010",
+      "role": "admin",
       "createdAt": "2026-03-24T08:10:09.537Z",
       "lastLogin": "2026-03-24T15:23:47.561Z"
     }

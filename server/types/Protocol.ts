@@ -62,6 +62,17 @@ export interface ChangeSeasonMessage {
     season: Season;
 }
 
+export interface CommandMessage {
+    type: 'command';
+    command: string;
+    args: any;
+}
+
+export interface AuthMessage {
+    type: 'auth';
+    token: string;
+}
+
 // ============ 共享类型 ============
 
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
@@ -121,9 +132,14 @@ export type ServerMessage =
     | StateMessage 
     | InputAckMessage 
     | CharacterSelectedMessage 
-    | SeasonChangedMessage;
+    | SeasonChangedMessage
+    | { type: 'item_spawned'; data: any }
+    | { type: 'error'; message: string }
+    | { type: 'command_result'; result: any };
 
 export type ClientMessage = 
     | InputMessage 
     | SelectCharacterMessage 
-    | ChangeSeasonMessage;
+    | ChangeSeasonMessage
+    | CommandMessage
+    | AuthMessage;
