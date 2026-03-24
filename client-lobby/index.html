@@ -493,10 +493,12 @@
         <div id="download-overlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; flex-direction: column;">
             <div style="text-align: center; padding: 30px; background: #1a1a1a; border-radius: 15px; max-width: 400px;">
                 <div style="font-size: 48px; margin-bottom: 15px;">📦</div>
-                <h2 style="color: #fff; margin-bottom: 10px;">需要下载游戏资源</h2>
+                <h2 id="overlay-title" style="color: #fff; margin-bottom: 10px;">需要下载游戏资源</h2>
                 <p style="color: #aaa; margin-bottom: 20px; font-size: 14px;">
-                    首次运行需要下载游戏资源包<br>
-                    下载后即可游玩游戏
+                    <span id="overlay-desc-first">首次运行需要下载游戏资源包</span>
+                    <span id="overlay-desc-update" style="display:none">有新版本资源包，点击更新</span>
+                    <br>
+                    <span id="overlay-desc-common">下载后即可游玩游戏</span>
                 </p>
                 <div style="margin-bottom: 20px;">
                     <div style="background: #333; border-radius: 3px; height: 8px; overflow: hidden;">
@@ -639,8 +641,18 @@
                 const serverVersion = data.version;
                 versionEl.textContent = serverVersion;
                 
+                // 检查本地资源版本
+                const localResourceVersion = await updateManager.getLocalResourceVersion();
+                const isFirstTime = !localResourceVersion;
+                
                 // 检查是否有完整缓存
                 const hasFullCache = await updateManager.hasFullCache();
+                
+                // 获取下载按钮文字
+                const overlayTitle = document.getElementById('overlay-title');
+                const overlayDescFirst = document.getElementById('overlay-desc-first');
+                const overlayDescUpdate = document.getElementById('overlay-desc-update');
+                const overlayDownloadBtn = document.getElementById('overlay-download-btn');
                 
                 // 显示缓存状态
                 if (hasFullCache) {
@@ -660,7 +672,20 @@
                     downloadBtn.style.opacity = '1';
                     loginBtn.disabled = true;
                     loginBtn.style.opacity = '0.5';
-                    // 显示下载提示
+                    // 显示下载提示，根据情况显示不同文案
+                    if (isFirstTime) {
+                        // 首次下载
+                        overlayTitle.textContent = '需要下载游戏资源';
+                        overlayDescFirst.style.display = 'inline';
+                        overlayDescUpdate.style.display = 'none';
+                        overlayDownloadBtn.textContent = '开始下载';
+                    } else {
+                        // 更新
+                        overlayTitle.textContent = '资源包有更新';
+                        overlayDescFirst.style.display = 'none';
+                        overlayDescUpdate.style.display = 'inline';
+                        overlayDownloadBtn.textContent = '立即更新';
+                    }
                     overlay.style.display = 'flex';
                 }
                 

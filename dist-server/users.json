@@ -14,7 +14,15 @@
       "passwordHash": "31c6cde639d028683759322a059003aa4a2fbb12a7be0feeb3e05258bc7517ff2eda7e369bcb465a3a2734f5b532f24dd9bdc7584533002fb92fc75f349a1d98",
       "salt": "e6595fb4ba8a9c6ccaead1f1417b0010",
       "createdAt": "2026-03-24T08:10:09.537Z",
-      "lastLogin": "2026-03-24T15:23:47.561Z"
+      "lastLogin": "2026-03-24T16:17:51.139Z"
+    },
+    {
+      "id": "mn4s90iwi98b2wy56o8",
+      "username": "test2",
+      "passwordHash": "06182ae3d5ae3e28e0d4d7bc7af7ebbc2bf5237f58ee251807f18d45028095476b7738b26c77527793acc96f1881069e2c7475d0ecb0325b2ea1848eb54f9fd3",
+      "salt": "d94713712d9abfd19f68af69640585d8",
+      "createdAt": "2026-03-24T15:41:58.378Z",
+      "lastLogin": "2026-03-24T15:42:02.127Z"
     }
   ]
 }

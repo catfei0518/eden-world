@@ -11,7 +11,7 @@ class UpdateManager {
     constructor() {
         this.db = null;
         this.currentVersion = 'v0.13.0';      // 游戏版本
-        this.resourceVersion = 'v0.12.0';        // 资源包版本（跟随游戏版本）
+        this.resourceVersion = 'v0.1.1';        // 资源包版本（独立管理，仅资源变更时更新）
         this.resources = [];
         this.downloadProgress = 0;
         this.onProgress = null;

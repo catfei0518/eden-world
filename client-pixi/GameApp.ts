@@ -183,11 +183,35 @@ export class GameApp {
             '沼泽': 'swamp',
             '山地': 'mountain',
             '山丘': 'hill',
+            // 英文 terrain type 到纹理 key 的映射
+            'grass': 'grass',
+            'plains': 'plain',
+            'forest': 'forest',
+            'forest_autumn': 'forest_autumn',
+            'forest_winter': 'forest_winter',
+            'desert': 'desert',
+            'ocean': 'ocean',
+            'beach': 'beach',
+            'river': 'river',
+            'lake': 'lake',
+            'swamp': 'swamp',
+            'mountain': 'mountain',
+            'hill': 'hill',
+            // 英文到中文文件名的映射（用于从缓存加载）
+            'img/山丘春.png': 'hill',
+            'img/山丘夏.png': 'hill',
+            'img/山丘秋.png': 'hill',
+            'img/山丘冬.png': 'hill',
+            'img/山丘雪.png': 'hill',
             // 角色纹理
             '亚当': 'adam',
             '夏娃': 'eve',
             // 物品纹理
             '树': 'tree',
+            '森林树木春夏': 'forest_tree',
+            '森林树木秋': 'forest_tree',
+            '森林树木冬': 'forest_tree',
+            '森林树木雪': 'forest_tree',
             '石头': 'stone',
             '灌木': 'bush',
             '灌木果': 'berry',
@@ -198,7 +222,7 @@ export class GameApp {
         // 确保所有需要的纹理都加载了（使用英文key）
         const neededKeys = ['grass', 'plain', 'forest', 'forest_autumn', 'forest_winter', 
                           'desert', 'ocean', 'beach', 'river', 'lake', 'swamp', 'mountain', 'hill',
-                          'adam', 'eve', 'tree', 'stone', 'bush', 'berry', 'bush_flower', 'well'];
+                          'adam', 'eve', 'tree', 'forest_tree', 'stone', 'bush', 'berry', 'bush_flower', 'well'];
         
         for (const texKey of neededKeys) {
             if (this.textures.has(texKey)) continue;  // 已有纹理
@@ -400,6 +424,24 @@ export class GameApp {
         };
         
         const terrainMap = terrainTextures[this.currentSeason] || terrainTextures.summer;
+        
+        // 英文key到中文文件名的映射（用于从缓存加载的纹理）
+        const terrainKeyToFile: Record<string, string> = {
+            'grass': '64x64像素草地春夏',
+            'plain': '64x64像素草平原',
+            'forest': '森林春',
+            'forest_autumn': '森林秋',
+            'forest_winter': '森林冬',
+            'desert': '64x64像素沙漠',
+            'ocean': '海洋',
+            'beach': '沙滩',
+            'river': '河流',
+            'lake': '湖泊春夏秋',
+            'swamp': '沼泽',
+            'mountain': '山地',
+            'hill': '山丘春'
+        };
+        
         const terrainCount: Record<string, number> = {};
         
         for (let y = 0; y < MAP_HEIGHT; y++) {
@@ -417,7 +459,11 @@ export class GameApp {
                 terrainCount[terrainType] = (terrainCount[terrainType] || 0) + 1;
                 
                 const texKey = terrainMap[terrainType] || 'grass';
-                const texture = this.textures.get(texKey);
+                // 如果直接key找不到，尝试用英文key映射到中文文件名
+                let texture = this.textures.get(texKey);
+                if (!texture && terrainKeyToFile[texKey]) {
+                    texture = this.textures.get(terrainKeyToFile[texKey]);
+                }
                 if (!texture) continue;
                 
                 const sprite = new PIXI.Sprite(texture);
@@ -500,8 +546,8 @@ export class GameApp {
         const container = new PIXI.Container();
         
         const sprite = new PIXI.Sprite(tex);
-        // 与单机版一致：ground=40, low=48, high=64
-        const size = type === 'tree' ? 48 : 40;
+        // 森林树和果树比格子大1/3
+        const size = (type === 'tree' || type === 'forest_tree' || type === 'tree_fruit') ? TILE_SIZE * 1.33 : 40;
         sprite.width = size;
         sprite.height = size;
         sprite.anchor.set(0.5);
