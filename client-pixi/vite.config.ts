@@ -5,6 +5,9 @@ export default defineConfig({
     build: {
         outDir: '../dist-client',
         emptyOutDir: true,
+        rollupOptions: {
+            input: './index.html',
+        },
     },
     server: {
         port: 3335,

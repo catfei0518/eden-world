@@ -63,16 +63,22 @@ class EdenServer {
             res.json(this.gameEngine.getState());
         });
         
-        // 静态文件
-        this.app.use(express.static(path.join(__dirname, '../dist-release')));
-        this.app.use('/static', express.static(path.join(__dirname, '../dist-client')));
-        
-        // 客户端HTML
+        // 客户端HTML路由 - 必须放在静态文件之前才能生效
         this.app.get('/client', (req, res) => {
             res.sendFile(path.join(__dirname, '../dist-client/index.html'));
         });
         
-        // SPA fallback
+        // 根路径指向新客户端
+        this.app.get('/', (req, res) => {
+            res.sendFile(path.join(__dirname, '../dist-client/index.html'));
+        });
+        
+        // 静态文件
+        this.app.use('/static', express.static(path.join(__dirname, '../dist-client')));
+        this.app.use('/assets', express.static(path.join(__dirname, '../dist-client/assets')));
+        this.app.use(express.static(path.join(__dirname, '../dist-release')));
+        
+        // SPA fallback (放到最后)
         this.app.get('/{*path}', (req, res) => {
             res.sendFile(path.join(__dirname, '../dist-release/index.html'));
         });

@@ -3,8 +3,8 @@
  */
 
 const TILE_SIZE = 64;
-const MAP_WIDTH = 100;
-const MAP_HEIGHT = 50;
+const MAP_WIDTH = 200;
+const MAP_HEIGHT = 100;
 
 class Character {
     constructor(id, name, x, y) {
@@ -53,17 +53,15 @@ class GameEngine {
     }
     
     generateWorld() {
-        // 生成简单的世界 - 使用图片素材路径
+        // 生成丰富的地形
         const tiles = [];
         for (let y = 0; y < MAP_HEIGHT; y++) {
             const row = [];
             for (let x = 0; x < MAP_WIDTH; x++) {
-                // 使用草平原图片
                 row.push({ 
-                    type: 'grass', 
+                    type: this.getTerrainType(x, y), 
                     x, 
-                    y,
-                    image: '/img/64x64像素草平原.png'
+                    y
                 });
             }
             tiles.push(row);
@@ -267,6 +265,87 @@ class GameEngine {
         };
     }
     
+    
+    getTerrainType(x, y) {
+        const noise2D = (x, y) => {
+            const X = Math.floor(x) & 255;
+            const Y = Math.floor(y) & 255;
+            const xf = x - Math.floor(x);
+            const yf = y - Math.floor(y);
+            const u = xf * xf * xf * (xf * (xf * 6 - 15) + 10);
+            const v = yf * yf * yf * (yf * (yf * 6 - 15) + 10);
+            const n00 = Math.sin(X * 1.5 + Y * 0.7 + xf * 1.3 + yf * 2.1) * 0.5 + 0.5;
+            const n01 = Math.sin(X * 1.5 + (Y+1) * 0.7 + xf * 1.3 + yf * 2.1) * 0.5 + 0.5;
+            const n10 = Math.sin((X+1) * 1.5 + Y * 0.7 + xf * 1.3 + yf * 2.1) * 0.5 + 0.5;
+            const n11 = Math.sin((X+1) * 1.5 + (Y+1) * 0.7 + xf * 1.3 + yf * 2.1) * 0.5 + 0.5;
+            return n00 + (n01 - n00) * v + (n10 - n00) * u + (n00 - n01 - n10 + n11) * u * v;
+        };
+        
+        const fbm = (x, y, octaves, freq, persist) => {
+            let value = 0, amp = 1, maxVal = 0;
+            for (let i = 0; i < octaves; i++) {
+                value += amp * noise2D(x * freq, y * freq);
+                maxVal += amp;
+                amp *= persist;
+                freq *= 2;
+            }
+            return (value / maxVal + 1) / 2;
+        };
+        
+        const baseNoise = fbm(x * 0.04, y * 0.04, 4, 1, 0.5);
+        const detailNoise = fbm(x * 0.1, y * 0.1, 2, 1, 0.5);
+        const height = baseNoise * 0.7 + detailNoise * 0.3;
+        const moisture = fbm(x * 0.03 + 500, y * 0.03, 3, 1, 0.5);
+        const temperature = fbm(x * 0.02 + 1000, y * 0.02, 2, 1, 0.5);
+        
+        const maxOceanDepth = 2;
+        const edgeNoise = fbm(x * 0.2, y * 0.2, 2, 2, 0.5);
+        const oceanLimit = maxOceanDepth + edgeNoise * 1.5;
+        
+        const leftOcean = x < oceanLimit;
+        const bottomOcean = y > 99 - oceanLimit;
+        
+        if (leftOcean || bottomOcean) return 'ocean';
+        if (x < oceanLimit + 1 || y > 99 - oceanLimit - 1) {
+            if (!leftOcean && !bottomOcean) return 'beach';
+        }
+        
+        if (this.isLakeArea(x, y)) return 'lake';
+        if (this.isRiverTile(x, y)) return 'river';
+        if (height > 0.9) return 'mountain';
+        if (height > 0.82) return 'hill';
+        if (temperature > 0.75 && moisture < 0.3) return 'desert';
+        if (moisture > 0.6 && temperature > 0.25 && temperature < 0.7) return 'forest';
+        if (height < 0.62 && moisture > 0.65) return 'swamp';
+        if (moisture > 0.4) return 'grass';
+        return 'plain';
+    }
+    
+    isLakeArea(x, y) {
+        const lakes = [
+            { cx: 60, cy: 40, r: 12 },
+            { cx: 120, cy: 50, r: 10 },
+            { cx: 90, cy: 70, r: 14 },
+            { cx: 150, cy: 35, r: 8 },
+        ];
+        
+        for (const lake of lakes) {
+            const dist = Math.sqrt(Math.pow(x - lake.cx, 2) + Math.pow(y - lake.cy, 2));
+            if (dist < lake.r) {
+                const edgeNoise = Math.sin(x * 0.5) * Math.cos(y * 0.3) * 2;
+                if (dist < lake.r + edgeNoise) return true;
+            }
+        }
+        return false;
+    }
+    
+    isRiverTile(x, y) {
+        if (y < 20 || y > 90) return false;
+        const noise = (a) => Math.sin(a * 0.5) * 0.5 + Math.sin(a * 0.3) * 0.3 + Math.sin(a * 0.7) * 0.2;
+        const riverCenter = 100 + noise(y * 0.3) * 15;
+        const riverWidth = 3 + Math.sin(y * 0.2) * 1;
+        return Math.abs(x - riverCenter) < riverWidth;
+    }
     getState() {
         const chars = Array.from(this.characters.values()).map(c => ({
             id: c.id,
