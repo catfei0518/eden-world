@@ -1,5 +1,10 @@
 /**
- * 服务器WebSocket客户端
+ * 服务器WebSocket客户端 - Latency Compensation版本
+ * 
+ * 支持：
+ * 1. 序列号输入
+ * 2. 输入确认
+ * 3. 实时状态同步
  */
 
 type Callback = (data: any) => void;
@@ -10,6 +15,7 @@ export class EdenServerClient {
     private callbacks: Map<string, Callback[]> = new Map();
     private reconnectDelay = 3000;
     private reconnectTimer: number | null = null;
+    private selectedCharacterId: string | null = null;
     
     constructor(url?: string) {
         // 从当前页面URL推断服务器地址
@@ -74,7 +80,7 @@ export class EdenServerClient {
     }
     
     private handleMessage(message: { type: string; data?: any }) {
-        console.log('📨 收到消息:', message.type);
+        // console.log('📨 收到消息:', message.type);
         
         switch (message.type) {
             case 'init':
@@ -85,6 +91,14 @@ export class EdenServerClient {
                 break;
             case 'sync':
                 this.emit('sync', message.data);
+                break;
+            case 'input_ack':
+                // Latency Compensation: 输入确认
+                this.emit('input_ack', message.data);
+                break;
+            case 'character_selected':
+                this.selectedCharacterId = message.characterId;
+                this.emit('character_selected', message.data);
                 break;
             default:
                 console.log('未知消息类型:', message.type);
@@ -117,5 +131,32 @@ export class EdenServerClient {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify(message));
         }
+    }
+    
+    /**
+     * 发送玩家输入（带序列号）
+     */
+    sendInput(characterId: string, seq: number, input: any) {
+        this.send({
+            type: 'input',
+            characterId,
+            seq,
+            input
+        });
+    }
+    
+    /**
+     * 选择角色
+     */
+    selectCharacter(characterId: string) {
+        this.send({
+            type: 'select_character',
+            characterId
+        });
+        this.selectedCharacterId = characterId;
+    }
+    
+    getSelectedCharacterId(): string | null {
+        return this.selectedCharacterId;
     }
 }

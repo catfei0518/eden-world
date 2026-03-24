@@ -9,6 +9,7 @@ import { Camera } from '../shared/pixi-layers/Camera';
 import { commandSystem } from './CommandSystem';
 import { ItemStatusUI } from '../shared/ui/ItemStatusUI';
 import type { ItemData } from '../shared/ui/ItemStatusUI';
+import { latencyComp, seededRandom } from './LatencyCompensation';
 
 const MAP_WIDTH = 200;
 const HITBOX_SIZE = 48; // 角色点击热区大小
@@ -48,6 +49,10 @@ export class GameApp {
     
     private currentSeason: string = 'summer';
     private textures: Map<string, PIXI.Texture> = new Map();
+    private worldSeed: number = 0;  // Latency Compensation: 世界种子
+    private groundObjectsRendered: boolean = false;  // 物品是否已从服务器渲染
+    private serverTiles: any[][] = [];  // 服务器下发的地形数据
+    private selectedCharacterId: string = 'adam';  // 当前选中的角色
     private characterSprites: Map<string, any> = new Map();
     private terrainSprites: Map<string, PIXI.Sprite> = new Map();
     private groundObjects: PIXI.Sprite[] = [];
@@ -59,6 +64,26 @@ export class GameApp {
     // 物品状态面板
     private itemStatusUI!: ItemStatusUI;
     private itemSprites: Map<string, any> = new Map();
+    
+    // 清除所有精灵（用于重连时）
+    private clearAllSprites(): void {
+        // 清除地形
+        this.terrainSprites.forEach(sprite => sprite.destroy());
+        this.terrainSprites.clear();
+        
+        // 清除物品
+        this.groundObjects.forEach(sprite => sprite.destroy());
+        this.groundObjects = [];
+        
+        // 清除角色
+        this.characterSprites.forEach(sprite => sprite.destroy());
+        this.characterSprites.clear();
+        
+        // 重置标记
+        this.groundObjectsRendered = false;
+        
+        console.log('🧹 已清除所有精灵');
+    }
     
     async init() {
         console.log('🌍 伊甸世界在线版启动...');
@@ -101,46 +126,161 @@ export class GameApp {
             this.camera.clamp();
         });
         
+        // Latency Compensation: 启动更新循环
+        this.app.ticker.add((ticker) => {
+            this.updateRender(ticker.deltaTime);
+        });
+        
         console.log('✅ 初始化完成');
     }
     
     private async loadTextures() {
         console.log('📦 加载纹理...');
         
-        const sources: Record<string, string> = {
-            'grass': '/img/64x64像素草地春夏.png',
-            'plain': '/img/64x64像素草平原.png',
-            'forest': '/img/64x64像素森林春夏.png',
-            'forest_autumn': '/img/64x64像素森林秋.png',
-            'forest_winter': '/img/64x64像素森林冬.png',
-            'desert': '/img/64x64像素沙漠.png',
-            'ocean': '/img/海洋.png',
-            'beach': '/img/沙滩.png',
-            'river': '/img/河流.png',
-            'lake': '/img/湖泊春夏秋.png',
-            'swamp': '/img/沼泽.png',
-            'mountain': '/img/山地.png',
-            'hill': '/img/山丘.png',
-            'adam': '/img/亚当.png',
-            'eve': '/img/夏娃.png',
-            'berry': '/img/灌木果.png',
-            'bush': '/img/灌木.png',
-            'bush_flower': '/img/灌木花.png',
-            'water': '/img/河流.png',
-            'well': '/img/井.png',
-            // 地面物品
-            'tree': '/img/树.png',
-            'stone': '/img/石头.png',
+        // 尝试从 IndexedDB 加载本地资源
+        const localResources = await this.loadLocalResources();
+        
+        if (!localResources) {
+            console.error('❌ 本地资源不存在，请先下载资源包！');
+            alert('错误：本地资源未找到！请返回登录页下载资源包。');
+            throw new Error('本地资源未找到');
+        }
+        
+        // 加载本地资源（只加载图片类型的资源）
+        for (const [key, data] of Object.entries(localResources)) {
+            // 跳过非图片资源（manifest, version等）
+            if (!key.startsWith('img/')) continue;
+            if (!(data instanceof Blob)) continue;
+            
+            try {
+                // 使用 createImageBitmap 转换 Blob 为图片源
+                const bitmap = await createImageBitmap(data);
+                const texture = PIXI.Texture.from(bitmap);
+                // 提取纹理key（去掉img/前缀）
+                const texKey = key.replace('img/', '').replace('.png', '');
+                this.textures.set(texKey, texture);
+                console.log(`✅ ${texKey} (本地)`);
+            } catch (e) {
+                console.error(`❌ 加载失败: ${key}`, e);
+            }
+        }
+        
+        // 映射纹理到正确key（确保英文key也有对应纹理）
+        const textureMap: Record<string, string> = {
+            // 地形纹理
+            '64x64像素草地春夏': 'grass',
+            '64x64像素草平原': 'plain',
+            '森林春': 'forest',
+            '森林夏': 'forest',
+            '森林秋': 'forest_autumn',
+            '森林冬': 'forest_winter',
+            '森林雪': 'forest_winter',
+            '64x64像素沙漠': 'desert',
+            '海洋': 'ocean',
+            '沙滩': 'beach',
+            '河流': 'river',
+            '湖泊春夏秋': 'lake',
+            '沼泽': 'swamp',
+            '山地': 'mountain',
+            '山丘': 'hill',
+            // 角色纹理
+            '亚当': 'adam',
+            '夏娃': 'eve',
+            // 物品纹理
+            '树': 'tree',
+            '石头': 'stone',
+            '灌木': 'bush',
+            '灌木果': 'berry',
+            '灌木花': 'bush_flower',
+            '井': 'well'
         };
         
-        for (const [key, path] of Object.entries(sources)) {
-            try {
-                const tex = await PIXI.Assets.load(path);
-                this.textures.set(key, tex);
-                console.log(`✅ ${key}`);
-            } catch (e) {
-                console.error(`❌ ${key}: ${path}`);
+        // 确保所有需要的纹理都加载了（使用英文key）
+        const neededKeys = ['grass', 'plain', 'forest', 'forest_autumn', 'forest_winter', 
+                          'desert', 'ocean', 'beach', 'river', 'lake', 'swamp', 'mountain', 'hill',
+                          'adam', 'eve', 'tree', 'stone', 'bush', 'berry', 'bush_flower', 'well'];
+        
+        for (const texKey of neededKeys) {
+            if (this.textures.has(texKey)) continue;  // 已有纹理
+            
+            // 查找对应的中文名
+            for (const [cnName, enKey] of Object.entries(textureMap)) {
+                if (enKey === texKey) {
+                    const imgKey = `img/${cnName}.png`;
+                    if (localResources[imgKey] instanceof Blob) {
+                        try {
+                            // 使用 createImageBitmap 转换 Blob 为图片源
+                            const bitmap = await createImageBitmap(localResources[imgKey]);
+                            const texture = PIXI.Texture.from(bitmap);
+                            this.textures.set(texKey, texture);
+                            console.log(`✅ ${texKey} (本地)`);
+                        } catch (e) {
+                            console.error(`❌ 加载失败: ${texKey}`);
+                        }
+                    }
+                    break;
+                }
             }
+        }
+        
+        // 调试：打印已加载的纹理
+        console.log('📦 已加载纹理:', Array.from(this.textures.keys()).join(', '));
+        
+        console.log('📦 纹理加载完成');
+    }
+    
+    // 从 IndexedDB 加载本地资源
+    private async loadLocalResources(): Promise<Record<string, Blob | null> | null> {
+        try {
+            const DB_NAME = 'eden_world_cache';
+            const STORE_NAME = 'resources';
+            
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, 2);
+                
+                request.onerror = () => {
+                    console.error('❌ 无法打开本地数据库');
+                    resolve(null);
+                };
+                
+                request.onsuccess = () => {
+                    const db = request.result;
+                    const transaction = db.transaction([STORE_NAME], 'readonly');
+                    const store = transaction.objectStore(STORE_NAME);
+                    const getAllRequest = store.getAll();
+                    
+                    getAllRequest.onsuccess = () => {
+                        const items = getAllRequest.result || [];
+                        if (items.length === 0) {
+                            console.error('❌ 本地缓存为空');
+                            resolve(null);
+                            return;
+                        }
+                        
+                        const resources: Record<string, Blob | null> = {};
+                        for (const item of items) {
+                            if (item.key && item.data) {
+                                resources[item.key] = item.data;
+                            }
+                        }
+                        
+                        console.log(`📦 从本地加载了 ${items.length} 个资源`);
+                        resolve(resources);
+                    };
+                    
+                    getAllRequest.onerror = () => {
+                        console.error('❌ 读取本地资源失败');
+                        resolve(null);
+                    };
+                };
+                
+                request.onupgradeneeded = () => {
+                    resolve(null);
+                };
+            });
+        } catch (e) {
+            console.error('❌ 加载本地资源失败:', e);
+            return null;
         }
     }
     
@@ -157,19 +297,71 @@ export class GameApp {
         
         this.server.on('init', (state) => {
             console.log('📊 收到初始状态');
+            
+            // 重连时清除旧的精灵和状态
+            this.clearAllSprites();
+            // 清除延迟补偿状态
+            latencyComp.reset();
+            
+            // Latency Compensation: 初始化 - 先设置数据
+            if (state.world?.worldSeed) {
+                this.worldSeed = state.world.worldSeed;
+            }
+            
+            // 存储服务器的地形数据 - 这要在syncState之前设置
+            if (state.world?.tiles) {
+                this.serverTiles = state.world.tiles;
+                console.log(`🗺️ 收到服务器地形: ${this.serverTiles.length}x${this.serverTiles[0]?.length}`);
+                console.log(`🗺️ 地形类型: ${[...new Set(this.serverTiles.flat().map(t => t.type))].join(', ')}`);
+            } else {
+                console.log('❌ 未收到服务器地形，使用本地生成');
+            }
+            
+            // 渲染地面物品（从服务器数据）- 在syncState之前
+            if (state.world?.groundObjects) {
+                console.log(`📦 收到服务器物品: ${state.world.groundObjects.length}个`);
+            }
+            
+            // 先渲染地形（使用服务器数据）
+            if (state.world?.tiles) {
+                console.log('🗺️ 开始渲染地形...');
+                this.renderTerrain();
+                console.log('🗺️ 地形渲染完成');
+            }
+            
+            // 现在调用syncState渲染角色
             this.syncState(state);
+            
+            // 渲染地面物品（从服务器数据）
+            if (state.world?.groundObjects) {
+                this.renderGroundObjectsFromServer(state.world.groundObjects);
+            } else {
+                console.log('❌ 未收到服务器物品');
+            }
+            
             // 相机跟随第一个角色
             if (state.characters && state.characters.length > 0) {
+                // 先设置本地玩家ID
+                this.selectedCharacterId = state.characters[0].id;
+                latencyComp.setLocalPlayerId(this.selectedCharacterId);
+                // 再相机跟随
                 this.cameraFollow(state.characters[0]);
             }
         });
         
+        // Latency Compensation: 输入确认
+        this.server.on('input_ack', (data) => {
+            latencyComp.acknowledgeInput(data.seq);
+        });
+        
         this.server.on('state', (state) => {
-            this.syncState(state);
-            // 相机跟随第一个角色
-            if (state.characters && state.characters.length > 0) {
-                this.cameraFollow(state.characters[0]);
-            }
+            // Latency Compensation: 更新状态用于协调
+            latencyComp.updateWithServerState(state);
+            
+            // 观察模式：禁用自动相机跟随，允许用户自由拖动
+            // if (state.characters && state.characters.length > 0) {
+            //     this.cameraFollow(state.characters[0]);
+            // }
         });
         
         this.server.connect();
@@ -187,12 +379,24 @@ export class GameApp {
         }
     }
     
+    // Latency Compensation: 更新渲染
+    private updateRender(deltaTime: number) {
+        // 对其他玩家使用实体插值
+        for (const [id, container] of this.characterSprites) {
+            const interpolated = latencyComp.getInterpolatedPosition(id);
+            if (interpolated) {
+                container.x = interpolated.x * TILE_SIZE + TILE_SIZE / 2;
+                container.y = interpolated.y * TILE_SIZE + TILE_SIZE / 2;
+            }
+        }
+    }
+    
     private renderTerrain() {
         const terrainTextures: Record<string, Record<string, string>> = {
-            spring: { grass: 'grass', plain: 'plain', forest: 'forest', desert: 'desert', ocean: 'ocean', beach: 'beach', river: 'river', lake: 'lake', swamp: 'swamp', mountain: 'mountain', hill: 'hill' },
-            summer: { grass: 'grass', plain: 'plain', forest: 'forest', desert: 'desert', ocean: 'ocean', beach: 'beach', river: 'river', lake: 'lake', swamp: 'swamp', mountain: 'mountain', hill: 'hill' },
-            autumn: { grass: 'grass', plain: 'plain', forest: 'forest', desert: 'desert', ocean: 'ocean', beach: 'beach', river: 'river', lake: 'lake', swamp: 'swamp', mountain: 'mountain', hill: 'hill' },
-            winter: { grass: 'grass', plain: 'plain', forest: 'forest_winter', desert: 'desert', ocean: 'ocean', beach: 'beach', river: 'river', lake: 'lake', swamp: 'swamp', mountain: 'mountain', hill: 'hill' }
+            spring: { grass: 'grass', plains: 'plain', forest: 'forest', desert: 'desert', ocean: 'ocean', beach: 'beach', river: 'river', lake: 'lake', swamp: 'swamp', mountain: 'mountain', hill: 'hill' },
+            summer: { grass: 'grass', plains: 'plain', forest: 'forest', desert: 'desert', ocean: 'ocean', beach: 'beach', river: 'river', lake: 'lake', swamp: 'swamp', mountain: 'mountain', hill: 'hill' },
+            autumn: { grass: 'grass', plains: 'plain', forest: 'forest', desert: 'desert', ocean: 'ocean', beach: 'beach', river: 'river', lake: 'lake', swamp: 'swamp', mountain: 'mountain', hill: 'hill' },
+            winter: { grass: 'grass', plains: 'plain', forest: 'forest_winter', desert: 'desert', ocean: 'ocean', beach: 'beach', river: 'river', lake: 'lake', swamp: 'swamp', mountain: 'mountain', hill: 'hill' }
         };
         
         const terrainMap = terrainTextures[this.currentSeason] || terrainTextures.summer;
@@ -203,7 +407,13 @@ export class GameApp {
                 const key = `${x},${y}`;
                 if (this.terrainSprites.has(key)) continue;
                 
-                const terrainType = this.getTerrainType(x, y);
+                // 优先使用服务器的地形数据
+                let terrainType: string;
+                if (this.serverTiles && this.serverTiles[y] && this.serverTiles[y][x]) {
+                    terrainType = this.serverTiles[y][x].type;
+                } else {
+                    terrainType = this.getTerrainType(x, y);
+                }
                 terrainCount[terrainType] = (terrainCount[terrainType] || 0) + 1;
                 
                 const texKey = terrainMap[terrainType] || 'grass';
@@ -222,37 +432,68 @@ export class GameApp {
         }
         console.log('🗺️ 地形统计:', terrainCount);
         
-        // 渲染地面物品（树、灌木、石头）
-        this.renderGroundObjects();
+        // 物品渲染：在收到服务器数据后处理，不在这里渲染
     }
     
-    private renderGroundObjects() {
-        // 树、灌木、石头根据地形类型生成
+    // Latency Compensation: 从服务器数据渲染物品
+    private renderGroundObjectsFromServer(groundObjects: any[]) {
+        if (!groundObjects || groundObjects.length === 0) return;
+        
+        this.groundObjectsRendered = true;  // 标记已渲染
+        for (const obj of groundObjects) {
+            this.addGroundObject(obj.x, obj.y, obj.type, obj.durability, obj.maxDurability);
+        }
+    }
+    
+    private renderGroundObjects(groundObjects?: any[]) {
+        // 在线模式：只使用服务器数据，不本地生成
+        // 如果已经从服务器渲染过，跳过
+        if (this.groundObjectsRendered) {
+            return;
+        }
+        
+        // 如果有服务器物品数据，使用服务器的数据
+        if (groundObjects && groundObjects.length > 0) {
+            for (const obj of groundObjects) {
+                this.addGroundObject(obj.x, obj.y, obj.type, obj.durability, obj.maxDurability);
+            }
+            this.groundObjectsRendered = true;
+            return;
+        }
+        
+        // 如果有世界种子但没有服务器数据，不生成物品（在线模式必须用服务器数据）
+        console.log('🕐 等待服务器物品数据...');
+    }
+    
+    // Latency Compensation: 确定性生成物品
+    private renderGroundObjectsSeeded() {
+        // 确定性生成（与服务器一致）
         for (let y = 0; y < MAP_HEIGHT; y++) {
             for (let x = 0; x < MAP_WIDTH; x++) {
                 const terrainType = this.getTerrainType(x, y);
+                const rand = seededRandom(this.worldSeed, x, y);
                 
-                // 森林地形生成树
-                if (terrainType === 'forest' && Math.random() < 0.15) {
+                // 森林：树 (15%概率)
+                if (terrainType === 'forest' && rand < 0.15) {
                     this.addGroundObject(x, y, 'tree');
                 }
-                // 草地生成灌木
-                else if (terrainType === 'grass' && Math.random() < 0.05) {
+                // 草地/平原：灌木 (8%概率)
+                else if ((terrainType === 'grass' || terrainType === 'plains') && rand < 0.08) {
                     this.addGroundObject(x, y, 'bush');
                 }
-                // 山地生成石头
-                else if (terrainType === 'mountain' && Math.random() < 0.1) {
-                    this.addGroundObject(x, y, 'stone');
+                // 山地/丘陵：石头 (10%概率)
+                else if ((terrainType === 'mountain' || terrainType === 'hill') && rand < 0.10) {
+                    this.addGroundObject(x, y, 'rock');
                 }
-                // 丘陵生成石头
-                else if (terrainType === 'hill' && Math.random() < 0.05) {
-                    this.addGroundObject(x, y, 'stone');
+                // 海滩：贝壳 (3%概率)
+                else if (terrainType === 'beach' && rand < 0.03) {
+                    this.addGroundObject(x, y, 'shell');
                 }
             }
         }
     }
     
-    private addGroundObject(x: number, y: number, type: string) {
+    private addGroundObject(x: number, y: number, type: string, durability?: number, maxDurability?: number) {
         const tex = this.textures.get(type);
         if (!tex) return;
         
@@ -266,14 +507,14 @@ export class GameApp {
         sprite.anchor.set(0.5);
         container.addChild(sprite);
         
-        // 创建物品数据
+        // 创建物品数据（保存格子坐标用于显示）
         const itemData: ItemData = {
             type: type,
             x: x,
             y: y,
             layer: 'ground',
-            durability: type === 'bush' || type === 'berry' ? 100 : 0,
-            maxDurability: type === 'bush' || type === 'berry' ? 100 : 0
+            durability: durability ?? (type === 'bush' || type === 'berry' ? 100 : 0),
+            maxDurability: maxDurability ?? (type === 'bush' || type === 'berry' ? 100 : 0)
         };
         
         // 创建点击热区
@@ -291,7 +532,7 @@ export class GameApp {
         
         container.addChild(hitbox);
         
-        // 设置位置
+        // 设置位置（需要转像素坐标）
         container.x = x * TILE_SIZE + TILE_SIZE / 2;
         container.y = y * TILE_SIZE + TILE_SIZE / 2;
         container.zIndex = 2; // 在地形上面，角色下面
@@ -307,84 +548,93 @@ export class GameApp {
     }
     
     private getTerrainType(x: number, y: number): string {
-        const noise2D = (x: number, y: number) => {
-            const X = Math.floor(x) & 255;
-            const Y = Math.floor(y) & 255;
-            const xf = x - Math.floor(x);
-            const yf = y - Math.floor(y);
-            const u = xf * xf * xf * (xf * (xf * 6 - 15) + 10);
-            const v = yf * yf * yf * (yf * (yf * 6 - 15) + 10);
-            const n00 = Math.sin(X * 1.5 + Y * 0.7 + xf * 1.3 + yf * 2.1) * 0.5 + 0.5;
-            const n01 = Math.sin(X * 1.5 + (Y+1) * 0.7 + xf * 1.3 + yf * 2.1) * 0.5 + 0.5;
-            const n10 = Math.sin((X+1) * 1.5 + Y * 0.7 + xf * 1.3 + yf * 2.1) * 0.5 + 0.5;
-            const n11 = Math.sin((X+1) * 1.5 + (Y+1) * 0.7 + xf * 1.3 + yf * 2.1) * 0.5 + 0.5;
-            return n00 + (n01 - n00) * v + (n10 - n00) * u + (n00 - n01 - n10 + n11) * u * v;
+        // 与服务器一致的地形生成
+        const hash = (px: number, py: number) => {
+            const n = Math.sin(px * 12.9898 + py * 78.233) * 43758.5453;
+            return n - Math.floor(n);
         };
         
-        const fbm = (x: number, y: number, octaves: number, freq: number, persist: number) => {
-            let value = 0, amp = 1, maxVal = 0;
+        const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+        const smoothstep = (t: number) => t * t * (3 - 2 * t);
+        
+        const noise2D = (px: number, py: number) => {
+            const ix = Math.floor(px);
+            const iy = Math.floor(py);
+            const fx = px - ix;
+            const fy = py - iy;
+            const sx = smoothstep(fx);
+            const sy = smoothstep(fy);
+            
+            const n00 = hash(ix, iy);
+            const n10 = hash(ix + 1, iy);
+            const n01 = hash(ix, iy + 1);
+            const n11 = hash(ix + 1, iy + 1);
+            
+            const nx0 = lerp(n00, n10, sx);
+            const nx1 = lerp(n01, n11, sx);
+            return lerp(nx0, nx1, sy);
+        };
+        
+        const fbm = (px: number, py: number, octaves: number) => {
+            let value = 0, amplitude = 1, frequency = 1, maxValue = 0;
             for (let i = 0; i < octaves; i++) {
-                value += amp * noise2D(x * freq, y * freq);
-                maxVal += amp;
-                amp *= persist;
-                freq *= 2;
+                value += amplitude * noise2D(px * frequency, py * frequency);
+                maxValue += amplitude;
+                amplitude *= 0.5;
+                frequency *= 2;
             }
-            return (value / maxVal + 1) / 2;
+            return value / maxValue;
         };
         
-        const baseNoise = fbm(x * 0.04, y * 0.04, 4, 1, 0.5);
-        const detailNoise = fbm(x * 0.1, y * 0.1, 2, 1, 0.5);
-        const height = baseNoise * 0.7 + detailNoise * 0.3;
-        const moisture = fbm(x * 0.03 + 500, y * 0.03, 3, 1, 0.5);
-        const temperature = fbm(x * 0.02 + 1000, y * 0.02, 2, 1, 0.5);
+        const scale = 0.02;
+        const elevation = fbm(x * scale, y * scale, 4);
+        const moisture = fbm(x * scale + 100, y * scale + 100, 3);
         
-        const maxOceanDepth = 2;
-        const edgeNoise = fbm(x * 0.2, y * 0.2, 2, 2, 0.5);
-        const oceanLimit = maxOceanDepth + edgeNoise * 1.5;
-        
-        const leftOcean = x < oceanLimit;
-        const bottomOcean = y > 99 - oceanLimit;
-        
-        if (leftOcean || bottomOcean) return 'ocean';
-        if (x < oceanLimit + 1 || y > 99 - oceanLimit - 1) {
-            if (!leftOcean && !bottomOcean) return 'beach';
-        }
-        
+        // 湖泊（优先）
         if (this.isLakeArea(x, y)) return 'lake';
+        
+        // 河流
         if (this.isRiverTile(x, y)) return 'river';
-        if (height > 0.9) return 'mountain';
-        if (height > 0.82) return 'hill';
-        if (temperature > 0.75 && moisture < 0.3) return 'desert';
-        if (moisture > 0.6 && temperature > 0.25 && temperature < 0.7) return 'forest';
-        if (height < 0.62 && moisture > 0.65) return 'swamp';
-        if (moisture > 0.4) return 'grass';
-        return 'plain';
+        
+        // 基础地形
+        if (elevation < 0.35) return 'ocean';
+        if (elevation < 0.40) return 'beach';
+        if (elevation > 0.70) return 'mountain';
+        if (elevation > 0.60) return 'hill';
+        if (moisture > 0.6) return 'forest';
+        if (moisture > 0.5) return 'grass';
+        return 'plains';
     }
     
     private isLakeArea(x: number, y: number): boolean {
         const lakes = [
-            { cx: 60, cy: 40, r: 12 },
-            { cx: 120, cy: 50, r: 10 },
-            { cx: 90, cy: 70, r: 14 },
-            { cx: 150, cy: 35, r: 8 },
+            { cx: 30, cy: 30, r: 8 },
+            { cx: 80, cy: 50, r: 10 },
+            { cx: 140, cy: 40, r: 12 },
+            { cx: 160, cy: 70, r: 6 }
         ];
         
         for (const lake of lakes) {
-            const dist = Math.sqrt(Math.pow(x - lake.cx, 2) + Math.pow(y - lake.cy, 2));
-            if (dist < lake.r) {
-                const edgeNoise = Math.sin(x * 0.5) * Math.cos(y * 0.3) * 2;
-                if (dist < lake.r + edgeNoise) return true;
-            }
+            const dist = Math.sqrt((x - lake.cx) ** 2 + (y - lake.cy) ** 2);
+            if (dist < lake.r) return true;
         }
         return false;
     }
     
     private isRiverTile(x: number, y: number): boolean {
-        if (y < 20 || y > 90) return false;
-        const noise = (a: number) => Math.sin(a * 0.5) * 0.5 + Math.sin(a * 0.3) * 0.3 + Math.sin(a * 0.7) * 0.2;
-        const riverCenter = 100 + noise(y * 0.3) * 15;
-        const riverWidth = 3 + Math.sin(y * 0.2) * 1;
-        return Math.abs(x - riverCenter) < riverWidth;
+        const rivers = [
+            { x1: 50, y1: 0, x2: 60, y2: 100 },
+            { x1: 120, y1: 0, x2: 110, y2: 100 },
+            { x1: 180, y1: 0, x2: 170, y2: 100 }
+        ];
+        
+        for (const river of rivers) {
+            const riverWidth = 2;
+            const t = y / 100;
+            const riverX = river.x1 + (river.x2 - river.x1) * t;
+            if (Math.abs(x - riverX) < riverWidth) return true;
+        }
+        return false;
     }
     
     private cameraFollow(char: ServerCharacter) {
@@ -409,15 +659,47 @@ export class GameApp {
         }
         
         if (data.x !== null && data.y !== null) {
-            const worldX = data.x * TILE_SIZE + TILE_SIZE / 2;
-            const worldY = data.y * TILE_SIZE + TILE_SIZE / 2;
-            // 设置container的位置（不是sprite的位置）
-            container.x = worldX;
-            container.y = worldY;
+            // 调试：记录角色像素位置
+            const pixelX = data.x * TILE_SIZE + TILE_SIZE / 2;
+            const pixelY = data.y * TILE_SIZE + TILE_SIZE / 2;
+            if (data.id === 'adam') {
+                console.log(`🎭 亚当位置: tile=(${data.x}, ${data.y}), pixel=(${pixelX}, ${pixelY})`);
+            }
+            // Latency Compensation: 使用服务器确认的位置
+            // 对于本地玩家，使用协调后的位置；对于其他玩家使用插值位置
+            if (data.id === this.selectedCharacterId) {
+                // 本地玩家：使用协调后的位置
+                const reconciled = latencyComp.getReconciledPosition(data.x, data.y);
+                container.x = reconciled.x * TILE_SIZE + TILE_SIZE / 2;
+                container.y = reconciled.y * TILE_SIZE + TILE_SIZE / 2;
+            } else {
+                // 其他玩家：位置由updateRender中的插值处理
+                // 这里只设置当前位置作为基准
+                container.x = data.x * TILE_SIZE + TILE_SIZE / 2;
+                container.y = data.y * TILE_SIZE + TILE_SIZE / 2;
+            }
         }
         container.zIndex = 10;
-        // 与单机版一致：显示 "角色名: 动作"
-        (container as any).label.text = `${data.name}: ${data.action || '闲置'}`;
+        
+        // 根据角色状态显示文字（与单机版一致）
+        const hunger = data.hunger || 50;
+        const thirst = data.thirst || 50;
+        const energy = data.energy || 5;
+        
+        let statusText = '移动';
+        if (thirst < 30) statusText = '很渴';
+        else if (hunger < 30) statusText = '很饿';
+        else if (thirst < 50) statusText = '口渴';
+        else if (hunger < 50) statusText = '饥饿';
+        else if (energy < 2) statusText = '疲惫';
+        else if (data.action === '饮水中') statusText = '饮水';
+        else if (data.action === '进食中') statusText = '进食';
+        else if (data.action === '休息中') statusText = '休息';
+        else if (data.action === '闲置') statusText = '待机';
+        else if (data.action?.includes('寻找')) statusText = '探索';
+        
+        // 显示 "角色名: 状态"
+        (container as any).label.text = `${data.name}: ${statusText}`;
     }
     
     private createCharacterSprite(data: ServerCharacter) {
@@ -519,6 +801,14 @@ export class GameApp {
             }
             this.camera.clamp();
         });
+        
+        // 点击画布移动角色
+        this.app.stage.eventMode = 'static';
+        this.app.stage.hitArea = this.app.screen;
+        // 观察游戏模式：点击地图不移动角色，只显示信息
+        this.app.stage.on('pointerdown', (event) => {
+            this.handleMapClick(event.global.x, event.global.y);
+        });
     }
     
     private setupConsole() {
@@ -570,6 +860,23 @@ export class GameApp {
             
             this.selectedCharacter = char;
             
+            // 根据角色状态获取状态图标
+            const hunger = char.hunger || 50;
+            const thirst = char.thirst || 50;
+            const energy = char.energy || 5;
+            
+            let statusIcon = '🚶';
+            if (thirst < 30) statusIcon = '💧很渴';
+            else if (hunger < 30) statusIcon = '🍖很饿';
+            else if (thirst < 50) statusIcon = '💧口渴';
+            else if (hunger < 50) statusIcon = '🍖饥饿';
+            else if (energy < 2) statusIcon = '😴疲惫';
+            else if (char.action === '饮水中') statusIcon = '💧饮水';
+            else if (char.action === '进食中') statusIcon = '🍖进食';
+            else if (char.action === '休息中') statusIcon = '💤休息';
+            else if (char.action === '闲置') statusIcon = '🧘待机';
+            else if (char.action?.includes('寻找')) statusIcon = '🔍探索';
+            
             // 更新面板内容
             const nameElem = document.getElementById('panel-name');
             const typeElem = document.getElementById('panel-type');
@@ -585,6 +892,10 @@ export class GameApp {
             const healthVal = document.getElementById('panel-health-val');
             const actionElem = document.getElementById('panel-action');
             const dnaContainer = document.getElementById('panel-dna-attrs');
+            const statusIconElem = document.getElementById('status-icon');
+            
+            // 更新状态图标
+            if (statusIconElem) statusIconElem.textContent = statusIcon;
             
             if (nameElem) nameElem.textContent = char.name;
             if (typeElem) typeElem.textContent = char.id === 'adam' ? '亚当' : '夏娃';
@@ -665,6 +976,29 @@ export class GameApp {
         this.itemStatusUI = new ItemStatusUI();
     }
     
+    // Latency Compensation: 处理地图点击，发送移动输入
+    private handleMapClick(screenX: number, screenY: number) {
+        // 观察模式：点击地图显示位置信息，但不移动角色
+        try {
+            if (!this.camera || !this.camera.target || !this.camera.offset) {
+                return;
+            }
+            const worldX = (this.camera.target.x - this.camera.offset.x + screenX) / this.camera.zoom;
+            const worldY = (this.camera.target.y - this.camera.offset.y + screenY) / this.camera.zoom;
+            const tileX = Math.floor(worldX / TILE_SIZE);
+            const tileY = Math.floor(worldY / TILE_SIZE);
+            console.log(`🗺️ 点击位置: tile=(${tileX}, ${tileY})`);
+        } catch (e) {
+            // 忽略点击错误
+        }
+    }
+    
+    // 观察模式：发送移动输入（保留但不调用）
+    private sendMoveInput(targetX: number, targetY: number) {
+        // 观察游戏模式：禁用移动输入
+        console.log(`🗺️ 观察模式：移动到 (${targetX}, ${targetY}) 已禁用`);
+    }
+    
     private showItemStatus(item: ItemData) {
         // 使用 setTimeout 避免 PIXI 事件循环干扰
         setTimeout(() => {
@@ -673,11 +1007,43 @@ export class GameApp {
     }
 }
 
-let initialized = false;
+// 验证 token
+export async function validateToken(): Promise<boolean> {
+    const urlParams = new URLSearchParams(window.location.search);
+    let token = urlParams.get('token');
+    
+    if (!token) {
+        token = localStorage.getItem('eden_token') || undefined;
+    }
+    
+    if (!token) {
+        console.warn('⚠️ 没有 token，跳转到登录页');
+        window.location.href = '/';
+        return false;
+    }
+    
+    try {
+        const res = await fetch('/api/user/profile', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!res.ok) {
+            console.warn('⚠️ token 无效，跳转到登录页');
+            localStorage.removeItem('eden_token');
+            window.location.href = '/';
+            return false;
+        }
+        
+        localStorage.setItem('eden_token', token);
+        return true;
+    } catch (e) {
+        console.error('❌ token 验证失败:', e);
+        window.location.href = '/';
+        return false;
+    }
+}
 
-document.addEventListener('DOMContentLoaded', async () => {
-    if (initialized) return;
-    initialized = true;
-    console.log('🚀 启动伊甸世界在线版...');
-    await new GameApp().init();
-});
+// 跳转到登录页
+export function redirectToLogin() {
+    window.location.href = '/?redirect=client';
+}

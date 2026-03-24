@@ -7,48 +7,12 @@ const express = require('express');
 const { WebSocketServer } = require('ws');
 const http = require('http');
 const path = require('path');
-const fs = require('fs');
-const crypto = require('crypto');
 const { LLMProxy } = require('./llm-proxy');
 const { GameEngine } = require('./game-engine');
 const auth = require('./auth');
 
 const PORT = 3333;
-const GAME_VERSION = 'v0.13.0';
-
-// 资源文件哈希表（启动时生成）
-const RESOURCE_HASHES = {};
-
-// 计算文件MD5
-function computeFileHash(filePath) {
-    try {
-        const buffer = fs.readFileSync(filePath);
-        return crypto.createHash('md5').update(buffer).digest('hex');
-    } catch (e) {
-        return null;
-    }
-}
-
-// 扫描资源目录并生成哈希表
-function scanResourceHashes() {
-    const imgDir = path.join(__dirname, '../shared/textures/img');
-    if (!fs.existsSync(imgDir)) return;
-    
-    const files = fs.readdirSync(imgDir);
-    for (const file of files) {
-        if (file.endsWith('.png') || file.endsWith('.jpg') || file.endsWith('.jpeg')) {
-            const filePath = path.join(imgDir, file);
-            const hash = computeFileHash(filePath);
-            if (hash) {
-                RESOURCE_HASHES[`img/${file}`] = hash;
-            }
-        }
-    }
-    console.log(`📦 资源哈希已更新: ${Object.keys(RESOURCE_HASHES).length} 个文件`);
-}
-
-// 启动时扫描哈希
-scanResourceHashes();
+const GAME_VERSION = 'v0.12.0';
 
 class EdenServer {
     constructor() {
@@ -116,23 +80,15 @@ class EdenServer {
         
         // 资源清单（用于检查更新）
         this.app.get('/api/resources', (req, res) => {
-            // 动态生成资源列表（带哈希）
-            const resources = Object.entries(RESOURCE_HASHES).map(([key, hash]) => ({
-                key,
-                url: `/${key}`,
-                type: 'image',
-                hash
-            }));
-            
-            const versionInfo = auth.getVersionInfo();
-            
             res.json({
                 version: GAME_VERSION,
-                resourceVersion: versionInfo.resourceVersion,
                 updateTime: '2024-03-24',
-                resources,
+                resources: [
+                    { key: 'textures', version: '1.0.0', size: '~50MB', type: 'asset' },
+                    { key: 'audio', version: '1.0.0', size: '~10MB', type: 'asset' },
+                    { key: 'shaders', version: '1.0.0', size: '~1MB', type: 'asset' }
+                ],
                 patches: [
-                    { from: 'v0.12.0', to: 'v0.13.0', size: '~2MB', description: '资源缓存+增量更新+新森林纹理' },
                     { from: 'v0.11.0', to: 'v0.12.0', size: '~5MB', description: 'DNA系统+物品面板' }
                 ]
             });
@@ -227,7 +183,6 @@ class EdenServer {
         this.app.use('/static', express.static(path.join(__dirname, '../dist-client')));
         this.app.use('/assets', express.static(path.join(__dirname, '../dist-client/assets')));
         this.app.use('/lobby-assets', express.static(path.join(__dirname, '../client-lobby')));
-        this.app.use('/img', express.static(path.join(__dirname, '../shared/textures/img')));
         this.app.use(express.static(path.join(__dirname, '../dist-release')));
         
         // SPA fallback (放到最后)
@@ -237,9 +192,6 @@ class EdenServer {
     }
     
     setupWebSocket() {
-        // 玩家WebSocket -> 角色ID映射
-        this.playerCharacterMap = new Map();
-        
         this.wss.on('connection', (ws) => {
             console.log('🔌 玩家连接');
             
@@ -254,65 +206,32 @@ class EdenServer {
             
             ws.on('close', () => {
                 console.log('🔌 玩家断开');
-                this.playerCharacterMap.delete(ws);
             });
             
-            // 发送初始状态（包含世界种子）
+            // 发送初始状态
             ws.send(JSON.stringify({
                 type: 'init',
                 data: this.gameEngine.getState()
             }));
         });
-        
-        // 启动游戏循环 - 固定20fps
-        const TICK_RATE = 200;  // 200ms = 5fps (观察游戏不需要频繁更新)
-        setInterval(() => {
-            this.gameEngine.update();
-            this.broadcastState();
-        }, TICK_RATE);
     }
     
     handlePlayerMessage(ws, data) {
         switch (data.type) {
-            case 'input':
-                // Latency Compensation: 处理玩家输入（带序列号）
-                if (data.characterId && data.seq !== undefined && data.input) {
-                    this.gameEngine.handleInput(data.characterId, data.seq, data.input);
-                    this.playerCharacterMap.set(ws, data.characterId);
-                    
-                    // 立即发送确认
-                    ws.send(JSON.stringify({
-                        type: 'input_ack',
-                        seq: data.seq,
-                        characterId: data.characterId,
-                        timestamp: Date.now()
-                    }));
-                }
+            case 'action':
+                this.gameEngine.handlePlayerAction(data.action);
                 break;
             case 'select_character':
-                // 选择角色
-                const char = this.gameEngine.characters.get(data.characterId);
-                if (char) {
-                    this.playerCharacterMap.set(ws, data.characterId);
-                    ws.send(JSON.stringify({
-                        type: 'character_selected',
-                        characterId: data.characterId,
-                        state: {
-                            x: char.x,
-                            y: char.y,
-                            health: char.health,
-                            energy: char.energy
-                        }
-                    }));
-                }
+                this.gameEngine.selectCharacter(ws, data.characterId);
                 break;
         }
     }
     
-    // 广播游戏状态（Latency Compensation版本）
+    // 广播游戏状态
     broadcastState() {
-        const state = this.gameEngine.getBroadcastState();
+        const state = this.gameEngine.getState();
         
+        // WebSocket广播
         this.wss.clients.forEach(client => {
             if (client.readyState === 1) {
                 client.send(JSON.stringify({

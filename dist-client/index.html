@@ -266,17 +266,12 @@
             pointer-events: none;
         }
     </style>
-  <script type="module" crossorigin src="/assets/index-Lc9IXXM5.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/Geometry-MFRJ-jpk.js">
-  <link rel="modulepreload" crossorigin href="/assets/GCManagedHash-BzcpiwN-.js">
-  <link rel="modulepreload" crossorigin href="/assets/getTextureBatchBindGroup-BEt_pZuD.js">
-  <link rel="modulepreload" crossorigin href="/assets/ImageSource-BaxsdStY.js">
-  <link rel="modulepreload" crossorigin href="/assets/GraphicsContext-DMvnhb-D.js">
-  <link rel="modulepreload" crossorigin href="/assets/Cache--D3xOmv3.js">
-  <link rel="modulepreload" crossorigin href="/assets/Filter-DAlRG84J.js">
-  <link rel="modulepreload" crossorigin href="/assets/RenderTargetSystem-DuEVY10K.js">
-  <link rel="modulepreload" crossorigin href="/assets/BufferResource--A1DZkAF.js">
-  <link rel="modulepreload" crossorigin href="/assets/CanvasPool-uvdH0Iih.js">
+  <script type="module" crossorigin src="/assets/index-BmcdejrR.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/Geometry-Dilufxxj.js">
+  <link rel="modulepreload" crossorigin href="/assets/RenderTargetSystem-DzGqwJ1z.js">
+  <link rel="modulepreload" crossorigin href="/assets/getTextureBatchBindGroup-BmkdZLvo.js">
+  <link rel="modulepreload" crossorigin href="/assets/BufferResource-BXa7iIym.js">
+  <link rel="modulepreload" crossorigin href="/assets/ImageSource-D2Nyoyfd.js">
 </head>
 <body>
     <div class="title">🌍 伊甸世界</div>
@@ -325,6 +320,60 @@
     </div>
     
     <div class="click-hint" id="click-hint">👆 点击角色查看详情</div>
+    
+    <!-- 设置按钮 -->
+    <button id="settings-btn" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; background: rgba(0,0,0,0.7); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 10px 15px; border-radius: 8px; cursor: pointer; font-size: 14px; display: none;">⚙️ 设置</button>
+    
+    <!-- 设置面板 -->
+    <div id="settings-panel" style="position: fixed; bottom: 80px; right: 20px; z-index: 9999; background: rgba(10,10,30,0.95); border: 2px solid rgba(74,158,158,0.5); border-radius: 15px; padding: 20px; width: 280px; display: none;">
+        <h3 style="color: #4a9; margin: 0 0 15px 0; text-align: center;">⚙️ 设置</h3>
+        
+        <div style="margin-bottom: 15px;">
+            <label style="color: #888; font-size: 12px; display: block; margin-bottom: 5px;">画质</label>
+            <select id="settings-quality" style="width: 100%; padding: 8px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 5px; color: white;">
+                <option value="low">低</option>
+                <option value="medium" selected>中</option>
+                <option value="high">高</option>
+            </select>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <label style="color: #888; font-size: 12px; display: block; margin-bottom: 5px;">音量</label>
+            <input type="range" id="settings-volume" min="0" max="100" value="80" style="width: 100%;">
+        </div>
+        
+        <div style="margin-bottom: 15px; font-size: 12px; color: #666;">
+            版本: <span id="settings-version">v0.12.0</span>
+        </div>
+        
+        <button id="settings-logout" style="width: 100%; padding: 10px; background: rgba(231,76,60,0.8); border: none; border-radius: 8px; color: white; cursor: pointer; font-size: 14px;">🚪 退出登录</button>
+    </div>
+    
+    <script>
+    // 设置按钮
+    document.getElementById('settings-btn').addEventListener('click', () => {
+        const panel = document.getElementById('settings-panel');
+        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    });
+    
+    // 退出登录
+    document.getElementById('settings-logout').addEventListener('click', () => {
+        if (confirm('确定要退出登录吗？')) {
+            localStorage.removeItem('eden_token');
+            localStorage.removeItem('eden_username');
+            window.location.href = '/';
+        }
+    });
+    
+    // 点击其他地方关闭设置面板
+    document.addEventListener('click', (e) => {
+        const panel = document.getElementById('settings-panel');
+        const btn = document.getElementById('settings-btn');
+        if (e.target !== btn && e.target !== panel && !panel.contains(e.target) && panel.style.display === 'block') {
+            panel.style.display = 'none';
+        }
+    });
+    </script>
     
     <div id="game-container"></div>
     

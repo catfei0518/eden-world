@@ -1,0 +1,428 @@
+/**
+ * 游戏引擎 - 服务端运行
+ */
+
+const TILE_SIZE = 64;
+const MAP_WIDTH = 200;
+const MAP_HEIGHT = 100;
+
+class Character {
+    constructor(id, name, x, y) {
+        this.id = id;
+        this.name = name;
+        this.x = x;
+        this.y = y;
+        this.health = 100;
+        this.energy = 5;
+        this.calories = 100;
+        this.water = 100;
+        this.action = '闲置';
+        this.target = null;
+        this.useLLM = false;
+        
+        // DNA
+        this.dna = {
+            bravery: 0.5 + Math.random() * 0.5,
+            aggression: 0.3 + Math.random() * 0.5,
+            curiosity: 0.4 + Math.random() * 0.4,
+            metabolism: 0.8 + Math.random() * 0.4,
+            strength: 0.4 + Math.random() * 0.4,
+            constitution: 0.5 + Math.random() * 0.3,
+            intelligence: 0.5 + Math.random() * 0.5,
+            lifespan: 900 + Math.random() * 300,
+            agility: 0.5 + Math.random() * 0.5
+        };
+    }
+    
+    get hungerPercent() { return Math.round(this.calories); }
+    get thirstPercent() { return Math.round(this.water); }
+}
+
+class GameEngine {
+    constructor(llmProxy) {
+        this.llmProxy = llmProxy;
+        this.characters = new Map();
+        this.players = new Map(); // WebSocket -> characterId
+        this.tickInterval = 1000; // 1秒
+        this.llmInterval = 3000; // 3秒
+        this.lastLLMTick = 0;
+        this.worldState = this.generateWorld();
+        
+        // 创建初始角色
+        this.createCharacter('adam', '亚当', 50, 25);
+        this.createCharacter('eve', '夏娃', 51, 25);
+    }
+    
+    generateWorld() {
+        // 生成丰富的地形
+        const tiles = [];
+        for (let y = 0; y < MAP_HEIGHT; y++) {
+            const row = [];
+            for (let x = 0; x < MAP_WIDTH; x++) {
+                row.push({ 
+                    type: this.getTerrainType(x, y), 
+                    x, 
+                    y
+                });
+            }
+            tiles.push(row);
+        }
+        
+        // 生成食物和水源
+        const foods = [];
+        const waters = [];
+        for (let i = 0; i < 10; i++) {
+            foods.push({
+                type: 'berry',
+                x: 30 + Math.floor(Math.random() * 40),
+                y: 10 + Math.floor(Math.random() * 30)
+            });
+            waters.push({
+                type: 'river',
+                x: 20 + Math.floor(Math.random() * 60),
+                y: 10 + Math.floor(Math.random() * 30)
+            });
+        }
+        
+        // 生成地面物品（树、灌木、石头）
+        const groundObjects = [];
+        for (let y = 0; y < MAP_HEIGHT; y++) {
+            for (let x = 0; x < MAP_WIDTH; x++) {
+                const terrain = tiles[y][x].type;
+                // 使用基于位置的种子（确保返回0-1正数）
+                const seed = x * 10000 + y;
+                const rand = (Math.sin(seed) * 10000) % 1;
+                const positiveRand = rand < 0 ? rand + 1 : rand;  // 确保正数
+                
+                if (terrain === 'forest' && positiveRand < 0.03) {  // 3%概率
+                    groundObjects.push({ type: 'tree', x, y, durability: 100, maxDurability: 100 });
+                } else if (terrain === 'grass' && positiveRand < 0.01) {  // 1%概率
+                    groundObjects.push({ type: 'bush', x, y, durability: 50, maxDurability: 50 });
+                } else if ((terrain === 'mountain' && positiveRand < 0.03) || (terrain === 'hill' && positiveRand < 0.01)) {  // 3%/1%概率
+                    groundObjects.push({ type: 'rock', x, y, durability: 200, maxDurability: 200 });
+                }
+            }
+        }
+        
+        return { tiles, foods, waters, groundObjects };
+    }
+    
+    createCharacter(id, name, x, y) {
+        console.log(`创建角色: ${name}, x=${x}, y=${y}`);
+        const char = new Character(id, name, x, y);
+        console.log(`角色创建后: ${char.name}, x=${char.x}, y=${char.y}`);
+        // 亚当和夏娃用LLM
+        char.useLLM = true;
+        this.characters.set(id, char);
+        return char;
+    }
+    
+    start(onTick) {
+        this.onTick = onTick;
+        this.interval = setInterval(() => {
+            this.tick();
+        }, this.tickInterval);
+    }
+    
+    stop() {
+        if (this.interval) {
+            clearInterval(this.interval);
+        }
+    }
+    
+    tick() {
+        const now = Date.now();
+        const charCount = this.characters.size;
+        console.log(`tick: ${charCount}个角色`);
+        
+        // 更新所有角色
+        for (const char of this.characters.values()) {
+            this.updateCharacter(char);
+        }
+        
+        // LLM决策
+        if (now - this.lastLLMTick > this.llmInterval) {
+            this.lastLLMTick = now;
+            this.updateLLMCharacters();
+        }
+    }
+    
+    updateCharacter(char) {
+        // 调试
+        if (char.x === null || char.y === null || isNaN(char.x) || isNaN(char.y)) {
+            console.log(`${char.name}: x=${char.x}, y=${char.y} - 位置异常!`);
+        }
+        
+        // 消耗
+        const consumptionRate = 100 / (6 * 60 * 60);
+        const multiplier = 0.5 + char.dna.metabolism;
+        
+        char.calories = Math.max(0, char.calories - consumptionRate * multiplier);
+        char.water = Math.max(0, char.water - consumptionRate * multiplier);
+        
+        // 移动
+        if (char.target && char.target.x !== null && char.target.y !== null) {
+            // 确保位置有效
+            if (char.x === null || char.y === null || isNaN(char.x) || isNaN(char.y)) {
+                console.log(`${char.name}: 位置无效，重置`);
+                char.x = 50;
+                char.y = 25;
+                char.target = null;
+                return;
+            }
+            
+            const dx = char.target.x - char.x;
+            const dy = char.target.y - char.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (isNaN(dist) || dist < 0.3) {
+                // 到达目标
+                if (char.target.x !== null && char.target.y !== null) {
+                    char.x = char.target.x;
+                    char.y = char.target.y;
+                }
+                char.target = null;
+                this.onArrive(char);
+            } else {
+                // 检查移动参数有效性
+                if (isNaN(dx) || isNaN(dy) || isNaN(dist) || dist === 0) {
+                    console.log(`${char.name}: 移动参数无效 dx=${dx}, dy=${dy}, dist=${dist}`);
+                    char.target = null;
+                    return;
+                }
+                const speed = 0.05 * (0.5 + char.dna.agility);
+                char.x += (dx / dist) * speed;
+                char.y += (dy / dist) * speed;
+            }
+        }
+        
+        // 死亡检查
+        if (char.calories <= 0 || char.water <= 0) {
+            char.health = Math.max(0, char.health - 0.1);
+        }
+    }
+    
+    onArrive(char) {
+        if (char.action === '寻找食物') {
+            char.action = '采集中';
+        } else if (char.action === '寻找水源') {
+            char.action = '取水中';
+        }
+    }
+    
+    async updateLLMCharacters() {
+        for (const char of this.characters.values()) {
+            if (!char.useLLM) continue;
+            
+            // 跳过正在移动的角色
+            if (char.target) continue;
+            
+            // 检查位置有效性
+            if (char.x === null || char.y === null || isNaN(char.x) || isNaN(char.y)) {
+                console.log(`${char.name}: 位置无效，跳过LLM`);
+                continue;
+            }
+            
+            try {
+                const worldState = this.getWorldStateFor(char);
+                const decision = await this.llmProxy.decide(char, worldState);
+                
+                console.log(`🤖 ${char.name}: ${decision.action}`);
+                
+                char.action = decision.action;
+                
+                // 设置目标
+                switch (decision.action) {
+                    case '寻找食物':
+                        this.goToNearest(char, this.worldState.foods);
+                        break;
+                    case '寻找水源':
+                        this.goToNearest(char, this.worldState.waters);
+                        break;
+                    case '休息':
+                        char.energy = Math.min(5, char.energy + 1);
+                        break;
+                    case '闲置':
+                    case '探索':
+                        this.randomWander(char);
+                        break;
+                }
+            } catch (error) {
+                console.error(`${char.name} LLM决策失败:`, error.message);
+            }
+        }
+    }
+    
+    goToNearest(char, items) {
+        console.log(`${char.name}: goToNearest, items=${items ? items.length : 'undefined'}`);
+        if (!items || items.length === 0) {
+            console.log(`${char.name}: 没有物品，随机漫游`);
+            this.randomWander(char);
+            return;
+        }
+        
+        console.log(`${char.name}: 物品: ${JSON.stringify(items[0])}`);
+        let nearest = items[0];
+        let minDist = Infinity;
+        
+        for (const item of items) {
+            const dist = Math.sqrt(
+                Math.pow(item.x - char.x, 2) + 
+                Math.pow(item.y - char.y, 2)
+            );
+            if (dist < minDist) {
+                minDist = dist;
+                nearest = item;
+            }
+        }
+        
+        char.target = { x: nearest.x, y: nearest.y };
+    }
+    
+    randomWander(char) {
+        const range = 10;
+        const margin = 5;
+        let newX = Math.floor(char.x) + Math.floor(Math.random() * range * 2) - range;
+        let newY = Math.floor(char.y) + Math.floor(Math.random() * range * 2) - range;
+        // 边界检查
+        newX = Math.max(margin, Math.min(MAP_WIDTH - margin, newX));
+        newY = Math.max(margin, Math.min(MAP_HEIGHT - margin, newY));
+        char.target = { x: newX, y: newY };
+    }
+    
+    getWorldStateFor(char) {
+        // 简化版：附近食物和水源
+        const foods = this.worldState.foods || [];
+        const waters = this.worldState.waters || [];
+        
+        return {
+            nearbyFood: foods.slice(0, 3),
+            nearbyWater: waters.slice(0, 3)
+        };
+    }
+    
+    
+    getTerrainType(x, y) {
+        const noise2D = (x, y) => {
+            const X = Math.floor(x) & 255;
+            const Y = Math.floor(y) & 255;
+            const xf = x - Math.floor(x);
+            const yf = y - Math.floor(y);
+            const u = xf * xf * xf * (xf * (xf * 6 - 15) + 10);
+            const v = yf * yf * yf * (yf * (yf * 6 - 15) + 10);
+            const n00 = Math.sin(X * 1.5 + Y * 0.7 + xf * 1.3 + yf * 2.1) * 0.5 + 0.5;
+            const n01 = Math.sin(X * 1.5 + (Y+1) * 0.7 + xf * 1.3 + yf * 2.1) * 0.5 + 0.5;
+            const n10 = Math.sin((X+1) * 1.5 + Y * 0.7 + xf * 1.3 + yf * 2.1) * 0.5 + 0.5;
+            const n11 = Math.sin((X+1) * 1.5 + (Y+1) * 0.7 + xf * 1.3 + yf * 2.1) * 0.5 + 0.5;
+            return n00 + (n01 - n00) * v + (n10 - n00) * u + (n00 - n01 - n10 + n11) * u * v;
+        };
+        
+        const fbm = (x, y, octaves, freq, persist) => {
+            let value = 0, amp = 1, maxVal = 0;
+            for (let i = 0; i < octaves; i++) {
+                value += amp * noise2D(x * freq, y * freq);
+                maxVal += amp;
+                amp *= persist;
+                freq *= 2;
+            }
+            return (value / maxVal + 1) / 2;
+        };
+        
+        const baseNoise = fbm(x * 0.04, y * 0.04, 4, 1, 0.5);
+        const detailNoise = fbm(x * 0.1, y * 0.1, 2, 1, 0.5);
+        const height = baseNoise * 0.7 + detailNoise * 0.3;
+        const moisture = fbm(x * 0.03 + 500, y * 0.03, 3, 1, 0.5);
+        const temperature = fbm(x * 0.02 + 1000, y * 0.02, 2, 1, 0.5);
+        
+        const maxOceanDepth = 2;
+        const edgeNoise = fbm(x * 0.2, y * 0.2, 2, 2, 0.5);
+        const oceanLimit = maxOceanDepth + edgeNoise * 1.5;
+        
+        const leftOcean = x < oceanLimit;
+        const bottomOcean = y > 99 - oceanLimit;
+        
+        if (leftOcean || bottomOcean) return 'ocean';
+        if (x < oceanLimit + 1 || y > 99 - oceanLimit - 1) {
+            if (!leftOcean && !bottomOcean) return 'beach';
+        }
+        
+        if (this.isLakeArea(x, y)) return 'lake';
+        if (this.isRiverTile(x, y)) return 'river';
+        if (height > 0.9) return 'mountain';
+        if (height > 0.82) return 'hill';
+        if (temperature > 0.75 && moisture < 0.3) return 'desert';
+        if (moisture > 0.6 && temperature > 0.25 && temperature < 0.7) return 'forest';
+        if (height < 0.62 && moisture > 0.65) return 'swamp';
+        if (moisture > 0.4) return 'grass';
+        return 'plain';
+    }
+    
+    isLakeArea(x, y) {
+        const lakes = [
+            { cx: 60, cy: 40, r: 12 },
+            { cx: 120, cy: 50, r: 10 },
+            { cx: 90, cy: 70, r: 14 },
+            { cx: 150, cy: 35, r: 8 },
+        ];
+        
+        for (const lake of lakes) {
+            const dist = Math.sqrt(Math.pow(x - lake.cx, 2) + Math.pow(y - lake.cy, 2));
+            if (dist < lake.r) {
+                const edgeNoise = Math.sin(x * 0.5) * Math.cos(y * 0.3) * 2;
+                if (dist < lake.r + edgeNoise) return true;
+            }
+        }
+        return false;
+    }
+    
+    isRiverTile(x, y) {
+        if (y < 20 || y > 90) return false;
+        const noise = (a) => Math.sin(a * 0.5) * 0.5 + Math.sin(a * 0.3) * 0.3 + Math.sin(a * 0.7) * 0.2;
+        const riverCenter = 100 + noise(y * 0.3) * 15;
+        const riverWidth = 3 + Math.sin(y * 0.2) * 1;
+        return Math.abs(x - riverCenter) < riverWidth;
+    }
+    getState() {
+        const chars = Array.from(this.characters.values()).map(c => ({
+            id: c.id,
+            name: c.name,
+            x: c.x,
+            y: c.y,
+            health: c.health,
+            energy: c.energy,
+            hunger: c.hungerPercent,
+            thirst: c.thirstPercent,
+            action: c.action,
+            dna: c.dna
+        }));
+        
+        // 调试日志
+        if (chars[0] && chars[0].x === null) {
+            console.log('警告: 角色x坐标为null', chars);
+        }
+        
+        return {
+            characters: chars,
+            world: this.worldState
+        };
+    }
+    
+    getPlayerCount() {
+        return this.players.size;
+    }
+    
+    getCharacterCount() {
+        return this.characters.size;
+    }
+    
+    handlePlayerAction(action) {
+        // 处理玩家动作
+        console.log('玩家动作:', action);
+    }
+    
+    selectCharacter(ws, characterId) {
+        this.players.set(ws, characterId);
+    }
+}
+
+module.exports = { GameEngine };

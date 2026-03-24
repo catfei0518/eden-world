@@ -397,19 +397,35 @@ class EdenWorldClient {
         const charList = document.getElementById('char-list');
         if (!charList || !state.characters) return;
         
-        charList.innerHTML = state.characters.map((char: any) => `
+        charList.innerHTML = state.characters.map((char: any) => {
+            // 状态文字（与单机版一致）
+            const hunger = Math.round(char.hunger || 0);
+            const thirst = Math.round(char.thirst || 0);
+            let status = char.action || '🧘待机';
+            if (char.action === '闲置') status = '🧘待机';
+            else if (char.action === '饮水中') status = '💧饮水';
+            else if (char.action === '进食中') status = '🍖进食';
+            else if (char.action === '休息中') status = '💤休息';
+            else if (char.action?.includes('寻找')) status = '🔍探索';
+            else if (thirst < 30) status = '💧很渴';
+            else if (hunger < 30) status = '🍖很饿';
+            else if (thirst < 50) status = '💧口渴';
+            else if (hunger < 50) status = '🍖饥饿';
+            else status = '🚶移动';
+            
+            return `
             <div style="margin:8px 0;padding:8px;background:rgba(255,255,255,0.1);border-radius:5px;">
                 <div style="font-weight:bold;color:${char.id === 'adam' ? '#6495ED' : '#FFB6C1'}">
                     ${char.name}
                 </div>
                 <div style="color:#aaa;margin-top:4px;">
                     位置: (${char.x}, ${char.y})<br/>
-                    动作: ${char.action || '闲置'}<br/>
-                    饥饿: ${Math.round(char.hunger || 0)}%<br/>
-                    口渴: ${Math.round(char.thirst || 0)}%
+                    状态: ${status}<br/>
+                    饥饿: ${hunger}%<br/>
+                    口渴: ${thirst}%
                 </div>
             </div>
-        `).join('');
+        `}).join('');
     }
     
     setupConsoleUI() {
