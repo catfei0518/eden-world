@@ -14,7 +14,7 @@ import { WebSocketHandler } from './WebSocketHandler';
 import auth from './auth';
 
 const PORT = 3333;
-const GAME_VERSION = 'v0.14.0';
+const GAME_VERSION = 'v0.14.1';
 
 export class GameServer {
     private app: express.Application;
@@ -119,8 +119,8 @@ export class GameServer {
             res.json({
                 version: GAME_VERSION,
                 resourceVersion: 'v0.1.0',
-                updateTime: '2024-03-24',
-                announcement: `🎉 欢迎来到伊甸世界 v${GAME_VERSION}！`
+                updateTime: '2026-03-27',
+                announcement: `🎉 欢迎来到伊甸世界 v${GAME_VERSION}！<br><br>🆕 新版特性：<br>• 亚当夏娃现在可以自主移动了！<br>• DNA影响行为：好奇心、胆量、社交性<br>• 需求驱动AI：口渴找水、饥饿找食物<br>• 状态面板同步更新<br>• 修复多处Bug<br><br>🔧 控制台命令：season春夏秋冬、speed快慢、pause继续`
             });
         });
         
