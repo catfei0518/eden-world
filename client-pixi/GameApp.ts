@@ -93,7 +93,7 @@ export class GameApp {
 
     // 位置插值系统 - 让角色移动更平滑
     private setupPositionInterpolation() {
-        const LERP_SPEED = 0.15; // 插值速度，值越大移动越快
+        const LERP_SPEED = 0.25; // 插值速度，值越大移动越快
 
         this.app.ticker.add((ticker) => {
             const delta = ticker.deltaTime;
@@ -102,8 +102,19 @@ export class GameApp {
                 const target = this.characterTargets.get(id);
                 if (target) {
                     // 平滑插值到目标位置
-                    container.x += (target.x - container.x) * LERP_SPEED * delta;
-                    container.y += (target.y - container.y) * LERP_SPEED * delta;
+                    const dx = target.x - container.x;
+                    const dy = target.y - container.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // 距离很近时直接跳到目标
+                    if (distance < 1) {
+                        container.x = target.x;
+                        container.y = target.y;
+                    } else {
+                        // 使用平滑插值
+                        container.x += dx * LERP_SPEED * Math.min(delta, 3);
+                        container.y += dy * LERP_SPEED * Math.min(delta, 3);
+                    }
                 }
             });
         });
