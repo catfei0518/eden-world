@@ -74,6 +74,97 @@
             color: #4a9;
         }
         
+        /* 加载遮罩 */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(26, 26, 46, 0.98);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+        
+        .loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .loading-title {
+            font-size: 32px;
+            color: #6fc;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(102, 255, 204, 0.2);
+            border-top-color: #6fc;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            margin-top: 25px;
+            font-size: 16px;
+            color: #888;
+        }
+        
+        .loading-dots::after {
+            content: '';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+        
+        @keyframes dots {
+            0%, 20% { content: ''; }
+            40% { content: '.'; }
+            60% { content: '..'; }
+            80%, 100% { content: '...'; }
+        }
+        
+        .loading-progress {
+            margin-top: 15px;
+            width: 200px;
+            height: 4px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        
+        .loading-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #4a9, #6fc);
+            border-radius: 2px;
+            animation: progress 2s ease-in-out infinite;
+        }
+        
+        @keyframes progress {
+            0% { width: 0%; }
+            50% { width: 70%; }
+            100% { width: 100%; }
+        }
+        
+        .loading-tip {
+            position: absolute;
+            bottom: 80px;
+            font-size: 13px;
+            color: #666;
+            text-align: center;
+            max-width: 400px;
+            line-height: 1.5;
+        }
+        
         /* 角色状态面板 - 居中显示 */
         .status-panel {
             position: fixed;
@@ -268,6 +359,16 @@
     </style>
 </head>
 <body>
+    <!-- 加载遮罩 -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-title">🌍 伊甸世界</div>
+        <div class="loading-spinner"></div>
+        <div class="loading-text">正在载入<span class="loading-dots"></span></div>
+        <div class="loading-progress">
+            <div class="loading-progress-bar"></div>
+        </div>
+        <div class="loading-tip">💡 提示：这是观察类游戏，亚当和夏娃会自主行动<br/>你可以点击角色查看他们的DNA和状态</div>
+    </div>
     <div class="title">🌍 伊甸世界</div>
     
     <div class="status-panel" id="status-panel">

@@ -3,6 +3,7 @@
  * 使用 IndexedDB 进行本地缓存，支持资源下载和版本管理
  */
 
+const API_BASE = 'http://114.66.13.167:3333';
 const DB_NAME = 'eden_world_cache';
 const DB_VERSION = 2;
 const STORE_NAME = 'resources';
@@ -407,23 +408,146 @@ class UpdateManager {
     
     // 检查是否有完整缓存（且版本匹配）
     async hasFullCache() {
-        // 检查资源版本是否匹配
-        const localResVersion = await this.getLocalResourceVersion();
-        if (localResVersion !== this.resourceVersion) {
-            console.log(`资源版本不匹配: 本地${localResVersion} vs 当前${this.resourceVersion}`);
+        try {
+            // 检查资源版本是否匹配
+            const localResVersion = await this.getLocalResourceVersion();
+            if (localResVersion !== this.resourceVersion) {
+                console.log(`资源版本不匹配: 本地${localResVersion} vs 当前${this.resourceVersion}`);
+                return false;
+            }
+            
+            const manifest = await this.getResource('resource_manifest');
+            if (!manifest) {
+                console.log('没有找到资源清单');
+                return false;
+            }
+            
+            const resources = manifest.data;
+            if (!resources || !Array.isArray(resources) || resources.length === 0) {
+                console.log('资源清单为空或格式错误');
+                return false;
+            }
+            
+            for (const resource of resources) {
+                const cached = await this.hasLocalResource(resource.key);
+                if (!cached) {
+                    console.log(`资源缺失: ${resource.key}`);
+                    return false;
+                }
+            }
+            return true;
+        } catch (e) {
+            console.error('检查缓存失败:', e);
             return false;
         }
-        
-        const manifest = await this.getResource('resource_manifest');
-        if (!manifest) return false;
-        
-        const resources = manifest.data;
-        for (const resource of resources) {
-            const cached = await this.hasLocalResource(resource.key);
-            if (!cached) return false;
-        }
-        return true;
     }
+
+    // 带自动恢复的下载方法
+    async downloadWithAutoRecovery(onProgress = null) {
+        const MAX_RETRIES = 2;
+        let lastError = null;
+        
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                console.log('📦 开始下载资源 (尝试 ' + (attempt + 1) + '/' + (MAX_RETRIES + 1) + ')...');
+                await this.downloadAllResources(onProgress);
+                console.log('✅ 资源下载成功！');
+                return { success: true, attempts: attempt + 1 };
+            } catch (error) {
+                lastError = error;
+                console.error('❌ 下载失败 (尝试 ' + (attempt + 1) + '/' + (MAX_RETRIES + 1) + '):', error);
+                
+                if (attempt < MAX_RETRIES) {
+                    console.log('🔧 尝试清除损坏的缓存并重试...');
+                    try {
+                        await this.clearCache();
+                        console.log('✅ 缓存已清除，等待1秒后重试...');
+                        await this.sleep(1000);
+                    } catch (clearError) {
+                        console.error('❌ 清除缓存失败:', clearError);
+                        try {
+                            console.log('🔧 尝试删除并重建数据库...');
+                            // indexedDB.deleteDatabase是异步的，需要等待完成
+                            await this.deleteDatabase();
+                            await this.init();
+                        } catch (dbError) {
+                            console.error('❌ 数据库重建失败:', dbError);
+                        }
+                    }
+                }
+            }
+        }
+        
+        console.error('❌ 资源下载彻底失败');
+        return { 
+            success: false, 
+            attempts: MAX_RETRIES + 1,
+            error: lastError,
+            needManualAction: true
+        };
+    }
+    
+    // 强制重新下载
+    async forceDownloadAll(onProgress = null) {
+        console.log('🗑️ 强制清除所有缓存...');
+        await this.clearCache();
+        console.log('📦 开始全新下载...');
+        return await this.downloadWithAutoRecovery(onProgress);
+    }
+    
+    // 睡眠工具
+    sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+    
+    // 删除数据库（等待删除完成）
+    deleteDatabase() {
+        return new Promise((resolve, reject) => {
+            const deleteReq = indexedDB.deleteDatabase(DB_NAME);
+            deleteReq.onsuccess = () => {
+                console.log('✅ 数据库已删除');
+                resolve();
+            };
+            deleteReq.onerror = () => {
+                console.error('❌ 删除数据库失败:', deleteReq.error);
+                reject(deleteReq.error);
+            };
+            deleteReq.onblocked = () => {
+                console.log('⚠️ 数据库删除被阻塞，等待...');
+            };
+        });
+    }
+    
+    // 显示恢复UI
+    showRecoveryUI() {
+        if (document.getElementById('eden-recovery-panel')) return;
+        
+        const panel = document.createElement('div');
+        panel.id = 'eden-recovery-panel';
+        panel.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(10,10,30,0.98);border:2px solid #e74c3c;border-radius:15px;padding:30px;text-align:center;z-index:99999;color:white;font-family:Arial,sans-serif;max-width:400px;';
+        panel.innerHTML = '<div style="font-size:48px;margin-bottom:20px;">⚠️</div><h2 style="color:#e74c3c;margin:0 0 15px 0;">资源下载失败</h2><p style="color:#aaa;margin:0 0 25px 0;line-height:1.6;">自动修复未能解决问题。请尝试清除浏览器缓存后重试。</p><button id="eden-recovery-clear-btn" style="background:#e74c3c;color:white;border:none;padding:12px 30px;border-radius:8px;font-size:16px;cursor:pointer;margin:5px;">🗑️ 清除缓存并重试</button><br><button id="eden-recovery-reload-btn" style="background:#333;color:white;border:none;padding:10px 25px;border-radius:8px;font-size:14px;cursor:pointer;margin:5px;">🔄 刷新页面</button><p style="color:#666;font-size:12px;margin-top:20px;">如果问题持续存在，请尝试：设置 → 隐私安全 → 清除浏览数据</p>';
+        
+        document.body.appendChild(panel);
+        
+        document.getElementById('eden-recovery-clear-btn').onclick = async () => {
+            try {
+                await this.forceDownloadAll();
+                panel.remove();
+                location.reload();
+            } catch (e) {
+                alert('清除缓存失败，请手动刷新页面后重试。');
+            }
+        };
+        
+        document.getElementById('eden-recovery-reload-btn').onclick = () => { location.reload(); };
+    }
+    
+    // 隐藏恢复UI
+    hideRecoveryUI() {
+        const panel = document.getElementById('eden-recovery-panel');
+        if (panel) panel.remove();
+    }
+
 }
 
 // 导出单例

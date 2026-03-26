@@ -13,7 +13,7 @@ const GAME_VERSION = 'v0.14.0';
 // 资源清单
 const RESOURCE_MANIFEST = {
     version: GAME_VERSION,
-    resourceVersion: 'v0.1.0',  // 资源包版本（独立管理，仅资源变更时更新）
+    resourceVersion: 'v0.1.1',  // 资源包版本（独立管理，仅资源变更时更新）
     updateTime: '2024-03-24',
     announcement: `🎉 欢迎来到伊甸世界 v0.14.0！<br>• 资源本地缓存，下载后离线可玩<br>• 增量更新，只下载变化的文件<br>• 新增森林春夏秋冬四季纹理`,
     resources: [

@@ -584,8 +584,7 @@
     <script src="/lobby-assets/update-manager.js"></script>
     
     <script>
-        // 配置
-        const API_BASE = 'http://114.66.13.167:3333';
+        // 配置（API_BASE 已在 update-manager.js 中定义）
         let currentServer = 'main';
         let token = localStorage.getItem('eden_token');
         let localVersion = localStorage.getItem('eden_version') || 'v0.0.0';
@@ -628,7 +627,6 @@
             const downloadBtn = document.getElementById('download-btn');
             const loginBtn = document.getElementById('login-btn');
             const overlay = document.getElementById('download-overlay');
-            const overlayDownloadBtn = document.getElementById('overlay-download-btn');
             
             try {
                 // 初始化更新管理器
@@ -727,7 +725,8 @@
             cacheStatus.textContent = '下载中...';
             
             try {
-                await updateManager.downloadAllResources((info) => {
+                // 使用自动恢复下载（会自动重试 + 清除损坏缓存）
+                const result = await updateManager.downloadWithAutoRecovery((info) => {
                     percentEl.textContent = `${info.progress}%`;
                     barEl.style.width = `${info.progress}%`;
                     infoEl.textContent = `${info.completed}/${info.total}`;
@@ -737,19 +736,29 @@
                     overlayInfo.textContent = `${info.completed}/${info.total} - ${info.current}`;
                 });
                 
-                // 下载完成
-                const cacheSize = await updateManager.getCacheSize();
-                cacheStatus.textContent = updateManager.formatSize(cacheSize);
-                progressDiv.style.display = 'none';
-                
-                // 隐藏下载提示
-                overlay.style.display = 'none';
-                
-                // 启用登录
-                downloadBtn.disabled = true;
-                downloadBtn.style.opacity = '0.5';
-                loginBtn.disabled = false;
-                loginBtn.style.opacity = '1';
+                if (result.success) {
+                    // 下载完成
+                    const cacheSize = await updateManager.getCacheSize();
+                    cacheStatus.textContent = updateManager.formatSize(cacheSize);
+                    progressDiv.style.display = 'none';
+                    
+                    // 隐藏下载提示
+                    overlay.style.display = 'none';
+                    
+                    // 启用登录
+                    downloadBtn.disabled = true;
+                    downloadBtn.style.opacity = '0.5';
+                    loginBtn.disabled = false;
+                    loginBtn.style.opacity = '1';
+                } else {
+                    // 自动恢复失败，显示恢复UI
+                    console.log('❌ 自动恢复失败，显示恢复UI');
+                    cacheStatus.textContent = '需要手动修复';
+                    downloadBtn.disabled = false;
+                    downloadBtn.style.opacity = '1';
+                    overlayInfo.textContent = '自动修复失败，请点击下方按钮';
+                    updateManager.showRecoveryUI();
+                }
                 
             } catch (e) {
                 console.error('下载资源失败:', e);
@@ -757,6 +766,8 @@
                 downloadBtn.disabled = false;
                 downloadBtn.style.opacity = '1';
                 overlayInfo.textContent = '下载失败，请重试';
+                // 显示恢复UI
+                updateManager.showRecoveryUI();
             }
         }
         
@@ -881,15 +892,23 @@
                 const res = await fetch(`${API_BASE}/api/players/count`);
                 const data = await res.json();
                 
-                // 更新服务器状态显示
+                // 更新服务器状态显示（支持单服务器和多服务器格式）
                 const serverItems = document.querySelectorAll('.server-item');
-                serverItems.forEach((item, index) => {
-                    const statusSpan = item.querySelector('.server-status');
-                    if (statusSpan && data.servers && data.servers[index]) {
-                        const server = data.servers[index];
-                        statusSpan.textContent = `在线 · ${server.count}人`;
+                if (data.servers && Array.isArray(data.servers)) {
+                    // 多服务器格式
+                    serverItems.forEach((item, index) => {
+                        const statusSpan = item.querySelector('.server-status');
+                        if (statusSpan && data.servers[index]) {
+                            statusSpan.textContent = `在线 · ${data.servers[index].count}人`;
+                        }
+                    });
+                } else if (data.count !== undefined) {
+                    // 单服务器格式
+                    const statusSpan = document.querySelector('.server-status');
+                    if (statusSpan) {
+                        statusSpan.textContent = `在线 · ${data.count}人`;
                     }
-                });
+                }
             } catch (e) {
                 console.error('获取在线人数失败:', e);
             }

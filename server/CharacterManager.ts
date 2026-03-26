@@ -1,20 +1,14 @@
 /**
- * 伊甸世界 - 角色管理器
+ * 伊甸世界 - 角色管理器 v2.0
+ * 
+ * 集成DNA × AI自动移动系统
  */
 
 import type { CharacterSnapshot, CharacterFullData, CharacterType, Season } from './types/Protocol';
+import { AICharacter, AICharacterData, WorldState as AIWorldState, ServerWorldState } from './AICharacter';
 
 interface CharacterState {
-    id: string;
-    name: string;
-    type: CharacterType;
-    x: number;
-    y: number;
-    hunger: number;
-    thirst: number;
-    energy: number;
-    action: string;
-    positionHistory: { x: number; y: number; tick: number }[];
+    ai: AICharacter;  // 使用AI角色系统
 }
 
 export class CharacterManager {
@@ -23,28 +17,24 @@ export class CharacterManager {
     
     createCharacter(type: CharacterType, x: number, y: number, name: string): string {
         const id = `char_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-        const char: CharacterState = {
-            id,
-            name,
-            type,
-            x,
-            y,
-            hunger: 100,
-            thirst: 100,
-            energy: 5,
-            action: 'idle',
-            positionHistory: []
-        };
+        
+        // 创建AI角色（自动生成DNA）
+        const ai = new AICharacter(id, name, type, x, y);
+        
+        const char: CharacterState = { ai };
         this.characters.set(id, char);
+        
+        console.log(`👤 创建AI角色: ${name} (${type}) - DNA好奇心:${ai.dna.curiosity.toFixed(2)}, 胆量:${ai.dna.bravery.toFixed(2)}`);
+        
         return id;
     }
     
-    getCharacter(id: string): CharacterState | undefined {
-        return this.characters.get(id);
+    getCharacter(id: string): AICharacter | undefined {
+        return this.characters.get(id)?.ai;
     }
     
-    getAll(): CharacterState[] {
-        return Array.from(this.characters.values());
+    getAll(): AICharacter[] {
+        return Array.from(this.characters.values()).map(s => s.ai);
     }
     
     selectCharacter(id: string): boolean {
@@ -55,35 +45,46 @@ export class CharacterManager {
         return false;
     }
     
-    getSelected(): CharacterState | null {
+    getSelected(): AICharacter | null {
         if (!this.selectedCharacter) return null;
-        return this.characters.get(this.selectedCharacter) || null;
+        return this.characters.get(this.selectedCharacter)?.ai || null;
     }
     
     getSelectedId(): string | null {
         return this.selectedCharacter;
     }
     
+    /**
+     * AI决策（每tick调用）
+     */
+    processAI(worldState: AIWorldState): void {
+        const allCharacters = this.getAll();
+        
+        for (const char of allCharacters) {
+            // 1️⃣ AI决策
+            char.decide(worldState, allCharacters);
+            
+            // 2️⃣ 执行移动
+            char.moveStep(worldState);
+        }
+    }
+    
     moveCharacter(id: string, x: number, y: number, tick: number): boolean {
-        const char = this.characters.get(id);
+        const char = this.getCharacter(id);
         if (!char) return false;
         
+        // AI角色移动由AI系统控制，这里只用于外部强制移动
         char.x = x;
         char.y = y;
-        char.action = 'walking';
-        
-        // 记录位置历史（用于延迟补偿）
-        char.positionHistory.push({ x, y, tick });
-        if (char.positionHistory.length > 10) {
-            char.positionHistory.shift();
-        }
+        char.targetX = null;
+        char.targetY = null;
         
         return true;
     }
     
     // 验证移动是否合法（碰撞检测）
-    canMoveTo(id: string, targetX: number, targetY: number, worldState: any): { allowed: boolean; reason?: string } {
-        const char = this.characters.get(id);
+    canMoveTo(id: string, targetX: number, targetY: number, worldState: { getTerrainAt(x: number, y: number): string | null }): { allowed: boolean; reason?: string } {
+        const char = this.getCharacter(id);
         if (!char) return { allowed: false, reason: '角色不存在' };
         
         // 1. 边界检查
@@ -112,58 +113,58 @@ export class CharacterManager {
     }
     
     updateCharacterAction(id: string, action: string): boolean {
-        const char = this.characters.get(id);
+        const char = this.getCharacter(id);
         if (!char) return false;
-        char.action = action;
+        char.state = action as any;
         return true;
     }
     
     consumeResources(id: string, hungerDelta: number, thirstDelta: number, energyDelta: number): boolean {
-        const char = this.characters.get(id);
+        const char = this.getCharacter(id);
         if (!char) return false;
         
         char.hunger = Math.max(0, Math.min(100, char.hunger + hungerDelta));
         char.thirst = Math.max(0, Math.min(100, char.thirst + thirstDelta));
-        char.energy = Math.max(0, Math.min(5, char.energy + energyDelta));
+        char.energy = Math.max(0, Math.min(100, char.energy + energyDelta));
         
         return true;
     }
     
     serialize(): CharacterSnapshot[] {
-        return this.getAll().map(char => ({
-            id: char.id,
-            name: char.name,
-            type: char.type,
-            x: char.x,
-            y: char.y,
-            action: char.action,
+        return this.getAll().map(ai => ({
+            id: ai.id,
+            name: ai.name,
+            type: ai.type,
+            x: ai.x,
+            y: ai.y,
+            action: ai.getStatusText(),
             needs: {
-                hunger: char.hunger,
-                thirst: char.thirst,
-                energy: char.energy
+                hunger: ai.hunger,
+                thirst: ai.thirst,
+                energy: ai.energy
             }
         }));
     }
     
     serializeFull(id: string): CharacterFullData | null {
-        const char = this.characters.get(id);
-        if (!char) return null;
+        const ai = this.getCharacter(id);
+        if (!ai) return null;
         
         return {
-            id: char.id,
-            name: char.name,
-            type: char.type,
-            x: char.x,
-            y: char.y,
-            action: char.action,
+            id: ai.id,
+            name: ai.name,
+            type: ai.type,
+            x: ai.x,
+            y: ai.y,
+            action: ai.getStatusText(),
             needs: {
-                hunger: char.hunger,
-                thirst: char.thirst,
-                energy: char.energy
+                hunger: ai.hunger,
+                thirst: ai.thirst,
+                energy: ai.energy
             },
-            dna: null,  // TODO: 集成DNA系统
-            phenotype: null,  // TODO: 集成表型系统
-            positionHistory: char.positionHistory
+            dna: ai.dna,
+            phenotype: null,
+            positionHistory: []
         };
     }
     
@@ -185,14 +186,14 @@ export class CharacterManager {
         // 优先找：草地/平原 + 附近有森林/灌木 + 附近有河流/湖泊
         for (let y = 10; y < 90; y++) {
             for (let x = 10; x < 190; x++) {
-                const tile = tiles.find(t => t.x === x && t.y === y);
+                const tile = tiles.find((t: any) => t.x === x && t.y === y);
                 if (!tile) continue;
                 
                 // 只在草地或平原
                 if (tile.type !== 'grass' && tile.type !== 'plains') continue;
                 
                 // 检查附近是否有水源
-                const hasWater = tiles.some(t => 
+                const hasWater = tiles.some((t: any) => 
                     Math.abs(t.x - x) <= 5 && 
                     Math.abs(t.y - y) <= 5 && 
                     (t.type === 'river' || t.type === 'lake')
@@ -200,7 +201,7 @@ export class CharacterManager {
                 if (!hasWater) continue;
                 
                 // 检查附近是否有食物（森林或灌木）
-                const hasFood = items.some(item =>
+                const hasFood = items.some((item: any) =>
                     Math.abs(item.x - x) <= 8 &&
                     Math.abs(item.y - y) <= 8 &&
                     (item.type === 'tree' || item.type === 'bush' || item.type === 'forest_tree')
@@ -215,12 +216,12 @@ export class CharacterManager {
         // 如果找不到完美的，就找草地附近有水的
         for (let y = 10; y < 90; y++) {
             for (let x = 10; x < 190; x++) {
-                const tile = tiles.find(t => t.x === x && t.y === y);
+                const tile = tiles.find((t: any) => t.x === x && t.y === y);
                 if (!tile) continue;
                 
                 if (tile.type !== 'grass' && tile.type !== 'plains') continue;
                 
-                const hasWater = tiles.some(t =>
+                const hasWater = tiles.some((t: any) =>
                     Math.abs(t.x - x) <= 3 &&
                     Math.abs(t.y - y) <= 3 &&
                     (t.type === 'river' || t.type === 'lake')
@@ -231,5 +232,24 @@ export class CharacterManager {
         
         // 默认返回地图中心
         return { x: 100, y: 50 };
+    }
+    
+    /**
+     * 创建用于AI决策的世界状态
+     */
+    createAIWorldState(worldState: any): ServerWorldState {
+        const tiles = worldState.getAllTiles().map((t: any) => ({
+            x: t.x,
+            y: t.y,
+            type: t.type
+        }));
+        
+        const objects = worldState.getAllGroundObjects().map((o: any) => ({
+            x: o.x,
+            y: o.y,
+            type: o.type
+        }));
+        
+        return new ServerWorldState(tiles, objects);
     }
 }

@@ -115,9 +115,29 @@ export interface CharacterSnapshot {
 }
 
 export interface CharacterFullData extends CharacterSnapshot {
-    dna: unknown;  // DNA数据
+    dna: CharacterDNA | null;  // DNA数据
     phenotype: unknown;  // 表型数据
     positionHistory?: { x: number; y: number; tick: number }[];
+}
+
+/**
+ * 角色DNA数据（用于AI行为影响）
+ */
+export interface CharacterDNA {
+    // 性格特质 (0-1)
+    curiosity: number;       // 好奇心：探索范围
+    bravery: number;        // 胆量：危险区域容忍度
+    sociability: number;     // 社交性：靠近其他角色
+    aggression: number;      // 攻击性：防御/攻击倾向
+    
+    // 能力特质
+    metabolism: number;      // 代谢：消耗速度倍率 (0.5-2.0)
+    intelligence: number;    // 智力：决策质量
+    speed: number;           // 移动速度
+    
+    // 外观（用于渲染）
+    skinTone: number;        // 肤色 0-1
+    height: number;          // 身高 0.7-1.3
 }
 
 export interface PlayerInput {

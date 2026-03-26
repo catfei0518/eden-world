@@ -96,7 +96,7 @@ class GameServer {
         this.app.get('/api/version', (req, res) => {
             res.json({
                 version: GAME_VERSION,
-                resourceVersion: 'v0.1.0',
+                resourceVersion: 'v0.1.1',
                 updateTime: '2024-03-24',
                 announcement: `🎉 欢迎来到伊甸世界 v${GAME_VERSION}！`
             });

@@ -25,6 +25,16 @@ class EdenWorldClient {
             this.setupServerConnection();
             this.setupStatusUI();
             this.setupConsoleUI();
+            
+            // 内联调试面板 - 使用alert确保显示
+            const debugDiv = document.createElement('div');
+            debugDiv.id = 'eden-debug-panel';
+            debugDiv.style.cssText = 'position:fixed;top:120px;right:10px;background:rgba(255,0,0,0.9);color:white;padding:10px;border-radius:5px;z-index:99999;font-size:12px;min-width:220px;border:2px solid yellow;pointer-events:none;';
+            debugDiv.textContent = '🔧 调试面板加载中...';
+            document.body.appendChild(debugDiv);
+            (window as any).edenDebug = debugDiv;
+            document.title = '🔧 ' + document.title;
+            
             console.log('🌍 伊甸世界客户端初始化完成');
         } catch (error) {
             console.error('初始化失败:', error);
@@ -264,13 +274,27 @@ class EdenWorldClient {
         } else {
             sprite.thirstBar.tint = 0x00AAFF;
         }
+        
+        // 更新HTML调试面板
+        const debugEl = document.getElementById('debug-content');
+        if (debugEl) {
+            let html = '';
+            this.characterSprites.forEach((sp: any, id: string) => {
+                const isAdam = id.includes('adam');
+                html += isAdam ? '👨 亚当<br>' : '👩 夏娃<br>';
+                html += `  x: ${sp.x?.toFixed(0) || 'N/A'}<br>`;
+                html += `  y: ${sp.y?.toFixed(0) || 'N/A'}<br>`;
+                html += `  visible: ${sp.visible}<br><br>`;
+            });
+            debugEl.innerHTML = html || '无角色';
+        }
     }
     
     createCharacterSprite(charData: any) {
         const container = new PIXI.Container();
         
         // 获取角色纹理
-        const texKey = charData.id === 'adam' ? 'adam' : 'eve';
+        const texKey = charData.type === 'adam' ? 'adam' : 'eve';
         const baseTex = this.textures.get(texKey);
         
         if (baseTex) {
@@ -282,7 +306,7 @@ class EdenWorldClient {
             // 回退到圆形
             const body = new PIXI.Graphics();
             body.circle(0, 0, 16);
-            body.fill(charData.id === 'adam' ? 0x4169E1 : 0xFF69B4);
+            body.fill(charData.type === 'adam' ? 0x4169E1 : 0xFF69B4);
             body.stroke({ width: 2, color: 0x333333 });
             container.addChild(body);
         }
@@ -366,6 +390,48 @@ class EdenWorldClient {
         container.thirstText = thirstText;
         
         return container;
+    }
+    
+    setupDebugPanel() {
+        // 调试面板 - 显示所有角色位置
+        const debugDiv = document.createElement('div');
+        debugDiv.id = 'debug-panel';
+        debugDiv.style.cssText = `
+            position: fixed;
+            top: 120px;
+            right: 10px;
+            background: rgba(255,0,0,0.9);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 11px;
+            z-index: 99999;
+            min-width: 200px;
+            border: 2px solid yellow;
+        `;
+        document.body.appendChild(debugDiv);
+        (this as any).debugPanel = debugDiv;
+        (window as any).edenDebugPanel = debugDiv; // 全局暴露
+        console.log('🔧 调试面板已创建');
+    }
+    
+    updateDebugPanel() {
+        const debugDiv = (this as any).debugPanel;
+        if (!debugDiv) return;
+        
+        let html = '<b style="color:yellow">🔧 角色调试:</b><br>';
+        this.characterSprites.forEach((sprite: any, id: string) => {
+            const isAdam = id.includes('adam');
+            html += `${isAdam ? '👨' : '👩'} ${isAdam ? '亚当' : '夏娃'}<br>`;
+            html += `  x: ${sprite.x?.toFixed(0) || 'N/A'}<br>`;
+            html += `  y: ${sprite.y?.toFixed(0) || 'N/A'}<br>`;
+            html += `  visible: ${sprite.visible}<br>`;
+            html += `  parent: ${sprite.parent?.constructor.name || 'none'}<br>`;
+            html += `  children: ${sprite.children?.length || 0}<br>`;
+            html += '<br>';
+        });
+        debugDiv.innerHTML = html;
     }
     
     setupStatusUI() {
