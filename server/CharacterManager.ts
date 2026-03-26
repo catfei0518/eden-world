@@ -137,12 +137,11 @@ export class CharacterManager {
             type: ai.type,
             x: ai.x,
             y: ai.y,
+            hunger: ai.hunger,
+            thirst: ai.thirst,
+            energy: ai.energy,
             action: ai.getStatusText(),
-            needs: {
-                hunger: ai.hunger,
-                thirst: ai.thirst,
-                energy: ai.energy
-            }
+            dna: ai.dna
         }));
     }
     

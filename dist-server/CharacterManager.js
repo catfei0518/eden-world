@@ -107,20 +107,7 @@ class CharacterManager {
         char.energy = Math.max(0, Math.min(100, char.energy + energyDelta));
         return true;
     }
-    serialize() {
-        return this.getAll().map(ai => ({
-            id: ai.id,
-            name: ai.name,
-            type: ai.type,
-            x: ai.x,
-            y: ai.y,
-            action: ai.getStatusText(),
-            needs: {
-                hunger: ai.hunger,
-                thirst: ai.thirst,
-                energy: ai.energy
-            }
-        }));
+    serialize() { return this.getAll().map(ai => ({ id: ai.id, name: ai.name, type: ai.type, x: ai.x, y: ai.y, hunger: ai.hunger, thirst: ai.thirst, energy: ai.energy, action: ai.getStatusText(), dna: ai.dna }));
     }
     serializeFull(id) {
         const ai = this.getCharacter(id);

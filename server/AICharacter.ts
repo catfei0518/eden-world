@@ -20,6 +20,9 @@ export interface CharacterDNA {
     metabolism: number;      // 代谢：消耗速度倍率 (0.5-2.0)
     intelligence: number;    // 智力：决策质量
     speed: number;           // 移动速度
+    strength: number;        // 力量
+    constitution: number;     // 体质
+    lifespan: number;         // 寿命
     
     // 外观（用于渲染）
     skinTone: number;        // 肤色 0-1
@@ -96,6 +99,9 @@ export class AICharacter {
                 metabolism: 0.8 + Math.random() * 0.4,     // 0.8-1.2
                 intelligence: 0.6 + Math.random() * 0.3,   // 0.6-0.9
                 speed: 0.08 + Math.random() * 0.04,       // 0.08-0.12
+                strength: 0.4 + Math.random() * 0.4,       // 0.4-0.8
+                constitution: 0.5 + Math.random() * 0.3,   // 0.5-0.8
+                lifespan: 900 + Math.random() * 300,        // 900-1200
                 skinTone: Math.random(),
                 height: 0.9 + Math.random() * 0.2
             };
@@ -108,6 +114,9 @@ export class AICharacter {
                 metabolism: 0.7 + Math.random() * 0.3,     // 0.7-1.0
                 intelligence: 0.6 + Math.random() * 0.3,   // 0.6-0.9
                 speed: 0.07 + Math.random() * 0.03,       // 0.07-0.10
+                strength: 0.3 + Math.random() * 0.3,       // 0.3-0.6
+                constitution: 0.6 + Math.random() * 0.3,   // 0.6-0.9
+                lifespan: 900 + Math.random() * 300,        // 900-1200
                 skinTone: Math.random(),
                 height: 0.85 + Math.random() * 0.15
             };

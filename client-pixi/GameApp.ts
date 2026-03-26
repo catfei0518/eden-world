@@ -989,7 +989,7 @@ export class GameApp {
 
             const hungerPct = Math.min(100, Math.round(char.hunger));
             const thirstPct = Math.min(100, Math.round(char.thirst));
-            const energyPct = Math.round((char.energy / 5) * 100);
+            const energyPct = Math.round(char.energy);
 
             if (foodBar) foodBar.style.width = `${hungerPct}%`;
             if (waterBar) waterBar.style.width = `${thirstPct}%`;
@@ -1086,7 +1086,7 @@ export class GameApp {
         // 更新需求条
         const hungerPct = Math.min(100, Math.round(char.hunger));
         const thirstPct = Math.min(100, Math.round(char.thirst));
-        const energyPct = Math.round((char.energy / 5) * 100);
+        const energyPct = Math.round(char.energy);
 
         const foodBar = document.getElementById('panel-food-bar');
         const waterBar = document.getElementById('panel-water-bar');

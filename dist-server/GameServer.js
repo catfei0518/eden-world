@@ -17,7 +17,7 @@ const GameLoop_1 = require("./GameLoop");
 const WebSocketHandler_1 = require("./WebSocketHandler");
 const auth_1 = __importDefault(require("./auth"));
 const PORT = 3333;
-const GAME_VERSION = 'v0.14.1';
+const GAME_VERSION = 'v0.14.2';
 class GameServer {
     constructor() {
         // 初始化组件
