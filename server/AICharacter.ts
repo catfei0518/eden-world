@@ -38,7 +38,8 @@ export type AIState =
     | 'seeking_water' // 寻找水源
     | 'eating'        // 进食
     | 'drinking'      // 饮水
-    | 'resting';      // 休息
+    | 'resting'       // 休息
+    | 'gathering';    // 采集
 
 // ============ AI 角色类 ============
 
@@ -69,6 +70,9 @@ export class AICharacter {
     // 状态计时器
     stateTimer: number = 0;
     actionTimer: number = 0;
+    
+    // Phase 1: 背包系统
+    inventory: { berries: number; calories: number } = { berries: 0, calories: 0 };
     
     constructor(id: string, name: string, type: CharacterType, x: number, y: number, dna?: CharacterDNA) {
         this.id = id;
@@ -149,20 +153,20 @@ export class AICharacter {
             return;
         }
         
-        // 1️⃣ 紧急需求检查
-        if (this.thirst < 30) {
+        // 1️⃣ 紧急需求检查（生命危险）
+        if (this.thirst < 10) {
             this.state = 'seeking_water';
             this.findNearestWater(worldState);
             return;
         }
         
-        if (this.hunger < 30) {
+        if (this.hunger < 10) {
             this.state = 'seeking_food';
             this.findNearestFood(worldState);
             return;
         }
         
-        if (this.energy < thresholds.energyTrigger) {
+        if (this.energy < 10) {
             this.state = 'resting';
             this.targetX = null;
             this.targetY = null;
@@ -170,7 +174,7 @@ export class AICharacter {
             return;
         }
         
-        // 2️⃣ 一般需求检查
+        // 2️⃣ 一般需求检查（开始感到需求）
         if (this.thirst < thresholds.thirstTrigger) {
             this.state = 'seeking_water';
             this.findNearestWater(worldState);
@@ -329,12 +333,40 @@ export class AICharacter {
                 this.energy = Math.min(100, this.energy + 2);
             }
             
-            // 饮水/进食时恢复
+            // 饮水时恢复
             if (this.state === 'drinking') {
                 this.thirst = Math.min(100, this.thirst + 5);
             }
-            if (this.state === 'eating') {
-                this.hunger = Math.min(100, this.hunger + 3);
+            
+            // Phase 1: 采集时收获浆果
+            if (this.state === 'gathering') {
+                // 采集1-3个浆果
+                const harvested = worldState.harvestBerry(Math.floor(this.x), Math.floor(this.y));
+                if (harvested > 0) {
+                    this.inventory.berries += harvested;
+                    // 每个浆果约32kcal
+                    this.inventory.calories += harvested * 32;
+                    this.state = 'eating';
+                    this.actionTimer = 30; // 吃浆果1.5秒
+                    console.log(`🫐 ${this.name} 采集了 ${harvested} 个浆果！持有: ${this.inventory.berries}个`);
+                } else {
+                    // 没有浆果了
+                    this.state = 'idle';
+                    this.findNearestFood(worldState);
+                }
+            }
+            
+            // Phase 1: 吃浆果时恢复饥饿
+            if (this.state === 'eating' && this.inventory.berries > 0) {
+                // 每个浆果恢复 32kcal -> 换算成饥饿值
+                // 假设100%饥饿值 = 2000kcal，每日消耗
+                // 每tick消耗约0.02 * 代谢率，每秒20tick = 0.4 * 代谢率
+                // 每个浆果32kcal，约恢复 32/2000 * 100 = 1.6 点饥饿值
+                const consumed = Math.min(this.inventory.berries, 2); // 每次最多吃2个
+                this.inventory.berries -= consumed;
+                this.inventory.calories -= consumed * 32;
+                this.hunger = Math.min(100, this.hunger + consumed * 1.6);
+                console.log(`🍽️ ${this.name} 吃了 ${consumed} 个浆果，饥饿恢复至 ${this.hunger.toFixed(1)}`);
             }
             
             return;
@@ -360,7 +392,7 @@ export class AICharacter {
         
         // 到达目标
         if (dist < 0.5) {
-            this.onArrivedAtTarget();
+            this.onArrivedAtTarget(worldState);
             return;
         }
         
@@ -397,7 +429,7 @@ export class AICharacter {
     /**
      * 到达目标后的行为
      */
-    private onArrivedAtTarget(): void {
+    private onArrivedAtTarget(worldState: WorldState): void {
         this.targetX = null;
         this.targetY = null;
         
@@ -409,9 +441,16 @@ export class AICharacter {
                 break;
                 
             case 'seeking_food':
-                // 到达食物点，开始进食
-                this.state = 'eating';
-                this.actionTimer = 40;  // 进食2秒
+                // 到达食物点，检查附近是否有可采集的灌木
+                const bush = worldState.getBushAt(Math.floor(this.x), Math.floor(this.y));
+                if (bush && bush.hasBerries && bush.berryCount > 0) {
+                    // 有浆果，开始采集
+                    this.state = 'gathering';
+                    this.actionTimer = 20;  // 采集1秒
+                } else {
+                    // 没有浆果，继续寻找其他食物
+                    this.findNearestFood(worldState);
+                }
                 break;
                 
             case 'wandering':
@@ -451,6 +490,7 @@ export class AICharacter {
             case 'eating': return '🍖进食';
             case 'drinking': return '💧饮水';
             case 'resting': return '💤休息';
+            case 'gathering': return '🫐采集';
             default: return '❓未知';
         }
     }
@@ -469,7 +509,8 @@ export class AICharacter {
             thirst: this.thirst,
             energy: this.energy,
             action: this.getStatusText(),
-            dna: this.dna
+            dna: this.dna,
+            inventory: this.inventory  // Phase 1: 背包数据
         };
     }
 }
@@ -487,17 +528,22 @@ export interface AICharacterData {
     energy: number;
     action: string;
     dna: CharacterDNA;
+    inventory?: { berries: number; calories: number };  // Phase 1: 背包
 }
 
 export interface WorldState {
     // 获取所有水源位置
     getWaterSources(): { x: number; y: number }[];
-    // 获取所有食物位置
-    getFoodSources(): { x: number; y: number }[];
+    // 获取所有食物位置（返回带类型的）
+    getFoodSources(): { x: number; y: number; type: string }[];
     // 检查某位置是否可通行
     isWalkable(x: number, y: number): boolean;
     // 获取地形类型
     getTerrainAt(x: number, y: number): string | null;
+    // Phase 1: 获取指定位置的灌木
+    getBushAt(x: number, y: number): { hasBerries: boolean; berryCount: number } | undefined;
+    // Phase 1: 采集浆果
+    harvestBerry(x: number, y: number): number;
 }
 
 // ============ 简化版世界状态（用于服务器）============
@@ -538,12 +584,13 @@ export class ServerWorldState implements WorldState {
         return water;
     }
     
-    getFoodSources(): { x: number; y: number }[] {
-        const food: { x: number; y: number }[] = [];
+    getFoodSources(): { x: number; y: number; type: string }[] {
+        const food: { x: number; y: number; type: string }[] = [];
         
+        // 灌木作为食物来源
         for (const obj of this.groundObjects) {
-            if (obj.type === 'berry' || obj.type === 'bush' || obj.type === 'tree') {
-                food.push({ x: obj.x, y: obj.y });
+            if (obj.type === 'bush') {
+                food.push({ x: obj.x, y: obj.y, type: 'bush' });
             }
         }
         
@@ -560,5 +607,20 @@ export class ServerWorldState implements WorldState {
     
     getTerrainAt(x: number, y: number): string | null {
         return this.tiles.get(`${Math.floor(x)},${Math.floor(y)}`) || null;
+    }
+    
+    // Phase 1: 简化版灌木查询（ServerWorldState不知道berry数据）
+    getBushAt(x: number, y: number): { hasBerries: boolean; berryCount: number } | undefined {
+        const bush = this.groundObjects.find(o => o.x === x && o.y === y && o.type === 'bush');
+        if (bush) {
+            // 假设灌木总有浆果（实际数据在WorldState里）
+            return { hasBerries: true, berryCount: 10 };
+        }
+        return undefined;
+    }
+    
+    // Phase 1: 采集浆果（简化版，实际上ServerWorldState不会真正减少浆果）
+    harvestBerry(x: number, y: number): number {
+        return 1; // 假设每次采集1个
     }
 }

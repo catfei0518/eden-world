@@ -20,15 +20,31 @@ const SCALE = 1.35;
 const SCALED_SIZE = TILE_SIZE * SCALE;
 const OFFSET = (SCALED_SIZE - TILE_SIZE) / 2;
 
+// 服务器状态 → 显示文字 映射
+const ACTION_TEXT: Record<string, string> = {
+    'idle': '🧘待机',
+    'wandering': '🚶巡逻',
+    'seeking_food': '🔍找食物',
+    'seeking_water': '💧找水',
+    'eating': '🍖进食',
+    'drinking': '💧饮水',
+    'resting': '💤休息',
+    'gathering': '🫐采集',
+};
+
 interface ServerCharacter {
     id: string;
     name: string;
     x: number;
     y: number;
-    hunger: number;
-    thirst: number;
-    energy: number;
+    needs: {
+        hunger: number;
+        thirst: number;
+        energy: number;
+    };
     action: string;
+    actionTimer?: number;
+    actionTimerMax?: number;
     dna?: {
         bravery: number;
         aggression: number;
@@ -60,6 +76,26 @@ export class GameApp {
     // 角色状态面板
     private statusPanel!: HTMLElement;
     private selectedCharacter: ServerCharacter | null = null;
+    
+    // 状态面板DOM元素缓存（避免每次查询）
+    private statusPanelCache: {
+        name?: HTMLElement;
+        type?: HTMLElement;
+        avatar?: HTMLElement;
+        position?: HTMLElement;
+        foodBar?: HTMLElement;
+        waterBar?: HTMLElement;
+        energyBar?: HTMLElement;
+        foodVal?: HTMLElement;
+        waterVal?: HTMLElement;
+        energyVal?: HTMLElement;
+        healthBar?: HTMLElement;
+        healthVal?: HTMLElement;
+        action?: HTMLElement;
+        dnaAttrs?: HTMLElement;
+        statusIcon?: HTMLElement;
+    } = {};
+    private lastDnaStr: string = ''; // 用于检测DNA是否变化
 
     // 物品状态面板
     private itemStatusUI!: ItemStatusUI;
@@ -67,6 +103,9 @@ export class GameApp {
 
     // 角色目标位置（用于平滑插值）
     private characterTargets: Map<string, { x: number; y: number }> = new Map();
+    
+    // 角色标签缓存（避免每次都更新PIXI Text）
+    private characterLabelCache: Map<string, string> = new Map();
 
     // 清除所有精灵（用于重连时）
     private clearAllSprites(): void {
@@ -416,6 +455,12 @@ export class GameApp {
                     }
                 }
             }
+        });
+
+        // 角色选中事件 - 收到服务器返回的完整数据（含DNA）
+        this.server.on('character_selected', (data) => {
+            console.log('🎭 收到角色完整数据:', data);
+            this.showCharacterStatus(data);
         });
 
         this.server.on('state', (state) => {
@@ -775,24 +820,62 @@ export class GameApp {
         container.zIndex = 10;
 
         // 根据角色状态显示文字（与单机版一致）
-        const hunger = data.hunger || 50;
-        const thirst = data.thirst || 50;
-        const energy = data.energy || 5;
+        const hunger = data.needs?.hunger ?? 50;
+        const thirst = data.needs?.thirst ?? 50;
+        const energy = data.needs?.energy ?? 50;
 
-        let statusText = '移动';
-        if (thirst < 30) statusText = '很渴';
+        // 优先显示动作状态，动作结束再看需求
+        let statusText = '🚶巡逻';
+        if (data.action === 'drinking') statusText = '💧饮水';
+        else if (data.action === 'eating') statusText = '🍖进食';
+        else if (data.action === 'resting') statusText = '💤休息';
+        else if (data.action === 'idle') statusText = '🧘待机';
+        else if (data.action === 'seeking_food') statusText = '🔍找食物';
+        else if (data.action === 'seeking_water') statusText = '💧找水';
+        else if (data.action === 'gathering') statusText = '🫐采集';
+        else if (data.action === 'wandering') statusText = '🚶巡逻';
+        else if (thirst < 30) statusText = '很渴';
         else if (hunger < 30) statusText = '很饿';
         else if (thirst < 50) statusText = '口渴';
         else if (hunger < 50) statusText = '饥饿';
-        else if (energy < 2) statusText = '疲惫';
-        else if (data.action === '饮水中') statusText = '饮水';
-        else if (data.action === '进食中') statusText = '进食';
-        else if (data.action === '休息中') statusText = '休息';
-        else if (data.action === '闲置') statusText = '待机';
-        else if (data.action?.includes('寻找')) statusText = '探索';
+        else if (energy < 20) statusText = '疲惫';
 
-        // 显示 "角色名: 状态"
-        (container as any).label.text = `${data.name}: ${statusText}`;
+        // 只在状态变化时更新标签（避免频繁更新导致卡顿）
+        const newLabel = `${data.name}: ${statusText}`;
+        const cachedLabel = this.characterLabelCache.get(data.id);
+        if (cachedLabel !== newLabel) {
+            this.characterLabelCache.set(data.id, newLabel);
+            (container as any).label.text = newLabel;
+        }
+
+        // 进度条更新 - 只有在有进度且动作是进行中时才显示
+        const progressBar = (container as any).progressBar as PIXI.Graphics;
+        const timer = data.actionTimer ?? 0;
+        const timerMax = data.actionTimerMax ?? 1;
+        const hasProgress = timer > 0 && timerMax > 0;
+
+        // 显示进度的动作类型
+        const progressActions = ['eating', 'drinking', 'gathering', 'resting'];
+
+        if (hasProgress && progressActions.includes(data.action)) {
+            const progress = 1 - (timer / timerMax); // 0到1
+            const barWidth = 40;
+            const barHeight = 6;
+            const fillWidth = barWidth * progress;
+
+            progressBar.clear();
+            progressBar.visible = true;
+
+            // 背景条（灰色）
+            progressBar.rect(-barWidth / 2, 0, barWidth, barHeight);
+            progressBar.fill({ color: 0x555555 });
+
+            // 前景条（绿色）
+            progressBar.rect(-barWidth / 2, 0, fillWidth, barHeight);
+            progressBar.fill({ color: 0x00ff00 });
+        } else {
+            progressBar.visible = false;
+        }
     }
 
     private createCharacterSprite(data: ServerCharacter) {
@@ -840,6 +923,13 @@ export class GameApp {
         (container as any).hungerBar = null;
         (container as any).thirstBar = null;
 
+        // 动作进度条 - 默认隐藏
+        const progressBar = new PIXI.Graphics();
+        progressBar.visible = false;
+        progressBar.y = -50; // 在标签上方
+        container.addChild(progressBar);
+        (container as any).progressBar = progressBar;
+
         // 点击区域 - 透明热区 (使用路径API)
         // 注意：rect 在 (0,0) 位置，因为后面会设置 container.x/y
         const hitbox = new PIXI.Graphics();
@@ -848,10 +938,10 @@ export class GameApp {
         hitbox.eventMode = 'static';
         hitbox.cursor = 'pointer';
 
-        // 点击事件
+        // 点击事件 - 向服务器请求完整数据（含DNA）
         hitbox.on('pointerdown', (event: PIXI.FederatedPointerEvent) => {
             event.stopPropagation();
-            this.showCharacterStatus(data);
+            this.server.selectCharacter(data.id);
         });
 
         // 调试：打印 hitbox 信息
@@ -929,6 +1019,25 @@ export class GameApp {
             return;
         }
 
+        // 缓存DOM元素引用
+        this.statusPanelCache = {
+            name: document.getElementById('panel-name') ?? undefined,
+            type: document.getElementById('panel-type') ?? undefined,
+            avatar: document.getElementById('panel-avatar') ?? undefined,
+            position: document.getElementById('panel-position') ?? undefined,
+            foodBar: document.getElementById('panel-food-bar') ?? undefined,
+            waterBar: document.getElementById('panel-water-bar') ?? undefined,
+            energyBar: document.getElementById('panel-energy-bar') ?? undefined,
+            foodVal: document.getElementById('panel-food-val') ?? undefined,
+            waterVal: document.getElementById('panel-water-val') ?? undefined,
+            energyVal: document.getElementById('panel-energy-val') ?? undefined,
+            healthBar: document.getElementById('panel-health-bar') ?? undefined,
+            healthVal: document.getElementById('panel-health-val') ?? undefined,
+            action: document.getElementById('panel-action') ?? undefined,
+            dnaAttrs: document.getElementById('panel-dna-attrs') ?? undefined,
+            statusIcon: document.getElementById('status-icon') ?? undefined,
+        };
+
         // 点击空白处关闭
         document.addEventListener('pointerdown', (e) => {
             const target = e.target as HTMLElement;
@@ -954,99 +1063,93 @@ export class GameApp {
             this.selectedCharacter = char;
 
             // 根据角色状态获取状态图标
-            const hunger = char.hunger || 50;
-            const thirst = char.thirst || 50;
-            const energy = char.energy || 5;
+            const hunger = char.needs?.hunger ?? 50;
+            const thirst = char.needs?.thirst ?? 50;
+            const energy = char.needs?.energy ?? 50;
 
             let statusIcon = '🚶';
-            if (thirst < 30) statusIcon = '💧很渴';
+            // 优先显示动作状态，动作结束再看需求
+            if (char.action === 'drinking') statusIcon = '💧饮水';
+            else if (char.action === 'eating') statusIcon = '🍖进食';
+            else if (char.action === 'resting') statusIcon = '💤休息';
+            else if (char.action === 'idle') statusIcon = '🧘待机';
+            else if (char.action === 'seeking_food') statusIcon = '🔍找食物';
+            else if (char.action === 'seeking_water') statusIcon = '💧找水';
+            else if (char.action === 'gathering') statusIcon = '🫐采集';
+            else if (char.action === 'wandering') statusIcon = '🚶巡逻';
+            else if (thirst < 30) statusIcon = '💧很渴';
             else if (hunger < 30) statusIcon = '🍖很饿';
             else if (thirst < 50) statusIcon = '💧口渴';
             else if (hunger < 50) statusIcon = '🍖饥饿';
-            else if (energy < 2) statusIcon = '😴疲惫';
-            else if (char.action === '饮水中') statusIcon = '💧饮水';
-            else if (char.action === '进食中') statusIcon = '🍖进食';
-            else if (char.action === '休息中') statusIcon = '💤休息';
-            else if (char.action === '闲置') statusIcon = '🧘待机';
-            else if (char.action?.includes('寻找')) statusIcon = '🔍探索';
+            else if (energy < 20) statusIcon = '😴疲惫';
 
-            // 更新面板内容
-            const nameElem = document.getElementById('panel-name');
-            const typeElem = document.getElementById('panel-type');
-            const avatarElem = document.getElementById('panel-avatar');
-            const posElem = document.getElementById('panel-position');
-            const foodBar = document.getElementById('panel-food-bar');
-            const waterBar = document.getElementById('panel-water-bar');
-            const energyBar = document.getElementById('panel-energy-bar');
-            const foodVal = document.getElementById('panel-food-val');
-            const waterVal = document.getElementById('panel-water-val');
-            const energyVal = document.getElementById('panel-energy-val');
-            const healthBar = document.getElementById('panel-health-bar');
-            const healthVal = document.getElementById('panel-health-val');
-            const actionElem = document.getElementById('panel-action');
-            const dnaContainer = document.getElementById('panel-dna-attrs');
-            const statusIconElem = document.getElementById('status-icon');
-
-            // 更新状态图标
-            if (statusIconElem) statusIconElem.textContent = statusIcon;
-
-            if (nameElem) nameElem.textContent = char.name;
-            if (typeElem) typeElem.textContent = char.id === 'adam' ? '亚当' : '夏娃';
-            if (avatarElem) {
-                avatarElem.className = `avatar ${char.id === 'adam' ? 'adam' : 'eve'}`;
-                avatarElem.textContent = char.id === 'adam' ? '♂' : '♀';
+            // 使用缓存的DOM元素更新
+            const c = this.statusPanelCache;
+            if (c.statusIcon) c.statusIcon.textContent = statusIcon;
+            if (c.name) c.name.textContent = char.name;
+            if (c.type) c.type.textContent = char.id === 'adam' ? '亚当' : '夏娃';
+            if (c.avatar) {
+                c.avatar.className = `avatar ${char.id === 'adam' ? 'adam' : 'eve'}`;
+                c.avatar.textContent = char.id === 'adam' ? '♂' : '♀';
             }
-            if (posElem) posElem.textContent = `(${char.x.toFixed(1)}, ${char.y.toFixed(1)})`;
+            if (c.position) c.position.textContent = `(${char.x.toFixed(1)}, ${char.y.toFixed(1)})`;
 
-            const hungerPct = Math.min(100, Math.round(char.hunger));
-            const thirstPct = Math.min(100, Math.round(char.thirst));
-            const energyPct = Math.round(char.energy);
+            const hungerPct = Math.min(100, Math.round(char.needs?.hunger ?? 50));
+            const thirstPct = Math.min(100, Math.round(char.needs?.thirst ?? 50));
+            const energyPct = Math.round(char.needs?.energy ?? 50);
 
-            if (foodBar) foodBar.style.width = `${hungerPct}%`;
-            if (waterBar) waterBar.style.width = `${thirstPct}%`;
-            if (energyBar) energyBar.style.width = `${energyPct}%`;
-            if (foodVal) foodVal.textContent = `${hungerPct}%`;
-            if (waterVal) waterVal.textContent = `${thirstPct}%`;
-            if (energyVal) energyVal.textContent = `${energyPct}%`;
+            if (c.foodBar) c.foodBar.style.width = `${hungerPct}%`;
+            if (c.waterBar) c.waterBar.style.width = `${thirstPct}%`;
+            if (c.energyBar) c.energyBar.style.width = `${energyPct}%`;
+            if (c.foodVal) c.foodVal.textContent = `${hungerPct}%`;
+            if (c.waterVal) c.waterVal.textContent = `${thirstPct}%`;
+            if (c.energyVal) c.energyVal.textContent = `${energyPct}%`;
 
-            if (healthBar) healthBar.style.width = '100%';
-            if (healthVal) healthVal.textContent = '100%';
+            if (c.healthBar) c.healthBar.style.width = '100%';
+            if (c.healthVal) c.healthVal.textContent = '100%';
+            // 行动文字：映射服务器状态值到显示文字
+            if (c.action) {
+                const actionText = ACTION_TEXT[char.action] || char.action || '闲置';
+                c.action.textContent = actionText;
+            }
 
-            if (actionElem) actionElem.textContent = char.action || '闲置';
-
-            // DNA属性
-            if (dnaContainer && char.dna) {
+            // DNA属性 - 只在DNA变化时重建HTML
+            if (c.dnaAttrs && char.dna) {
                 const dna = char.dna;
-                const lifespanText = `${Math.round((dna.lifespan / 1200) * 70)}岁`;
-                dnaContainer.innerHTML = `
-                    <div class="dna-row" style="background: rgba(74, 169, 74, 0.3); font-weight: bold;">
-                        <span>🎭 角色</span><span>${char.id === 'adam' ? '亚当' : '夏娃'}</span>
-                    </div>
-                    <div class="dna-row">
-                        <span>❤️ 寿命</span><span>${lifespanText}</span>
-                    </div>
-                    <div class="dna-row">
-                        <span>🔥 代谢</span><span>${(dna.metabolism * 100).toFixed(0)}</span>
-                    </div>
-                    <div class="dna-row">
-                        <span>💪 力量</span><span>${(dna.strength * 100).toFixed(0)}</span>
-                    </div>
-                    <div class="dna-row">
-                        <span>🏋️ 体质</span><span>${(dna.constitution * 100).toFixed(0)}</span>
-                    </div>
-                    <div class="dna-row">
-                        <span>🧠 智力</span><span>${(dna.intelligence * 100).toFixed(0)}</span>
-                    </div>
-                    <div class="dna-row">
-                        <span>⚔️ 胆量</span><span>${(dna.bravery * 100).toFixed(0)}</span>
-                    </div>
-                    <div class="dna-row">
-                        <span>🤝 社交</span><span>${(dna.aggression * 100).toFixed(0)}</span>
-                    </div>
-                    <div class="dna-row">
-                        <span>🌟 好奇心</span><span>${(dna.curiosity * 100).toFixed(0)}</span>
-                    </div>
-                `;
+                const dnaStr = JSON.stringify(dna);
+                if (dnaStr !== this.lastDnaStr) {
+                    this.lastDnaStr = dnaStr;
+                    const lifespanText = `${Math.round((dna.lifespan / 1200) * 70)}岁`;
+                    c.dnaAttrs.innerHTML = `
+                        <div class="dna-row" style="background: rgba(74, 169, 74, 0.3); font-weight: bold;">
+                            <span>🎭 角色</span><span>${char.id === 'adam' ? '亚当' : '夏娃'}</span>
+                        </div>
+                        <div class="dna-row">
+                            <span>❤️ 寿命</span><span>${lifespanText}</span>
+                        </div>
+                        <div class="dna-row">
+                            <span>🔥 代谢</span><span>${(dna.metabolism * 100).toFixed(0)}</span>
+                        </div>
+                        <div class="dna-row">
+                            <span>💪 力量</span><span>${(dna.strength * 100).toFixed(0)}</span>
+                        </div>
+                        <div class="dna-row">
+                            <span>🏋️ 体质</span><span>${(dna.constitution * 100).toFixed(0)}</span>
+                        </div>
+                        <div class="dna-row">
+                            <span>🧠 智力</span><span>${(dna.intelligence * 100).toFixed(0)}</span>
+                        </div>
+                        <div class="dna-row">
+                            <span>⚔️ 胆量</span><span>${(dna.bravery * 100).toFixed(0)}</span>
+                        </div>
+                        <div class="dna-row">
+                            <span>🤝 社交</span><span>${(dna.aggression * 100).toFixed(0)}</span>
+                        </div>
+                        <div class="dna-row">
+                            <span>🌟 好奇心</span><span>${(dna.curiosity * 100).toFixed(0)}</span>
+                        </div>
+                    `;
+                }
             }
 
             // 显示面板
@@ -1070,21 +1173,25 @@ export class GameApp {
         if (!this.statusPanel || !this.selectedCharacter) return;
 
         // 根据角色状态获取状态图标
-        const hunger = char.hunger || 50;
-        const thirst = char.thirst || 50;
-        const energy = char.energy || 5;
+        const hunger = char.needs?.hunger ?? 50;
+        const thirst = char.needs?.thirst ?? 50;
+        const energy = char.needs?.energy ?? 50;
 
         let statusIcon = '🚶';
-        if (thirst < 30) statusIcon = '💧很渴';
+        // 优先显示动作状态，动作结束再看需求
+        if (char.action === 'drinking') statusIcon = '💧饮水';
+        else if (char.action === 'eating') statusIcon = '🍖进食';
+        else if (char.action === 'resting') statusIcon = '💤休息';
+        else if (char.action === 'idle') statusIcon = '🧘待机';
+        else if (char.action === 'seeking_food') statusIcon = '🔍找食物';
+        else if (char.action === 'seeking_water') statusIcon = '💧找水';
+        else if (char.action === 'gathering') statusIcon = '🫐采集';
+        else if (char.action === 'wandering') statusIcon = '🚶巡逻';
+        else if (thirst < 30) statusIcon = '💧很渴';
         else if (hunger < 30) statusIcon = '🍖很饿';
         else if (thirst < 50) statusIcon = '💧口渴';
         else if (hunger < 50) statusIcon = '🍖饥饿';
-        else if (energy < 2) statusIcon = '😴疲惫';
-        else if (char.action === '饮水中') statusIcon = '💧饮水';
-        else if (char.action === '进食中') statusIcon = '🍖进食';
-        else if (char.action === '休息中') statusIcon = '💤休息';
-        else if (char.action === '闲置') statusIcon = '🧘待机';
-        else if (char.action?.includes('寻找')) statusIcon = '🔍探索';
+        else if (energy < 20) statusIcon = '😴疲惫';
 
         // 更新状态图标
         const statusIconElem = document.getElementById('status-icon');
@@ -1095,9 +1202,9 @@ export class GameApp {
         if (posElem) posElem.textContent = `(${char.x.toFixed(1)}, ${char.y.toFixed(1)})`;
 
         // 更新需求条
-        const hungerPct = Math.min(100, Math.round(char.hunger));
-        const thirstPct = Math.min(100, Math.round(char.thirst));
-        const energyPct = Math.round(char.energy);
+        const hungerPct = Math.min(100, Math.round(char.needs?.hunger ?? 50));
+        const thirstPct = Math.min(100, Math.round(char.needs?.thirst ?? 50));
+        const energyPct = Math.round(char.needs?.energy ?? 50);
 
         const foodBar = document.getElementById('panel-food-bar');
         const waterBar = document.getElementById('panel-water-bar');
@@ -1115,7 +1222,7 @@ export class GameApp {
 
         // 更新行动
         const actionElem = document.getElementById('panel-action');
-        if (actionElem) actionElem.textContent = char.action || '闲置';
+        if (actionElem) actionElem.textContent = ACTION_TEXT[char.action] || char.action || '闲置';
     }
 
     private setupItemStatusUI() {

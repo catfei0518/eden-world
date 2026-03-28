@@ -17,12 +17,13 @@ const GameLoop_1 = require("./GameLoop");
 const WebSocketHandler_1 = require("./WebSocketHandler");
 const auth_1 = __importDefault(require("./auth"));
 const PORT = 3333;
-const GAME_VERSION = 'v0.14.2';
+const GAME_VERSION = 'v0.14.3';
 class GameServer {
     constructor() {
         // 初始化组件
         this.worldState = new WorldState_1.WorldState();
         this.characterManager = new CharacterManager_1.CharacterManager();
+        this.characterManager.setWorldState(this.worldState); // Phase 1: 传递真实WorldState
         this.gameLoop = new GameLoop_1.GameLoop(this.characterManager, this.worldState);
         this.wsHandler = new WebSocketHandler_1.WebSocketHandler(this.characterManager, this.worldState);
         // 创建角色
@@ -96,9 +97,9 @@ class GameServer {
         this.app.get('/api/version', (req, res) => {
             res.json({
                 version: GAME_VERSION,
-                resourceVersion: 'v0.1.1',
+                resourceVersion: 'v0.1.0',
                 updateTime: '2026-03-27',
-                announcement: `🎉 欢迎来到伊甸世界 ${GAME_VERSION}！<br><br>🆕 新版特性：<br>• 亚当夏娃现在可以自主移动了！<br>• DNA影响行为：好奇心、胆量、社交性<br>• 需求驱动AI：口渴找水、饥饿找食物<br>• 状态面板同步更新<br>• 修复多处Bug<br><br>🔧 控制台命令：season春夏秋冬、speed快慢、pause继续`
+                announcement: `🎉 欢迎来到伊甸世界 v${GAME_VERSION}！<br><br>🆕 新版特性：<br>• 亚当夏娃现在可以自主移动了！<br>• DNA影响行为：好奇心、胆量、社交性<br>• 需求驱动AI：口渴找水、饥饿找食物<br>• 状态面板同步更新<br>• 修复多处Bug<br><br>🔧 控制台命令：season春夏秋冬、speed快慢、pause继续`
             });
         });
         // 在线人数

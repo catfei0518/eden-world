@@ -11,6 +11,13 @@ class CharacterManager {
     constructor() {
         this.characters = new Map();
         this.selectedCharacter = null;
+        this.realWorldState = null; // Phase 1: 真实WorldState引用
+    }
+    setWorldState(ws) {
+        this.realWorldState = ws;
+    }
+    getWorldState() {
+        return this.realWorldState;
     }
     createCharacter(type, x, y, name) {
         const id = `char_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
@@ -48,10 +55,10 @@ class CharacterManager {
     processAI(worldState) {
         const allCharacters = this.getAll();
         for (const char of allCharacters) {
-            // 1️⃣ AI决策
+            // 1️⃣ AI决策（使用简化版ServerWorldState）
             char.decide(worldState, allCharacters);
-            // 2️⃣ 执行移动
-            char.moveStep(worldState);
+            // 2️⃣ 执行移动（使用真实WorldState以便修改浆果数据）
+            char.moveStep(this.realWorldState);
         }
     }
     moveCharacter(id, x, y, tick) {
@@ -107,7 +114,22 @@ class CharacterManager {
         char.energy = Math.max(0, Math.min(100, char.energy + energyDelta));
         return true;
     }
-    serialize() { return this.getAll().map(ai => ({ id: ai.id, name: ai.name, type: ai.type, x: ai.x, y: ai.y, hunger: ai.hunger, thirst: ai.thirst, energy: ai.energy, action: ai.getStatusText(), dna: ai.dna }));
+    serialize() {
+        return this.getAll().map(ai => ({
+            id: ai.id,
+            name: ai.name,
+            type: ai.type,
+            x: ai.x,
+            y: ai.y,
+            action: ai.state,
+            actionTimer: ai.actionTimer,
+            actionTimerMax: ai.actionTimerMax,
+            needs: {
+                hunger: ai.hunger,
+                thirst: ai.thirst,
+                energy: ai.energy
+            }
+        }));
     }
     serializeFull(id) {
         const ai = this.getCharacter(id);
@@ -119,7 +141,9 @@ class CharacterManager {
             type: ai.type,
             x: ai.x,
             y: ai.y,
-            action: ai.getStatusText(),
+            action: ai.state,
+            actionTimer: ai.actionTimer,
+            actionTimerMax: ai.actionTimerMax,
             needs: {
                 hunger: ai.hunger,
                 thirst: ai.thirst,

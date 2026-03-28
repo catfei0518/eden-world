@@ -14,7 +14,7 @@ import { WebSocketHandler } from './WebSocketHandler';
 import auth from './auth';
 
 const PORT = 3333;
-const GAME_VERSION = 'v0.14.1';
+const GAME_VERSION = 'v0.14.3';
 
 export class GameServer {
     private app: express.Application;
@@ -30,6 +30,7 @@ export class GameServer {
         // 初始化组件
         this.worldState = new WorldState();
         this.characterManager = new CharacterManager();
+        this.characterManager.setWorldState(this.worldState);  // Phase 1: 传递真实WorldState
         this.gameLoop = new GameLoop(this.characterManager, this.worldState);
         this.wsHandler = new WebSocketHandler(this.characterManager, this.worldState);
         

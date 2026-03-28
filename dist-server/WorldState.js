@@ -1,6 +1,8 @@
 "use strict";
 /**
- * 伊甸世界 - 世界状态管理
+ * 伊甸世界 - 世界状态管理 v1.1
+ *
+ * Phase 1: 浆果采集系统
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WorldState = void 0;
@@ -38,6 +40,7 @@ class WorldState {
     constructor(seed = WORLD_SEED) {
         this.tiles = [];
         this.groundObjects = [];
+        this.bushes = []; // 灌木数据（包含浆果）
         this.season = 'spring';
         this.tick = 0;
         this.seed = seed;
@@ -142,12 +145,27 @@ class WorldState {
                 }
                 else if (tile.type === 'grass' && Math.abs(noise(x * 0.3, y * 0.3)) < 0.05) {
                     // 灌木 - 保持在格子内（5%概率）
+                    const bushId = `bush_${x}_${y}`;
                     this.groundObjects.push({
-                        id: `bush_${x}_${y}`,
+                        id: bushId,
                         type: 'bush',
                         x: x,
                         y: y,
                         terrain: 'grass'
+                    });
+                    // 创建灌木浆果数据（Phase 1）
+                    // 浆果数量：5-30个随机
+                    const berryCount = Math.floor(Math.random() * 26) + 5; // 5-30
+                    const maxBerries = 30; // 最大承载量
+                    this.bushes.push({
+                        id: bushId,
+                        x: x,
+                        y: y,
+                        berryCount: berryCount,
+                        maxBerries: maxBerries,
+                        durability: 100,
+                        lastHarvest: 0,
+                        hasBerries: true // 春夏秋有浆果
                     });
                 }
                 else if ((tile.type === 'mountain' || tile.type === 'hill') && Math.abs(noise(x * 0.4, y * 0.4)) < 0.08) {
@@ -235,6 +253,94 @@ class WorldState {
     }
     getTileSize() {
         return TILE_SIZE;
+    }
+    // ========== Phase 1: 浆果采集系统 ==========
+    /**
+     * 获取所有灌木
+     */
+    getAllBushes() {
+        return this.bushes;
+    }
+    /**
+     * 获取有浆果的灌木
+     */
+    getBushesWithBerries() {
+        return this.bushes.filter(b => b.hasBerries && b.berryCount > 0);
+    }
+    /**
+     * 获取指定位置的灌木
+     */
+    getBushAt(x, y) {
+        return this.bushes.find(b => b.x === x && b.y === y);
+    }
+    /**
+     * 采集浆果
+     * @param x 灌木位置x
+     * @param y 灌木位置y
+     * @returns 采集到的浆果数量
+     */
+    harvestBerry(x, y) {
+        const bush = this.getBushAt(x, y);
+        if (!bush || !bush.hasBerries || bush.berryCount <= 0) {
+            return 0;
+        }
+        // 采集1-3个浆果（随机）
+        const harvestAmount = Math.min(bush.berryCount, Math.floor(Math.random() * 3) + 1);
+        bush.berryCount -= harvestAmount;
+        bush.lastHarvest = this.tick;
+        return harvestAmount;
+    }
+    /**
+     * 检查灌木是否可以采集（距离判定）
+     */
+    canHarvest(x, y, targetX, targetY) {
+        const dx = Math.abs(x - targetX);
+        const dy = Math.abs(y - targetY);
+        return dx <= 1 && dy <= 1; // 1格内可采集
+    }
+    /**
+     * 更新季节对灌木的影响
+     * 春：开花（无浆果）
+     * 夏：有浆果
+     * 秋：有浆果
+     * 冬：无浆果
+     */
+    updateSeasonForBushes(season) {
+        this.season = season;
+        for (const bush of this.bushes) {
+            if (season === 'spring') {
+                bush.hasBerries = false; // 春天开花，不结果
+                bush.berryCount = 0;
+            }
+            else if (season === 'summer' || season === 'autumn') {
+                bush.hasBerries = true;
+                // 重新生成浆果（如果之前没有的话）
+                if (bush.berryCount === 0) {
+                    bush.berryCount = Math.floor(Math.random() * 26) + 5; // 5-30
+                }
+            }
+            else if (season === 'winter') {
+                bush.hasBerries = false;
+                bush.berryCount = 0;
+            }
+        }
+    }
+    /**
+     * 获取食物来源位置（用于AI决策）
+     * 只返回有浆果的灌木位置
+     */
+    getFoodSources() {
+        const sources = [];
+        // 添加有浆果的灌木
+        const bushesWithBerries = this.getBushesWithBerries();
+        for (const bush of bushesWithBerries) {
+            sources.push({
+                x: bush.x,
+                y: bush.y,
+                type: 'bush'
+            });
+        }
+        return sources;
     }
 }
 exports.WorldState = WorldState;

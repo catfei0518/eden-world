@@ -14,6 +14,15 @@ interface CharacterState {
 export class CharacterManager {
     private characters: Map<string, CharacterState> = new Map();
     private selectedCharacter: string | null = null;
+    private realWorldState: any = null;  // Phase 1: 真实WorldState引用
+    
+    setWorldState(ws: any): void {
+        this.realWorldState = ws;
+    }
+    
+    getWorldState(): any {
+        return this.realWorldState;
+    }
     
     createCharacter(type: CharacterType, x: number, y: number, name: string): string {
         const id = `char_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
@@ -61,11 +70,11 @@ export class CharacterManager {
         const allCharacters = this.getAll();
         
         for (const char of allCharacters) {
-            // 1️⃣ AI决策
+            // 1️⃣ AI决策（使用简化版ServerWorldState）
             char.decide(worldState, allCharacters);
             
-            // 2️⃣ 执行移动
-            char.moveStep(worldState);
+            // 2️⃣ 执行移动（使用真实WorldState以便修改浆果数据）
+            char.moveStep(this.realWorldState);
         }
     }
     
@@ -137,11 +146,12 @@ export class CharacterManager {
             type: ai.type,
             x: ai.x,
             y: ai.y,
-            hunger: ai.hunger,
-            thirst: ai.thirst,
-            energy: ai.energy,
-            action: ai.getStatusText(),
-            dna: ai.dna
+            action: ai.state,
+            needs: {
+                hunger: ai.hunger,
+                thirst: ai.thirst,
+                energy: ai.energy
+            }
         }));
     }
     
@@ -155,7 +165,7 @@ export class CharacterManager {
             type: ai.type,
             x: ai.x,
             y: ai.y,
-            action: ai.getStatusText(),
+            action: ai.state,
             needs: {
                 hunger: ai.hunger,
                 thirst: ai.thirst,

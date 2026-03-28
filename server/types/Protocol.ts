@@ -100,6 +100,57 @@ export interface GroundItemData {
 
 export type ItemType = 'tree' | 'rock' | 'bush' | 'berry' | 'bush_flower' | 'well' | 'shell' | 'forest_tree';
 
+/**
+ * 浆果营养数据
+ */
+export interface BerryNutrition {
+    calories: number;    // 热量 (kcal) - 默认32
+    water: number;       // 水分 (ml) - 默认80
+    sugar: number;       // 果糖 (g) - 默认5
+    vitaminC: number;    // 维生素C (mg) - 默认12
+}
+
+/**
+ * 浆果数据
+ */
+export interface BerryData {
+    id: string;
+    freshness: number;   // 新鲜度 0-100
+    nutrition: BerryNutrition;
+}
+
+/**
+ * 灌木数据（包含浆果）
+ */
+export interface BushData {
+    id: string;
+    x: number;
+    y: number;
+    berryCount: number;      // 当前浆果数 5-30
+    maxBerries: number;      // 最大浆果数
+    durability: number;       // 耐久度
+    lastHarvest: number;     // 上次采集时间(tick)
+    hasBerries: boolean;     // 是否有浆果（季节相关）
+}
+
+/**
+ * 背包槽位
+ */
+export interface InventorySlot {
+    index: number;           // 0-4
+    item: ItemType | null;  // 物品类型
+    count: number;          // 数量
+    nutrition?: BerryNutrition; // 营养数据（浆果）
+}
+
+/**
+ * 角色背包
+ */
+export interface Inventory {
+    slots: InventorySlot[];
+    maxSlots: number;       // 5格
+}
+
 export interface CharacterSnapshot {
     id: string;
     name: string;
