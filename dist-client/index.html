@@ -95,6 +95,44 @@
             pointer-events: none;
         }
         
+        .loading-version {
+            font-size: 14px;
+            color: #6fc;
+            margin-bottom: 20px;
+            padding: 4px 16px;
+            background: rgba(102, 255, 204, 0.1);
+            border-radius: 12px;
+            border: 1px solid rgba(102, 255, 204, 0.3);
+        }
+        
+        .announcement {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(74, 169, 74, 0.3);
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            max-width: 400px;
+            text-align: left;
+        }
+        
+        .announcement-title {
+            font-size: 14px;
+            color: #6fc;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        
+        .announcement-content {
+            font-size: 12px;
+            color: #aaa;
+            line-height: 1.8;
+        }
+        
+        .update-item {
+            padding: 2px 0;
+        }
+        }
+        
         .loading-title {
             font-size: 32px;
             color: #6fc;
@@ -368,12 +406,21 @@
     <!-- 加载遮罩 -->
     <div class="loading-overlay" id="loading-overlay">
         <div class="loading-title">🌍 伊甸世界</div>
+        <div class="loading-version">v0.14.4</div>
+        <div class="announcement">
+            <div class="announcement-title">📢 最新更新</div>
+            <div class="announcement-content">
+                <div class="update-item">🆕 Phase 1.5 - 背包系统：点击角色查看背包和热量</div>
+                <div class="update-item">✨ 动作进度条：头顶显示采集/饮食/饮水进度</div>
+                <div class="update-item">🐛 加载优化：修复卡顿问题</div>
+            </div>
+        </div>
         <div class="loading-spinner"></div>
-        <div class="loading-text">正在载入<span class="loading-dots"></span></div>
+        <div class="loading-text" id="loading-text">正在载入<span class="loading-dots"></span></div>
         <div class="loading-progress">
             <div class="loading-progress-bar"></div>
         </div>
-        <div class="loading-tip">💡 提示：这是观察类游戏，亚当和夏娃会自主行动<br/>你可以点击角色查看他们的DNA和状态</div>
+        <div class="loading-tip">💡 提示：这是观察类游戏，亚当和夏娃会自主行动<br/>点击角色查看详情 | 观察头顶的动作进度条</div>
     </div>
     <div class="title">🌍 伊甸世界</div>
     
@@ -444,7 +491,7 @@
         </div>
         
         <div style="margin-bottom: 15px; font-size: 12px; color: #666;">
-            版本: <span id="settings-version">v0.14.4</span>
+            版本: <span id="settings-version">v0.12.0</span>
         </div>
         
         <button id="settings-logout" style="width: 100%; padding: 10px; background: rgba(231,76,60,0.8); border: none; border-radius: 8px; color: white; cursor: pointer; font-size: 14px;">🚪 退出登录</button>
