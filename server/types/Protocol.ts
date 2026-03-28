@@ -151,6 +151,14 @@ export interface Inventory {
     maxSlots: number;       // 5格
 }
 
+/**
+ * AI角色背包数据（当前实现）
+ */
+export interface CharacterInventory {
+    berries: number;   // 浆果数量
+    calories: number;   // 总热量
+}
+
 export interface CharacterSnapshot {
     id: string;
     name: string;
@@ -163,6 +171,7 @@ export interface CharacterSnapshot {
         thirst: number;
         energy: number;
     };
+    inventory: CharacterInventory;
 }
 
 export interface CharacterFullData extends CharacterSnapshot {

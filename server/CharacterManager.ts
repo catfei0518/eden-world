@@ -151,7 +151,8 @@ export class CharacterManager {
                 hunger: ai.hunger,
                 thirst: ai.thirst,
                 energy: ai.energy
-            }
+            },
+            inventory: ai.inventory
         }));
     }
     
@@ -171,6 +172,7 @@ export class CharacterManager {
                 thirst: ai.thirst,
                 energy: ai.energy
             },
+            inventory: ai.inventory,
             dna: ai.dna,
             phenotype: null,
             positionHistory: []

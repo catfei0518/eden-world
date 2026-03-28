@@ -128,7 +128,8 @@ class CharacterManager {
                 hunger: ai.hunger,
                 thirst: ai.thirst,
                 energy: ai.energy
-            }
+            },
+            inventory: ai.inventory
         }));
     }
     serializeFull(id) {
@@ -149,6 +150,7 @@ class CharacterManager {
                 thirst: ai.thirst,
                 energy: ai.energy
             },
+            inventory: ai.inventory,
             dna: ai.dna,
             phenotype: null,
             positionHistory: []

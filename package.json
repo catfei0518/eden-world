@@ -1,6 +1,6 @@
 {
   "name": "eden-world",
-  "version": "0.14.3",
+  "version": "0.14.4",
   "description": "> AI文明演化模拟器 - 观察AI角色在世界中自主生存、繁衍、发展",
   "main": "dist/main.js",
   "scripts": {

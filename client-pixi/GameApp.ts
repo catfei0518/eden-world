@@ -45,6 +45,10 @@ interface ServerCharacter {
     action: string;
     actionTimer?: number;
     actionTimerMax?: number;
+    inventory?: {
+        berries: number;
+        calories: number;
+    };
     dna?: {
         bravery: number;
         aggression: number;
@@ -201,10 +205,8 @@ export class GameApp {
         });
 
         // 隐藏加载遮罩
-        const loadingOverlay = document.getElementById('loading-overlay');
-        if (loadingOverlay) {
-            loadingOverlay.classList.add('hidden');
-        }
+        // 注意：不要在这里隐藏！因为服务器连接和地形渲染还需要时间
+        // 加载遮罩会在 init 事件处理完成后隐藏
 
         // 初始化位置插值系统
         this.setupPositionInterpolation();
@@ -398,7 +400,8 @@ export class GameApp {
         });
 
         this.server.on('init', (state) => {
-            console.log('📊 收到初始状态');
+            try {
+            console.log('📊 收到初始状态:', state ? '数据正常' : '数据为空');
 
             // 重连时清除旧的精灵和状态
             this.clearAllSprites();
@@ -424,6 +427,8 @@ export class GameApp {
 
             // 先渲染地形（使用服务器数据）
             if (state.world?.tiles) {
+                const loadingText = document.getElementById('loading-text');
+                if (loadingText) loadingText.textContent = '正在生成游戏世界';
                 console.log('🗺️ 开始渲染地形...');
                 this.renderTerrain();
                 console.log('🗺️ 地形渲染完成');
@@ -434,6 +439,8 @@ export class GameApp {
 
             // 渲染地面物品（从服务器数据）
             if (state.world?.groundObjects) {
+                const loadingText = document.getElementById('loading-text');
+                if (loadingText) loadingText.textContent = '正在放置物品';
                 this.renderGroundObjectsFromServer(state.world.groundObjects);
             } else {
                 console.log('❌ 未收到服务器物品');
@@ -441,6 +448,8 @@ export class GameApp {
 
             // 相机跟随第一个角色
             if (state.characters && state.characters.length > 0) {
+                const loadingText = document.getElementById('loading-text');
+                if (loadingText) loadingText.textContent = '正在唤醒角色';
                 // 先设置本地玩家ID
                 this.selectedCharacterId = state.characters[0].id;
                 // 相机居中显示所有角色
@@ -454,8 +463,36 @@ export class GameApp {
                         this.updateStatusPanel(serverChar);
                     }
                 }
+
+                // 初始化完成，隐藏加载遮罩
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (loadingOverlay) {
+                    loadingOverlay.classList.add('hidden');
+                }
+            } else {
+                // 没有角色数据时也隐藏遮罩
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (loadingOverlay) {
+                    loadingOverlay.classList.add('hidden');
+                }
+            }
+            } catch (e) {
+                console.error('❌ 初始化出错:', e);
+                // 出错时也隐藏遮罩
+                const loadingOverlay = document.getElementById('loading-overlay');
+                if (loadingOverlay) {
+                    loadingOverlay.classList.add('hidden');
+                }
             }
         });
+
+        // 超时保护：10秒后强制隐藏加载遮罩
+        setTimeout(() => {
+            const loadingOverlay = document.getElementById('loading-overlay');
+            if (loadingOverlay) {
+                loadingOverlay.classList.add('hidden');
+            }
+        }, 10000);
 
         // 角色选中事件 - 收到服务器返回的完整数据（含DNA）
         this.server.on('character_selected', (data) => {
@@ -1152,6 +1189,17 @@ export class GameApp {
                 }
             }
 
+            // 背包数据
+            if (char.inventory) {
+                const inv = char.inventory;
+                // 第一个格子显示浆果
+                const slot0 = document.getElementById('slot-0-count');
+                if (slot0) slot0.textContent = String(inv.berries);
+                // 更新热量
+                const calElem = document.getElementById('inventory-calories');
+                if (calElem) calElem.textContent = String(Math.round(inv.calories));
+            }
+
             // 显示面板
             this.statusPanel.style.cssText = 'display: block; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999;';
         }, 50);
@@ -1223,6 +1271,15 @@ export class GameApp {
         // 更新行动
         const actionElem = document.getElementById('panel-action');
         if (actionElem) actionElem.textContent = ACTION_TEXT[char.action] || char.action || '闲置';
+
+        // 更新背包
+        if (char.inventory) {
+            const inv = char.inventory;
+            const slot0 = document.getElementById('slot-0-count');
+            if (slot0) slot0.textContent = String(inv.berries);
+            const calElem = document.getElementById('inventory-calories');
+            if (calElem) calElem.textContent = String(Math.round(inv.calories));
+        }
     }
 
     private setupItemStatusUI() {
