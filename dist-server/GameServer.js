@@ -26,7 +26,7 @@ class GameServer {
         this.characterManager = new CharacterManager_1.CharacterManager();
         this.characterManager.setWorldState(this.worldState); // Phase 1: 传递真实WorldState
         this.gameLoop = new GameLoop_1.GameLoop(this.characterManager, this.worldState);
-        this.wsHandler = new WebSocketHandler_1.WebSocketHandler(this.characterManager, this.worldState);
+        this.wsHandler = new WebSocketHandler_1.WebSocketHandler(this.characterManager, this.worldState, this.gameLoop);
         // 创建角色
         this.createInitialCharacters();
         // Express应用
@@ -59,12 +59,20 @@ class GameServer {
     setupRoutes() {
         // 健康检查
         this.app.get('/health', (req, res) => {
+            const timeInfo = this.gameLoop.getTimeInfo();
             res.json({
                 status: 'ok',
                 players: this.wsHandler.getClientCount(),
                 characters: this.characterManager.getAll().length,
                 tick: this.gameLoop.getCurrentTick(),
-                version: GAME_VERSION
+                version: GAME_VERSION,
+                time: {
+                    season: timeInfo.season,
+                    day: timeInfo.day,
+                    timeString: timeInfo.timeString,
+                    period: timeInfo.period,
+                    speed: timeInfo.timeSpeed
+                }
             });
         });
         // 资源清单
@@ -167,6 +175,36 @@ class GameServer {
             this.worldState.setSeason(season);
             this.wsHandler.broadcast({ type: 'season_changed', season });
             res.json({ success: true, season });
+        });
+
+        // 时间信息API
+        this.app.get('/api/time', (req, res) => {
+            const timeInfo = this.gameLoop.getTimeInfo();
+            res.json({
+                ...timeInfo,
+                tick: this.gameLoop.getCurrentTick()
+            });
+        });
+
+        // 时间档位API
+        this.app.post('/api/time/speed', (req, res) => {
+            const authHeader = req.headers.authorization;
+            if (!authHeader || !authHeader.startsWith('Bearer ')) {
+                return res.status(401).json({ error: '未授权' });
+            }
+            const token = authHeader.substring(7);
+            const user = auth_1.default.getUserInfo(token);
+            if (!user || user.role !== 'admin') {
+                return res.status(403).json({ error: '需要管理员权限' });
+            }
+            const { speed } = req.body;
+            if (![0, 1, 10, 60].includes(speed)) {
+                return res.status(400).json({ error: '无效的速度档位 (0=暂停, 1=正常, 10=10x, 60=60x)' });
+            }
+            this.gameLoop.setTimeSpeed(speed);
+            const timeInfo = this.gameLoop.getTimeInfo();
+            this.wsHandler.broadcast({ type: 'time_speed_changed', speed, timeInfo });
+            res.json({ success: true, speed, timeInfo });
         });
         // 客户端HTML
         this.app.get('/client', (req, res) => {

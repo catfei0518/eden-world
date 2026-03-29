@@ -5,7 +5,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WebSocketHandler = void 0;
 class WebSocketHandler {
-    constructor(characterManager, worldState) {
+    constructor(characterManager, worldState, gameLoop = null) {
         this.clients = new Map();
         this.pendingInputs = new Map();
         this.inputSeq = 0;
@@ -13,6 +13,7 @@ class WebSocketHandler {
         this.adminCommands = ['season', 'spawn', 'kill', 'time', 'kick', 'give'];
         this.characterManager = characterManager;
         this.worldState = worldState;
+        this.gameLoop = gameLoop;
     }
     handleConnection(ws) {
         const clientId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
@@ -292,11 +293,13 @@ class WebSocketHandler {
         }
     }
     broadcastState(tick) {
+        const timeInfo = this.gameLoop ? this.gameLoop.getTimeInfo() : null;
         const message = {
             type: 'state',
             data: {
                 characters: this.characterManager.serialize(),
-                tick
+                tick,
+                time: timeInfo
             }
         };
         this.broadcast(message);
