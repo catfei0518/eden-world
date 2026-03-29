@@ -1,5 +1,12 @@
 /**
- * 相机控制器 - 3档缩放
+ * 相机控制器 - 3档缩放 + 移动端支持
+ * 
+ * 支持:
+ * - 鼠标拖动
+ * - 鼠标滚轮缩放
+ * - 单指拖动 (移动端)
+ * - 双指缩放 (移动端)
+ * - 双击/双指tap重置
  */
 
 import * as PIXI from 'pixi.js';
@@ -20,9 +27,34 @@ export class Camera {
         'CLOSE': 4
     };
     
+    // ===== 鼠标拖动 =====
     private isDragging: boolean = false;
     private lastX: number = 0;
     private lastY: number = 0;
+    
+    // ===== 移动端触摸 =====
+    private isTouchDragging: boolean = false;
+    private touchStartX: number = 0;
+    private touchStartY: number = 0;
+    private lastTouchX: number = 0;
+    private lastTouchY: number = 0;
+    
+    // ===== 双指缩放 =====
+    private isPinching: boolean = false;
+    private lastPinchDistance: number = 0;
+    private lastPinchCenterX: number = 0;
+    private lastPinchCenterY: number = 0;
+    
+    // ===== 双击检测 =====
+    private lastTapTime: number = 0;
+    private lastTapX: number = 0;
+    private lastTapY: number = 0;
+    private readonly DOUBLE_TAP_DELAY: number = 300; // 双击判定时间(ms)
+    private readonly DOUBLE_TAP_DISTANCE: number = 30; // 双击判定距离(px)
+    
+    // ===== 缩放限制 =====
+    private readonly MIN_ZOOM: number = 0.15;
+    private readonly MAX_ZOOM: number = 6;
     
     constructor(target: PIXI.Container, canvas: HTMLCanvasElement) {
         this.target = target;
@@ -30,7 +62,7 @@ export class Camera {
     }
     
     setupControls(canvas: HTMLCanvasElement) {
-        // 鼠标拖动
+        // ===== 鼠标拖动 =====
         canvas.addEventListener('mousedown', (e: MouseEvent) => {
             if (e.button === 0) {
                 this.isDragging = true;
@@ -75,6 +107,128 @@ export class Camera {
         });
         
         canvas.style.cursor = 'grab';
+        
+        // ===== 移动端触摸事件 =====
+        canvas.addEventListener('touchstart', (e: TouchEvent) => {
+            e.preventDefault();
+            
+            if (e.touches.length === 1) {
+                // 单指触摸 - 开始拖动
+                const touch = e.touches[0];
+                this.isTouchDragging = true;
+                this.touchStartX = touch.clientX;
+                this.touchStartY = touch.clientY;
+                this.lastTouchX = touch.clientX;
+                this.lastTouchY = touch.clientY;
+                
+                // 检测双击
+                const now = Date.now();
+                const dx = touch.clientX - this.lastTapX;
+                const dy = touch.clientY - this.lastTapY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (now - this.lastTapTime < this.DOUBLE_TAP_DELAY && distance < this.DOUBLE_TAP_DISTANCE) {
+                    // 双击重置
+                    this.reset();
+                    this.lastTapTime = 0;
+                } else {
+                    this.lastTapTime = now;
+                    this.lastTapX = touch.clientX;
+                    this.lastTapY = touch.clientY;
+                }
+                
+            } else if (e.touches.length === 2) {
+                // 双指触摸 - 开始缩放
+                this.isTouchDragging = false;
+                this.isPinching = true;
+                
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                
+                // 计算双指距离和中心点
+                const dx = touch2.clientX - touch1.clientX;
+                const dy = touch2.clientY - touch1.clientY;
+                this.lastPinchDistance = Math.sqrt(dx * dx + dy * dy);
+                this.lastPinchCenterX = (touch1.clientX + touch2.clientX) / 2;
+                this.lastPinchCenterY = (touch1.clientY + touch2.clientY) / 2;
+            }
+        }, { passive: false });
+        
+        canvas.addEventListener('touchmove', (e: TouchEvent) => {
+            e.preventDefault();
+            
+            if (e.touches.length === 1 && this.isTouchDragging) {
+                // 单指拖动地图
+                const touch = e.touches[0];
+                const dx = touch.clientX - this.lastTouchX;
+                const dy = touch.clientY - this.lastTouchY;
+                
+                this.target.x += dx;
+                this.target.y += dy;
+                
+                this.lastTouchX = touch.clientX;
+                this.lastTouchY = touch.clientY;
+                
+            } else if (e.touches.length === 2 && this.isPinching) {
+                // 双指缩放
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                
+                // 计算当前双指距离和中心点
+                const dx = touch2.clientX - touch1.clientX;
+                const dy = touch2.clientY - touch1.clientY;
+                const currentDistance = Math.sqrt(dx * dx + dy * dy);
+                const currentCenterX = (touch1.clientX + touch2.clientX) / 2;
+                const currentCenterY = (touch1.clientY + touch2.clientY) / 2;
+                
+                // 计算缩放比例
+                const scaleChange = currentDistance / this.lastPinchDistance;
+                const newScale = Math.max(this.MIN_ZOOM, Math.min(this.MAX_ZOOM, this.scale * scaleChange));
+                
+                // 以双指中心点为基准缩放
+                if (newScale !== this.scale) {
+                    const worldX = (currentCenterX - this.target.x) / this.scale;
+                    const worldY = (currentCenterY - this.target.y) / this.scale;
+                    
+                    this.target.scale.set(newScale);
+                    this.scale = newScale;
+                    
+                    this.target.x = currentCenterX - worldX * newScale;
+                    this.target.y = currentCenterY - worldY * newScale;
+                    
+                    this.clamp();
+                }
+                
+                // 更新双指位置
+                this.lastPinchDistance = currentDistance;
+                this.lastPinchCenterX = currentCenterX;
+                this.lastPinchCenterY = currentCenterY;
+            }
+        }, { passive: false });
+        
+        canvas.addEventListener('touchend', (e: TouchEvent) => {
+            e.preventDefault();
+            
+            if (e.touches.length === 0) {
+                this.isTouchDragging = false;
+                this.isPinching = false;
+            } else if (e.touches.length === 1) {
+                // 从双指切换到单指
+                this.isPinching = false;
+                this.isTouchDragging = true;
+                
+                const touch = e.touches[0];
+                this.lastTouchX = touch.clientX;
+                this.lastTouchY = touch.clientY;
+            }
+        }, { passive: false });
+        
+        // 阻止默认触摸行为（防止页面滚动）
+        document.body.addEventListener('touchmove', (e: TouchEvent) => {
+            if (e.target === canvas) {
+                e.preventDefault();
+            }
+        }, { passive: false });
     }
     
     zoomIn(mouseX?: number, mouseY?: number) {

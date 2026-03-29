@@ -66,11 +66,13 @@ class GameLoop {
         this.currentTick++;
         // 计算真实流逝时间
         const now = Date.now();
-        const deltaMs = now - (this.lastTickTime || now);
+        // 首次tick时lastTickTime未初始化，跳过时间推进
+        if (this.lastTickTime) {
+            const deltaMs = now - this.lastTickTime;
+            // 更新游戏时间
+            this.timeManager.advance(deltaMs);
+        }
         this.lastTickTime = now;
-        
-        // 更新游戏时间
-        this.timeManager.advance(deltaMs);
         
         // AI决策 + 移动（每2个tick一次）
         if (this.currentTick % this.aiProcessInterval === 0 && this.aiWorldState) {
