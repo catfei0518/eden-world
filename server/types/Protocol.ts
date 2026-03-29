@@ -96,9 +96,10 @@ export interface GroundItemData {
     x: number;
     y: number;
     terrain: TerrainType;
+    quantity?: number;  // 物品数量（树枝、石头等）
 }
 
-export type ItemType = 'tree' | 'rock' | 'bush' | 'berry' | 'bush_flower' | 'well' | 'shell' | 'forest_tree';
+export type ItemType = 'tree' | 'rock' | 'bush' | 'berry' | 'bush_flower' | 'well' | 'shell' | 'forest_tree' | 'twig' | 'stone';
 
 /**
  * 浆果营养数据
@@ -156,7 +157,10 @@ export interface Inventory {
  */
 export interface CharacterInventory {
     berries: number;   // 浆果数量
-    calories: number;   // 总热量
+    twigs: number;    // 树枝数量
+    stones: number;   // 石头数量
+    herbs: number;    // 草本数量
+    totalCalories: number;   // 总热量(计算值)
 }
 
 export interface CharacterSnapshot {
@@ -166,6 +170,8 @@ export interface CharacterSnapshot {
     x: number;
     y: number;
     action: string;
+    actionTimer?: number;     // 动作剩余时间（客户端进度条用）
+    actionTimerMax?: number;   // 动作最大时间（客户端进度条用）
     needs: {
         hunger: number;
         thirst: number;

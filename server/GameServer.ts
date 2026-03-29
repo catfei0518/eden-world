@@ -3,6 +3,7 @@
  */
 
 import express from 'express';
+import cors from 'cors';
 import { createServer } from 'http';
 import WebSocket, { WebSocketServer } from 'ws';
 import path from 'path';
@@ -14,7 +15,7 @@ import { WebSocketHandler } from './WebSocketHandler';
 import auth from './auth';
 
 const PORT = 3333;
-const GAME_VERSION = 'v0.14.4';
+const GAME_VERSION = 'v0.15.0';
 
 export class GameServer {
     private app: express.Application;
@@ -39,6 +40,7 @@ export class GameServer {
         
         // Express应用
         this.app = express();
+        this.app.use(cors());  // 允许跨域访问
         this.app.use(express.json());  // 解析JSON body
         this.setupRoutes();
         
@@ -120,8 +122,8 @@ export class GameServer {
             res.json({
                 version: GAME_VERSION,
                 resourceVersion: 'v0.1.0',
-                updateTime: '2026-03-28',
-                announcement: `🎉 欢迎来到伊甸世界 ${GAME_VERSION}！<br><br>🆕 Phase 1.5 新功能：<br>• 背包系统：点击角色查看背包和热量<br>• 动作进度条：头顶显示采集/饮食/饮水进度<br>• 加载优化：修复卡顿问题<br>• UI面板同步优化<br><br>🔧 控制台命令：season春夏秋冬、speed快慢、pause继续`
+                updateTime: '2026-03-29',
+                announcement: `🎉 欢迎来到伊甸世界 ${GAME_VERSION}！<br><br>🆕 Phase 1.6 新功能：<br>• 纯卡路里饥饿系统：真实卡路里计算<br>• 可拾取物品：树枝、石头、草本<br>• 双栏状态面板：装备栏+背包<br>• 动作进度条：头顶显示进度<br>• 移动抽搐修复<br>• CORS跨域修复<br><br>🔧 控制台命令：season春夏秋冬、speed快慢、pause继续`
             });
         });
         

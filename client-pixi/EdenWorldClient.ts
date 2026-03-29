@@ -248,20 +248,21 @@ class EdenWorldClient {
         sprite.action.text = charData.action || '';
         
         // 更新状态条
-        const hunger = charData.hunger || 100;
+        const hungerKcal = charData.hunger || 2000;
         const thirst = charData.thirst || 100;
         
-        sprite.hungerBar.scale.x = hunger / 100;
+        // 饥饿显示为百分比(基于2000kcal), 口渴保持百分比
+        sprite.hungerBar.scale.x = Math.min(1, hungerKcal / 2000);
         sprite.thirstBar.scale.x = thirst / 100;
         
-        // 更新数值显示
-        sprite.hungerText.text = `🍖 ${Math.round(hunger)}%`;
+        // 更新数值显示 - 饥饿显示kcal, 口渴显示百分比
+        sprite.hungerText.text = `🍖 ${Math.round(hungerKcal)}`;
         sprite.thirstText.text = `💧 ${Math.round(thirst)}%`;
         
         // 根据饥饿口渴状态改变颜色
-        if (hunger < 30) {
+        if (hungerKcal < 400) {  // 低于20%
             sprite.hungerBar.tint = 0xFF0000;
-        } else if (hunger < 60) {
+        } else if (hungerKcal < 1000) {  // 低于50%
             sprite.hungerBar.tint = 0xFFAA00;
         } else {
             sprite.hungerBar.tint = 0x00FF00;

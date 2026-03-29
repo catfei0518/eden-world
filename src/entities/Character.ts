@@ -419,7 +419,7 @@ export class Character {
     // 每秒消耗 = 100% / 360秒 ≈ 0.278%/秒
     // 每帧消耗 ≈ 0.278% / 60帧 ≈ 0.00463%/帧
     update(deltaTime: number, world: WorldState): void {
-        const consumptionPerFrame = 100 / (6 * 60 * 60);  // 约0.00463%/帧
+        const consumptionPerFrame = 100 / (6 * 60 * 60) * 5;  // 约0.023%/帧（加速5倍）
         const consumptionMultiplier = 0.5 + this.phenotype.metabolism;
         
         this.calories = Math.max(0, this.calories - consumptionPerFrame * consumptionMultiplier * deltaTime);

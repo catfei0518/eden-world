@@ -305,6 +305,122 @@
             font-size: 14px;
         }
         
+        /* 背包系统 */
+        .inventory-section {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #333;
+        }
+        
+        .inventory-title {
+            color: #9b59b6;
+            font-size: 12px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        
+        .inventory-slots {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        
+        .inv-slot {
+            display: flex;
+            align-items: center;
+            background: rgba(155, 89, 182, 0.2);
+            border: 1px solid rgba(155, 89, 182, 0.4);
+            border-radius: 8px;
+            padding: 6px 12px;
+            min-width: 50px;
+        }
+        
+        .inv-icon {
+            font-size: 16px;
+            margin-right: 6px;
+        }
+        
+        .inv-count {
+            color: #dcdcdc;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .inventory-calories {
+            color: #888;
+            font-size: 11px;
+        }
+        
+        /* 装备系统 */
+        .equipment-section {
+            margin-top: 0;
+        }
+        
+        .equipment-title {
+            color: #3498db;
+            font-size: 12px;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        
+        .equipment-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+        }
+        
+        .equip-slot {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(52, 152, 219, 0.15);
+            border: 1px solid rgba(52, 152, 219, 0.3);
+            border-radius: 6px;
+            padding: 6px;
+            min-height: 36px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .equip-slot:hover {
+            background: rgba(52, 152, 219, 0.3);
+            border-color: rgba(52, 152, 219, 0.5);
+        }
+        
+        .equip-slot .equip-icon {
+            font-size: 18px;
+            opacity: 0.7;
+        }
+        
+        .equip-slot.has-item {
+            background: rgba(46, 204, 113, 0.2);
+            border-color: rgba(46, 204, 113, 0.4);
+        }
+        
+        .equip-slot-back {
+            background: rgba(155, 89, 182, 0.15);
+            border-color: rgba(155, 89, 182, 0.3);
+        }
+        
+        .equip-slot-back:hover {
+            background: rgba(155, 89, 182, 0.3);
+        }
+        
+        .equip-slot-back.has-item {
+            background: rgba(155, 89, 182, 0.4);
+            border-color: rgba(155, 89, 182, 0.6);
+        }
+        
+        /* 详情行 */
+        .detail-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            color: #aaa;
+            font-size: 12px;
+        }
+        
         /* DNA属性 - 完整列表 */
         .dna-section {
             margin-top: 15px;
@@ -357,7 +473,7 @@
             pointer-events: none;
         }
     </style>
-  <script type="module" crossorigin src="/assets/index-DOLHCmtN.js"></script>
+  <script type="module" crossorigin src="/assets/index-DnGntGRC.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/Geometry-Dilufxxj.js">
   <link rel="modulepreload" crossorigin href="/assets/RenderTargetSystem-DzGqwJ1z.js">
   <link rel="modulepreload" crossorigin href="/assets/getTextureBatchBindGroup-BmkdZLvo.js">
@@ -382,45 +498,73 @@
             <span>📊 角色详情</span>
             <span class="status-icon" id="status-icon">🚶</span>
         </h3>
-        <div class="character-header">
-            <div class="avatar adam" id="panel-avatar">♂</div>
-            <div class="info">
-                <div class="name" id="panel-name">亚当</div>
-                <div class="type" id="panel-type">亚当</div>
+        <div style="display: flex; gap: 20px;">
+            <!-- 左侧：基础信息 -->
+            <div style="flex: 1;">
+                <div class="character-header">
+                    <div class="avatar adam" id="panel-avatar">♂</div>
+                    <div class="info">
+                        <div class="name" id="panel-name">亚当</div>
+                        <div class="type" id="panel-type">亚当</div>
+                    </div>
+                </div>
+                <div class="position-row">坐标: <span id="panel-position">(50, 25)</span></div>
+                <div class="stat-row">
+                    <span class="stat-label">🍖 饥饿</span>
+                    <div class="stat-bar"><div class="stat-fill food" id="panel-food-bar" style="width:100%"></div></div>
+                    <span class="stat-value" id="panel-food-val">100%</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">💧 口渴</span>
+                    <div class="stat-bar"><div class="stat-fill water" id="panel-water-bar" style="width:100%"></div></div>
+                    <span class="stat-value" id="panel-water-val">100%</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">⚡ 精力</span>
+                    <div class="stat-bar"><div class="stat-fill energy" id="panel-energy-bar" style="width:100%"></div></div>
+                    <span class="stat-value" id="panel-energy-val">100%</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">❤️ 生命</span>
+                    <div class="stat-bar"><div class="stat-fill health" id="panel-health-bar" style="width:100%"></div></div>
+                    <span class="stat-value" id="panel-health-val">100%</span>
+                </div>
+                <div class="action-row">
+                    <span class="action-label">当前行动：</span>
+                    <span class="action-value" id="panel-action">闲置</span>
+                </div>
+                <div class="dna-section">
+                    <div class="dna-title">🧬 DNA属性</div>
+                    <div class="dna-attrs" id="panel-dna-attrs"></div>
+                </div>
+            </div>
+            
+            <!-- 右侧：装备栏 + 背包 -->
+            <div style="width: 160px;">
+                <div class="equipment-section">
+                    <div class="equipment-title">📦 装备</div>
+                    <div class="equipment-grid" style="grid-template-columns: repeat(3, 1fr);">
+                        <div class="equip-slot" id="equip-左手" title="左手"><span class="equip-icon">🫶</span></div>
+                        <div class="equip-slot equip-slot-back" id="equip-背部" title="背部(容器/背包)"><span class="equip-icon">🎒</span></div>
+                        <div class="equip-slot" id="equip-右手" title="右手"><span class="equip-icon">🫶</span></div>
+                        <div class="equip-slot" id="equip-上衣" title="上衣"><span class="equip-icon">👕</span></div>
+                        <div class="equip-slot" id="equip-下衣" title="下衣"><span class="equip-icon">👖</span></div>
+                        <div class="equip-slot" id="equip-鞋" title="鞋"><span class="equip-icon">👟</span></div>
+                    </div>
+                </div>
+                <div class="inventory-section" style="margin-top: 15px;">
+                    <div class="inventory-title">🎒 背包</div>
+                    <div class="inventory-slots">
+                        <div class="inv-slot">
+                            <span class="inv-icon">🍒</span>
+                            <span class="inv-count" id="slot-0-count">0</span>
+                        </div>
+                    </div>
+                    <div class="inventory-calories">热量: <span id="inventory-calories">0</span> kcal</div>
+                </div>
             </div>
         </div>
-        <div class="position-row">坐标: <span id="panel-position">(50, 25)</span></div>
-        <div class="stat-row">
-            <span class="stat-label">🍖 饥饿</span>
-            <div class="stat-bar"><div class="stat-fill food" id="panel-food-bar" style="width:100%"></div></div>
-            <span class="stat-value" id="panel-food-val">100%</span>
-        </div>
-        <div class="stat-row">
-            <span class="stat-label">💧 口渴</span>
-            <div class="stat-bar"><div class="stat-fill water" id="panel-water-bar" style="width:100%"></div></div>
-            <span class="stat-value" id="panel-water-val">100%</span>
-        </div>
-        <div class="stat-row">
-            <span class="stat-label">⚡ 精力</span>
-            <div class="stat-bar"><div class="stat-fill energy" id="panel-energy-bar" style="width:100%"></div></div>
-            <span class="stat-value" id="panel-energy-val">100%</span>
-        </div>
-        <div class="stat-row">
-            <span class="stat-label">❤️ 生命</span>
-            <div class="stat-bar"><div class="stat-fill health" id="panel-health-bar" style="width:100%"></div></div>
-            <span class="stat-value" id="panel-health-val">100%</span>
-        </div>
-        <div class="action-row">
-            <span class="action-label">当前行动：</span>
-            <span class="action-value" id="panel-action">闲置</span>
-        </div>
-        <div class="dna-section">
-            <div class="dna-title">🧬 DNA属性</div>
-            <div class="dna-attrs" id="panel-dna-attrs"></div>
-        </div>
     </div>
-    
-    <div class="click-hint" id="click-hint">👆 点击角色查看详情</div>
     
     <!-- 设置按钮 -->
     <button id="settings-btn" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; background: rgba(0,0,0,0.7); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 10px 15px; border-radius: 8px; cursor: pointer; font-size: 14px; display: none;">⚙️ 设置</button>

@@ -506,6 +506,14 @@ export class GameApp {
                 for (const char of state.characters) {
                     this.renderCharacter(char);
                 }
+                // 更新选中角色的状态面板
+                if (this.selectedCharacter) {
+                    const serverChar = state.characters.find(c => c.id === this.selectedCharacter!.id);
+                    if (serverChar) {
+                        this.selectedCharacter = serverChar;
+                        this.updateStatusPanel(serverChar);
+                    }
+                }
             }
         });
 
@@ -596,7 +604,7 @@ export class GameApp {
 
         this.groundObjectsRendered = true;  // 标记已渲染
         for (const obj of groundObjects) {
-            this.addGroundObject(obj.x, obj.y, obj.type, obj.durability, obj.maxDurability);
+            this.addGroundObject(obj.x, obj.y, obj.type, obj.durability, obj.maxDurability, obj.berryCount, obj.maxBerries, obj.hasBerries);
         }
     }
 
@@ -610,7 +618,7 @@ export class GameApp {
         // 如果有服务器物品数据，使用服务器的数据
         if (groundObjects && groundObjects.length > 0) {
             for (const obj of groundObjects) {
-                this.addGroundObject(obj.x, obj.y, obj.type, obj.durability, obj.maxDurability);
+                this.addGroundObject(obj.x, obj.y, obj.type, obj.durability, obj.maxDurability, obj.berryCount, obj.maxBerries, obj.hasBerries);
             }
             this.groundObjectsRendered = true;
             return;
@@ -648,7 +656,7 @@ export class GameApp {
         }
     }
 
-    private addGroundObject(x: number, y: number, type: string, durability?: number, maxDurability?: number) {
+    private addGroundObject(x: number, y: number, type: string, durability?: number, maxDurability?: number, berryCount?: number, maxBerries?: number, hasBerries?: boolean) {
         const tex = this.textures.get(type);
         if (!tex) return;
 
@@ -668,8 +676,11 @@ export class GameApp {
             x: x,
             y: y,
             layer: 'ground',
-            durability: durability ?? (type === 'bush' || type === 'berry' ? 100 : 0),
-            maxDurability: maxDurability ?? (type === 'bush' || type === 'berry' ? 100 : 0)
+            durability: durability,
+            maxDurability: maxDurability,
+            berryCount: berryCount,
+            maxBerries: maxBerries,
+            hasBerries: hasBerries
         };
 
         // 创建点击热区
@@ -1131,14 +1142,15 @@ export class GameApp {
             }
             if (c.position) c.position.textContent = `(${char.x.toFixed(1)}, ${char.y.toFixed(1)})`;
 
-            const hungerPct = Math.min(100, Math.round(char.needs?.hunger ?? 50));
+            const hungerKcal = char.needs?.hunger ?? 2000;
+            const hungerPct = Math.min(100, Math.round((hungerKcal / 2000) * 100));
             const thirstPct = Math.min(100, Math.round(char.needs?.thirst ?? 50));
             const energyPct = Math.round(char.needs?.energy ?? 50);
 
             if (c.foodBar) c.foodBar.style.width = `${hungerPct}%`;
             if (c.waterBar) c.waterBar.style.width = `${thirstPct}%`;
             if (c.energyBar) c.energyBar.style.width = `${energyPct}%`;
-            if (c.foodVal) c.foodVal.textContent = `${hungerPct}%`;
+            if (c.foodVal) c.foodVal.textContent = `${Math.round(hungerKcal)} kcal`;
             if (c.waterVal) c.waterVal.textContent = `${thirstPct}%`;
             if (c.energyVal) c.energyVal.textContent = `${energyPct}%`;
 
@@ -1197,7 +1209,7 @@ export class GameApp {
                 if (slot0) slot0.textContent = String(inv.berries);
                 // 更新热量
                 const calElem = document.getElementById('inventory-calories');
-                if (calElem) calElem.textContent = String(Math.round(inv.calories));
+                if (calElem) calElem.textContent = String(Math.round(inv.totalCalories || 0));
             }
 
             // 显示面板
@@ -1249,8 +1261,9 @@ export class GameApp {
         const posElem = document.getElementById('panel-position');
         if (posElem) posElem.textContent = `(${char.x.toFixed(1)}, ${char.y.toFixed(1)})`;
 
-        // 更新需求条
-        const hungerPct = Math.min(100, Math.round(char.needs?.hunger ?? 50));
+        // 更新需求条 - 饥饿(kcal) / 口渴(百分比)
+        const hungerKcal = char.needs?.hunger ?? 2000;
+        const hungerPct = Math.min(100, Math.round((hungerKcal / 2000) * 100));
         const thirstPct = Math.min(100, Math.round(char.needs?.thirst ?? 50));
         const energyPct = Math.round(char.needs?.energy ?? 50);
 
@@ -1264,7 +1277,7 @@ export class GameApp {
         if (foodBar) foodBar.style.width = `${hungerPct}%`;
         if (waterBar) waterBar.style.width = `${thirstPct}%`;
         if (energyBar) energyBar.style.width = `${energyPct}%`;
-        if (foodVal) foodVal.textContent = `${hungerPct}%`;
+        if (foodVal) foodVal.textContent = `${Math.round(hungerKcal)} kcal`;
         if (waterVal) waterVal.textContent = `${thirstPct}%`;
         if (energyVal) energyVal.textContent = `${energyPct}%`;
 
@@ -1278,7 +1291,7 @@ export class GameApp {
             const slot0 = document.getElementById('slot-0-count');
             if (slot0) slot0.textContent = String(inv.berries);
             const calElem = document.getElementById('inventory-calories');
-            if (calElem) calElem.textContent = String(Math.round(inv.calories));
+            if (calElem) calElem.textContent = String(Math.round(inv.totalCalories || 0));
         }
     }
 

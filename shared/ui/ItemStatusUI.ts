@@ -10,6 +10,9 @@ export interface ItemData {
     layer: 'ground' | 'low' | 'high';
     durability?: number;
     maxDurability?: number;
+    berryCount?: number;
+    maxBerries?: number;
+    hasBerries?: boolean;
 }
 
 // 共享的常量
@@ -210,15 +213,51 @@ export class ItemStatusUI {
         const layerElem = document.getElementById('item-layer');
         if (layerElem) layerElem.textContent = LAYER_NAMES[item.layer] || '-';
         
-        // 耐久条
+        // 耐久条（灌木显示浆果数量，其他显示耐久度）
         const durSection = document.getElementById('durability-section');
         const durFill = document.getElementById('durability-fill');
         const durText = document.getElementById('durability-text');
         
-        if (item.maxDurability && item.maxDurability > 0 && durSection && durFill && durText) {
+        if (item.type === 'bush' && item.berryCount !== undefined) {
+            // 灌木显示浆果数量：当前值（不需要显示最大容量）
+            const durTitle = durSection?.querySelector('.durability-title');
+            if (durSection && durFill && durText) {
+                durSection.style.display = 'block';
+                if (durTitle) durTitle.textContent = '🍇 浆果数量';
+                if (item.hasBerries && item.berryCount > 0) {
+                    durFill.style.width = '100%';
+                    durFill.style.background = 'linear-gradient(90deg, #e74c3c, #f39c12)';
+                    durText.textContent = `🍒 ${item.berryCount}/${item.berryCount}`;
+                } else {
+                    durFill.style.width = '0%';
+                    durFill.style.background = '#555';
+                    durText.textContent = '无浆果';
+                }
+            }
+        } else if ((item.type === 'twig' || item.type === 'stone' || item.type === 'shell' || item.type === 'herb')) {
+            // 其他物品显示数量
+            const durTitle = durSection?.querySelector('.durability-title');
+            if (durSection && durFill && durText) {
+                durSection.style.display = 'block';
+                durFill.style.width = '100%';
+                durFill.style.background = '#555';
+                if (durTitle) {
+                    const icons: Record<string, string> = {
+                        'twig': '🪵 树枝',
+                        'stone': '🪨 石头',
+                        'shell': '🐚 贝壳',
+                        'herb': '🌿 草本'
+                    };
+                    durTitle.textContent = icons[item.type] || '📦 物品';
+                }
+                durText.textContent = `× ${item.quantity || 1}`;
+            }
+        } else if (item.maxDurability && item.maxDurability > 0 && durSection && durFill && durText) {
+            // 其他物品显示耐久度
             durSection.style.display = 'block';
             const pct = (item.durability || 0) / item.maxDurability * 100;
             durFill.style.width = `${pct}%`;
+            durFill.style.background = 'linear-gradient(90deg, #e74c3c, #f39c12)';
             durText.textContent = `${item.durability || 0}/${item.maxDurability}`;
         } else if (durSection) {
             durSection.style.display = 'none';

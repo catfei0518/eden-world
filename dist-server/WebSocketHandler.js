@@ -56,6 +56,7 @@ class WebSocketHandler {
                 world: {
                     tiles: this.worldState.getTiles2D(),
                     groundObjects: this.worldState.getAllGroundObjects(),
+                    foods: this.worldState.getFoodSources(),
                     worldSeed: this.worldState.getSeed()
                 },
                 characters: this.characterManager.serialize(),

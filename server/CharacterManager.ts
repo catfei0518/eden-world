@@ -147,12 +147,20 @@ export class CharacterManager {
             x: ai.x,
             y: ai.y,
             action: ai.state,
+            actionTimer: ai.actionTimer,
+            actionTimerMax: ai.actionTimerMax,
             needs: {
                 hunger: ai.hunger,
                 thirst: ai.thirst,
                 energy: ai.energy
             },
-            inventory: ai.inventory
+            inventory: {
+                berries: ai.inventory.berries,
+                twigs: ai.inventory.twigs,
+                stones: ai.inventory.stones,
+                herbs: ai.inventory.herbs,
+                totalCalories: ai.getInventoryCalories()
+            }
         }));
     }
     
@@ -172,7 +180,15 @@ export class CharacterManager {
                 thirst: ai.thirst,
                 energy: ai.energy
             },
-            inventory: ai.inventory,
+            inventory: {
+                berries: ai.inventory.berries,
+                twigs: ai.inventory.twigs,
+                stones: ai.inventory.stones,
+                herbs: ai.inventory.herbs,
+                totalCalories: ai.getInventoryCalories()
+            },
+            actionTimer: ai.actionTimer,
+            actionTimerMax: ai.actionTimerMax,
             dna: ai.dna,
             phenotype: null,
             positionHistory: []

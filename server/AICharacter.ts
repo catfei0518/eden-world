@@ -36,10 +36,13 @@ export type AIState =
     | 'wandering'     // 巡逻
     | 'seeking_food'  // 寻找食物
     | 'seeking_water' // 寻找水源
+    | 'seeking_item'  // 寻找物品
     | 'eating'        // 进食
     | 'drinking'      // 饮水
     | 'resting'       // 休息
-    | 'gathering';    // 采集
+    | 'gathering'     // 采集
+    | 'picking_up'    // 拾取物品
+    | 'running';      // 奔跑
 
 // ============ AI 角色类 ============
 
@@ -57,8 +60,11 @@ export class AICharacter {
     // DNA
     dna: CharacterDNA;
     
-    // 需求状态 (0-100)
-    hunger: number = 100;
+    // 需求状态
+    // hunger: 0-2000 kcal (0=饿死, 2000=吃饱)
+    // thirst: 0-100 (百分比)
+    // energy: 0-100 (百分比)
+    hunger: number = 2000;
     thirst: number = 100;
     energy: number = 100;
     
@@ -70,9 +76,17 @@ export class AICharacter {
     // 状态计时器
     stateTimer: number = 0;
     actionTimer: number = 0;
+    actionTimerMax: number = 0;  // 用于客户端进度条
     
-    // Phase 1: 背包系统
-    inventory: { berries: number; calories: number } = { berries: 0, calories: 0 };
+    // Phase 1: 背包系统（物品数量）
+    inventory: { berries: number; twigs: number; stones: number; herbs: number } = { berries: 0, twigs: 0, stones: 0, herbs: 0 };
+    
+    // 计算背包总热量
+    getInventoryCalories(): number {
+        // 浆果: 48 kcal/个 (真实8 × 6)
+        // 草本: 20 kcal/个 (真实5 × 4)
+        return this.inventory.berries * 48 + this.inventory.herbs * 20;
+    }
     
     constructor(id: string, name: string, type: CharacterType, x: number, y: number, dna?: CharacterDNA) {
         this.id = id;
@@ -133,7 +147,8 @@ export class AICharacter {
     private getThresholds() {
         return {
             // 饥饿阈值：代谢高的角色更快感到饥饿
-            hungerTrigger: 50 - (this.dna.metabolism - 1) * 20,  // 代谢1.0时50，代谢1.5时40
+            // 2000 kcal满，从1000开始感到饿（约50%）
+            hungerTrigger: 600 - (this.dna.metabolism - 1) * 150,  // 代谢1.0时600，代谢1.5时525
             thirstTrigger: 50 - (this.dna.metabolism - 1) * 20,
             // 精力阈值
             energyTrigger: 30,
@@ -153,6 +168,11 @@ export class AICharacter {
             return;
         }
         
+        // 如果已经在寻找水源/食物，且有有效目标，不再重新寻路（避免抽搐）
+        if ((this.state === 'seeking_water' || this.state === 'seeking_food') && this.targetX !== null) {
+            return;
+        }
+        
         // 1️⃣ 紧急需求检查（生命危险）
         if (this.thirst < 10) {
             this.state = 'seeking_water';
@@ -160,7 +180,7 @@ export class AICharacter {
             return;
         }
         
-        if (this.hunger < 10) {
+        if (this.hunger < 200) {  // 饥饿低于200kcal（约10%）时紧急
             this.state = 'seeking_food';
             this.findNearestFood(worldState);
             return;
@@ -170,7 +190,7 @@ export class AICharacter {
             this.state = 'resting';
             this.targetX = null;
             this.targetY = null;
-            this.actionTimer = 60;  // 休息3秒
+            this.actionTimer = 60; this.actionTimerMax = 60; // 休息3秒
             return;
         }
         
@@ -251,10 +271,24 @@ export class AICharacter {
             return;
         }
         
-        let nearest = foods[0];
-        let nearestDist = this.distanceTo(foods[0].x, foods[0].y);
+        // 过滤掉已被预留的灌木
+        const availableFoods = foods.filter(f => 
+            !f.id || worldState.isBushAvailable(f.id)
+        );
+        if (availableFoods.length === 0) {
+            // 所有食物都被预留了，等待一下再尝试（避免重复争抢同一个灌木）
+            console.log(`🍃 ${this.name} 找不到可用食物，休息一下...`);
+            this.state = 'resting';
+            this.targetX = null;  // 清除目标，避免重复到达
+            this.targetY = null;
+            this.actionTimer = 60; this.actionTimerMax = 60; // 休息3秒
+            return;
+        }
         
-        for (const food of foods) {
+        let nearest = availableFoods[0];
+        let nearestDist = this.distanceTo(availableFoods[0].x, availableFoods[0].y);
+        
+        for (const food of availableFoods) {
             const dist = this.distanceTo(food.x, food.y);
             if (dist < nearestDist) {
                 nearest = food;
@@ -264,6 +298,40 @@ export class AICharacter {
         
         this.targetX = nearest.x + (Math.random() - 0.5);
         this.targetY = nearest.y + (Math.random() - 0.5);
+    }
+    
+    /**
+     * 寻找最近的物品（树枝、石头等）
+     */
+    private findNearestItem(worldState: WorldState): void {
+        // 获取所有可拾取的物品
+        const items = worldState.groundObjects.filter(obj =>
+            ['twig', 'stone', 'shell', 'herb'].includes(obj.type)
+        );
+        
+        if (items.length === 0) {
+            // 没有物品，随机走
+            console.log(`🔍 ${this.name} 找不到物品，到处走走...`);
+            this.pickWanderTarget();
+            return;
+        }
+        
+        // 找最近的物品
+        let nearest = items[0];
+        let nearestDist = this.distanceTo(items[0].x, items[0].y);
+        
+        for (const item of items) {
+            const dist = this.distanceTo(item.x, item.y);
+            if (dist < nearestDist) {
+                nearest = item;
+                nearestDist = dist;
+            }
+        }
+        
+        this.targetX = nearest.x + (Math.random() - 0.5);
+        this.targetY = nearest.y + (Math.random() - 0.5);
+        this.state = 'seeking_item';
+        console.log(`🔍 ${this.name} 发现了${nearest.type}，正在前往...`);
     }
     
     /**
@@ -344,41 +412,75 @@ export class AICharacter {
                 const harvested = worldState.harvestBerry(Math.floor(this.x), Math.floor(this.y));
                 if (harvested > 0) {
                     this.inventory.berries += harvested;
-                    // 每个浆果约32kcal
-                    this.inventory.calories += harvested * 32;
                     this.state = 'eating';
-                    this.actionTimer = 30; // 吃浆果1.5秒
-                    console.log(`🫐 ${this.name} 采集了 ${harvested} 个浆果！持有: ${this.inventory.berries}个`);
+                    this.actionTimer = 30; this.actionTimerMax = 30; // 吃浆果1.5秒
+                    console.log(`🫐 ${this.name} 采集了 ${harvested} 个浆果！持有: ${this.inventory.berries}个 (${this.getInventoryCalories()} kcal)`);
                 } else {
-                    // 没有浆果了
+                    // 没有浆果了，释放预留并寻找其他食物
+                    const currentBush = worldState.getBushAt(Math.floor(this.x), Math.floor(this.y));
+                    if (currentBush) {
+                        worldState.releaseBush(currentBush.id, this.id);
+                    }
                     this.state = 'idle';
                     this.findNearestFood(worldState);
                 }
             }
             
+            // Phase 1.5: 拾取物品（树枝、石头等）
+            if (this.state === 'picking_up') {
+                const picked = worldState.pickupItem(Math.floor(this.x), Math.floor(this.y));
+                if (picked) {
+                    // 添加到背包
+                    switch (picked.type) {
+                        case 'twig':
+                            this.inventory.twigs += picked.quantity;
+                            console.log(`🪵 ${this.name} 拾取了 ${picked.quantity} 根树枝！持有: ${this.inventory.twigs}个`);
+                            break;
+                        case 'stone':
+                            this.inventory.stones += picked.quantity;
+                            console.log(`🪨 ${this.name} 拾取了 ${picked.quantity} 个石头！持有: ${this.inventory.stones}个`);
+                            break;
+                        case 'herb':
+                            this.inventory.herbs += picked.quantity;
+                            console.log(`🌿 ${this.name} 拾取了 ${picked.quantity} 株草本！持有: ${this.inventory.herbs}株`);
+                            break;
+                        case 'shell':
+                            // 贝壳可以吃也可以做装饰
+                            this.inventory.herbs += picked.quantity; // 暂用herbs存
+                            console.log(`🐚 ${this.name} 拾取了 ${picked.quantity} 个贝壳！`);
+                            break;
+                    }
+                }
+                this.state = 'idle';
+            }
+            
             // Phase 1: 吃浆果时恢复饥饿
             if (this.state === 'eating' && this.inventory.berries > 0) {
-                // 每个浆果恢复 32kcal -> 换算成饥饿值
-                // 假设100%饥饿值 = 2000kcal，每日消耗
-                // 每tick消耗约0.02 * 代谢率，每秒20tick = 0.4 * 代谢率
-                // 每个浆果32kcal，约恢复 32/2000 * 100 = 1.6 点饥饿值
-                const consumed = Math.min(this.inventory.berries, 2); // 每次最多吃2个
+                // 每个浆果 48 kcal（真实8kcal × 6）
+                const consumed = Math.min(this.inventory.berries, 8); // 每次最多吃8个
                 this.inventory.berries -= consumed;
-                this.inventory.calories -= consumed * 32;
-                this.hunger = Math.min(100, this.hunger + consumed * 1.6);
-                console.log(`🍽️ ${this.name} 吃了 ${consumed} 个浆果，饥饿恢复至 ${this.hunger.toFixed(1)}`);
+                this.hunger = Math.min(2000, this.hunger + consumed * 48);
+                console.log(`🍽️ ${this.name} 吃了 ${consumed} 个浆果，饥饿恢复至 ${this.hunger.toFixed(0)} kcal`);
             }
             
             return;
         }
         
-        // 消耗需求
-        this.hunger -= 0.02 * this.dna.metabolism;
+        // 消耗需求（根据状态）
+        // 休息: 83 kcal/h, 巡逻: 120 kcal/h, 采集: 250 kcal/h
+        // = 83/60/20 = 0.069, 120/60/20 = 0.1, 250/60/20 = 0.208 per tick (metabolism 1.0)
+        let hungerRate = 0.069; // 默认休息
+        if (this.state === 'wandering' || this.state === 'seeking_food' || this.state === 'seeking_water') {
+            hungerRate = 0.1;
+        } else if (this.state === 'gathering' || this.state === 'running') {
+            hungerRate = 0.208;
+        }
+        this.hunger -= hungerRate * this.dna.metabolism;
         this.thirst -= 0.03 * this.dna.metabolism;
         this.energy -= 0.01;
         
         // 限制范围
-        this.hunger = Math.max(0, Math.min(100, this.hunger));
+        this.hunger = Math.max(0, Math.min(2000, this.hunger));
         this.thirst = Math.max(0, Math.min(100, this.thirst));
         this.energy = Math.max(0, Math.min(100, this.energy));
         
@@ -437,19 +539,40 @@ export class AICharacter {
             case 'seeking_water':
                 // 到达水源，开始饮水
                 this.state = 'drinking';
-                this.actionTimer = 30;  // 饮水1.5秒
+                this.actionTimer = 30; this.actionTimerMax = 30; // 饮水1.5秒
                 break;
                 
             case 'seeking_food':
                 // 到达食物点，检查附近是否有可采集的灌木
                 const bush = worldState.getBushAt(Math.floor(this.x), Math.floor(this.y));
                 if (bush && bush.hasBerries && bush.berryCount > 0) {
-                    // 有浆果，开始采集
-                    this.state = 'gathering';
-                    this.actionTimer = 20;  // 采集1秒
+                    // 尝试预留灌木
+                    if (worldState.reserveBush(bush.id, this.id)) {
+                        // 预留成功，开始采集
+                        this.state = 'gathering';
+                        this.actionTimer = 20; this.actionTimerMax = 20; // 采集1秒
+                        // 标记为最近访问，避免其他角色重复访问
+                        worldState.markBushVisited?.(bush.id);
+                    } else {
+                        // 已被其他角色预留，寻找其他食物
+                        this.findNearestFood(worldState);
+                    }
                 } else {
                     // 没有浆果，继续寻找其他食物
                     this.findNearestFood(worldState);
+                }
+                break;
+                
+            case 'seeking_item':
+                // 到达物品点，尝试拾取
+                const item = worldState.getItemAt(Math.floor(this.x), Math.floor(this.y));
+                if (item && ['twig', 'stone', 'shell', 'herb'].includes(item.type)) {
+                    // 开始拾取
+                    this.state = 'picking_up';
+                    this.actionTimer = 20; this.actionTimerMax = 20; // 拾取1秒
+                } else {
+                    // 物品已被拾取，寻找其他物品
+                    this.findNearestItem(worldState);
                 }
                 break;
                 
@@ -457,7 +580,7 @@ export class AICharacter {
                 // 巡逻到达，随机休息一下
                 if (Math.random() < 0.3) {
                     this.state = 'resting';
-                    this.actionTimer = 20;  // 休息1秒
+                    this.actionTimer = 20; this.actionTimerMax = 20; // 休息1秒
                 } else {
                     this.state = 'idle';
                     this.pickWanderTarget();
@@ -487,10 +610,12 @@ export class AICharacter {
             case 'wandering': return '🚶巡逻';
             case 'seeking_food': return '🔍找食物';
             case 'seeking_water': return '💧找水';
+            case 'seeking_item': return '🔍找物品';
             case 'eating': return '🍖进食';
             case 'drinking': return '💧饮水';
             case 'resting': return '💤休息';
             case 'gathering': return '🫐采集';
+            case 'picking_up': return '🤲拾取';
             default: return '❓未知';
         }
     }
@@ -510,7 +635,13 @@ export class AICharacter {
             energy: this.energy,
             action: this.getStatusText(),
             dna: this.dna,
-            inventory: this.inventory  // Phase 1: 背包数据
+            inventory: {
+                berries: this.inventory.berries,
+                twigs: this.inventory.twigs,
+                stones: this.inventory.stones,
+                herbs: this.inventory.herbs,
+                totalCalories: this.getInventoryCalories()
+            }
         };
     }
 }
@@ -523,34 +654,51 @@ export interface AICharacterData {
     type: CharacterType;
     x: number;
     y: number;
-    hunger: number;
+    hunger: number;  // 0-2000 kcal
     thirst: number;
     energy: number;
     action: string;
     dna: CharacterDNA;
-    inventory?: { berries: number; calories: number };  // Phase 1: 背包
+    inventory?: { berries: number; twigs: number; stones: number; herbs: number; totalCalories: number };  // Phase 1.5: 背包
 }
 
 export interface WorldState {
     // 获取所有水源位置
     getWaterSources(): { x: number; y: number }[];
     // 获取所有食物位置（返回带类型的）
-    getFoodSources(): { x: number; y: number; type: string }[];
+    getFoodSources(): { id?: string; x: number; y: number; type: string }[];
     // 检查某位置是否可通行
     isWalkable(x: number, y: number): boolean;
     // 获取地形类型
     getTerrainAt(x: number, y: number): string | null;
     // Phase 1: 获取指定位置的灌木
-    getBushAt(x: number, y: number): { hasBerries: boolean; berryCount: number } | undefined;
+    getBushAt(x: number, y: number): { id?: string; hasBerries: boolean; berryCount: number } | undefined;
     // Phase 1: 采集浆果
     harvestBerry(x: number, y: number): number;
+    // 预留灌木（采集冲突保护）
+    reserveBush?(bushId: string, characterId: string): boolean;
+    // 释放灌木预留
+    releaseBush?(bushId: string, characterId: string): void;
+    // 检查灌木是否可用
+    isBushAvailable?(bushId: string): boolean;
+    // 标记灌木为最近访问（避免重复访问）
+    markBushVisited?(bushId: string): void;
+    // 获取指定位置的物品
+    getItemAt?(x: number, y: number): { type: string; quantity?: number } | undefined;
+    // 拾取物品
+    pickupItem?(x: number, y: number): { type: string; quantity: number } | null;
+    // 地面物品列表（用于AI寻找物品）
+    groundObjects: { x: number; y: number; type: string }[];
 }
 
 // ============ 简化版世界状态（用于服务器）============
 
 export class ServerWorldState implements WorldState {
     private tiles: Map<string, string> = new Map();
-    private groundObjects: { x: number; y: number; type: string }[] = [];
+    groundObjects: { x: number; y: number; type: string }[] = [];  // 改为public
+    private reservedBushes: Map<string, string> = new Map();  // 灌木预留追踪
+    private recentlyVisited: Map<string, number> = new Map();  // 最近访问时间戳
+    private readonly VISIT_COOLDOWN = 5000;  // 5秒内避免重复访问
     
     constructor(
         tiles: { x: number; y: number; type: string }[],
@@ -586,15 +734,27 @@ export class ServerWorldState implements WorldState {
     
     getFoodSources(): { x: number; y: number; type: string }[] {
         const food: { x: number; y: number; type: string }[] = [];
+        const now = Date.now();
         
-        // 灌木作为食物来源
+        // 灌木作为食物来源，排除最近访问过的
         for (const obj of this.groundObjects) {
             if (obj.type === 'bush') {
+                const bushId = `bush_${obj.x}_${obj.y}`;
+                const lastVisit = this.recentlyVisited.get(bushId);
+                // 跳过5秒内被访问过的灌木
+                if (lastVisit && now - lastVisit < this.VISIT_COOLDOWN) {
+                    continue;
+                }
                 food.push({ x: obj.x, y: obj.y, type: 'bush' });
             }
         }
         
         return food;
+    }
+    
+    // 标记灌木为最近访问
+    markBushVisited(bushId: string): void {
+        this.recentlyVisited.set(bushId, Date.now());
     }
     
     isWalkable(x: number, y: number): boolean {
@@ -610,11 +770,11 @@ export class ServerWorldState implements WorldState {
     }
     
     // Phase 1: 简化版灌木查询（ServerWorldState不知道berry数据）
-    getBushAt(x: number, y: number): { hasBerries: boolean; berryCount: number } | undefined {
+    getBushAt(x: number, y: number): { id?: string; hasBerries: boolean; berryCount: number } | undefined {
         const bush = this.groundObjects.find(o => o.x === x && o.y === y && o.type === 'bush');
         if (bush) {
             // 假设灌木总有浆果（实际数据在WorldState里）
-            return { hasBerries: true, berryCount: 10 };
+            return { id: `bush_${x}_${y}`, hasBerries: true, berryCount: 10 };
         }
         return undefined;
     }
@@ -622,5 +782,51 @@ export class ServerWorldState implements WorldState {
     // Phase 1: 采集浆果（简化版，实际上ServerWorldState不会真正减少浆果）
     harvestBerry(x: number, y: number): number {
         return 1; // 假设每次采集1个
+    }
+    
+    // 预留灌木
+    reserveBush(bushId: string, characterId: string): boolean {
+        const existing = this.reservedBushes.get(bushId);
+        if (existing && existing !== characterId) {
+            // 已被其他角色预留
+            return false;
+        }
+        this.reservedBushes.set(bushId, characterId);
+        return true;
+    }
+    
+    // 释放灌木预留
+    releaseBush(bushId: string, characterId: string): void {
+        if (this.reservedBushes.get(bushId) === characterId) {
+            this.reservedBushes.delete(bushId);
+        }
+    }
+    
+    // 检查灌木是否可用
+    isBushAvailable(bushId: string): boolean {
+        const reserved = this.reservedBushes.get(bushId);
+        return !reserved;
+    }
+    
+    // 获取指定位置的物品
+    getItemAt(x: number, y: number): { type: string; quantity?: number } | undefined {
+        const item = this.groundObjects.find(obj => obj.x === x && obj.y === y);
+        if (item && ['twig', 'stone', 'shell', 'herb'].includes(item.type)) {
+            return { type: item.type, quantity: (item as any).quantity || 1 };
+        }
+        return undefined;
+    }
+    
+    // 拾取物品
+    pickupItem(x: number, y: number): { type: string; quantity: number } | null {
+        const item = this.getItemAt(x, y);
+        if (!item) return null;
+        
+        const qty = item.quantity || 1;
+        
+        // 从地面移除
+        this.groundObjects = this.groundObjects.filter(obj => !(obj.x === x && obj.y === y));
+        
+        return { type: item.type, quantity: qty };
     }
 }

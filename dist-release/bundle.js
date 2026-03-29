@@ -47544,7 +47544,7 @@ ${e2}`);
     // 每秒消耗 = 100% / 360秒 ≈ 0.278%/秒
     // 每帧消耗 ≈ 0.278% / 60帧 ≈ 0.00463%/帧
     update(deltaTime, world) {
-      const consumptionPerFrame = 100 / (6 * 60 * 60);
+      const consumptionPerFrame = 100 / (6 * 60 * 60) * 5;
       const consumptionMultiplier = 0.5 + this.phenotype.metabolism;
       this.calories = Math.max(0, this.calories - consumptionPerFrame * consumptionMultiplier * deltaTime);
       this.water = Math.max(0, this.water - consumptionPerFrame * consumptionMultiplier * deltaTime);
@@ -48438,7 +48438,13 @@ ${e2}`);
         durSection.style.display = "block";
         const pct = item.maxDurability > 0 ? item.durability / item.maxDurability * 100 : 0;
         durFill.style.width = `${pct}%`;
-        durText.textContent = `${item.durability}/${item.maxDurability}`;
+        if (item.type === "bush") {
+          const durTitle = durSection.querySelector(".durability-title");
+          if (durTitle) durTitle.textContent = "\u{1F347} \u6D46\u679C\u6570\u91CF";
+          durText.textContent = `\u{1F352} ${item.durability}/${item.maxDurability}`;
+        } else {
+          durText.textContent = `${item.durability}/${item.maxDurability}`;
+        }
       } else if (durSection) {
         durSection.style.display = "none";
       }

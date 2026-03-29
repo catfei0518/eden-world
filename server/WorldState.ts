@@ -4,7 +4,7 @@
  * Phase 1: 浆果采集系统
  */
 
-import type { TerrainType, TileData, GroundItemData, Season, BushData } from './types/Protocol';
+import type { TerrainType, TileData, GroundItemData, Season, BushData, ItemType } from './types/Protocol';
 
 const MAP_WIDTH = 200;
 const MAP_HEIGHT = 100;
@@ -57,6 +57,7 @@ export class WorldState {
     private tiles: TileData[] = [];
     private groundObjects: GroundItemData[] = [];
     private bushes: BushData[] = [];  // 灌木数据（包含浆果）
+    private bushReservations: Map<string, string> = new Map(); // 灌木预留：bushId -> characterId
     private season: Season = 'spring';
     private tick: number = 0;
     private seed: number;
@@ -215,6 +216,28 @@ export class WorldState {
                         y: y,
                         terrain: 'beach'
                     });
+                } else if (tile.type === 'grass' && Math.abs(noise(x * 0.5, y * 0.5)) < 0.03) {
+                    // 树枝 - 3%概率出现在草地上
+                    const qty = Math.floor(Math.random() * 3) + 2; // 2-4个
+                    this.groundObjects.push({
+                        id: `twig_${x}_${y}`,
+                        type: 'twig',
+                        x: x,
+                        y: y,
+                        terrain: 'grass',
+                        quantity: qty
+                    });
+                } else if ((tile.type === 'grass' || tile.type === 'plains') && Math.abs(noise(x * 0.7, y * 0.7)) < 0.02) {
+                    // 石头 - 2%概率出现在草地/平原
+                    const qty = Math.floor(Math.random() * 2) + 1; // 1-2个
+                    this.groundObjects.push({
+                        id: `stone_${x}_${y}`,
+                        type: 'stone',
+                        x: x,
+                        y: y,
+                        terrain: tile.type,
+                        quantity: qty
+                    });
                 }
             }
         }
@@ -243,7 +266,23 @@ export class WorldState {
     }
     
     getAllGroundObjects(): GroundItemData[] {
-        return this.groundObjects;
+        // 合并浆果数据到灌木
+        const result = this.groundObjects.map(obj => {
+            if (obj.type === 'bush') {
+                const bush = this.bushes.find(b => b.x === obj.x && b.y === obj.y);
+                if (bush) {
+                    return {
+                        ...obj,
+                        berryCount: bush.berryCount,
+                        maxBerries: bush.maxBerries,
+                        hasBerries: bush.hasBerries
+                    };
+                }
+            }
+            // 其他物品（树枝、石头）返回quantity
+            return obj;
+        });
+        return result;
     }
     
     addGroundObject(item: GroundItemData): void {
@@ -338,7 +377,39 @@ export class WorldState {
         bush.berryCount -= harvestAmount;
         bush.lastHarvest = this.tick;
         
+        // 采完后自动释放预留
+        if (bush.berryCount <= 0) {
+            this.bushReservations.delete(bush.id);
+        }
+        
         return harvestAmount;
+    }
+    
+    /**
+     * 预留采集点
+     */
+    reserveBush(bushId: string, characterId: string): boolean {
+        if (this.bushReservations.has(bushId)) {
+            return false; // 已被预留
+        }
+        this.bushReservations.set(bushId, characterId);
+        return true;
+    }
+    
+    /**
+     * 释放采集点预留
+     */
+    releaseBush(bushId: string, characterId: string): void {
+        if (this.bushReservations.get(bushId) === characterId) {
+            this.bushReservations.delete(bushId);
+        }
+    }
+    
+    /**
+     * 检查采集点是否可用
+     */
+    isBushAvailable(bushId: string): boolean {
+        return !this.bushReservations.has(bushId);
     }
     
     /**
@@ -380,19 +451,53 @@ export class WorldState {
      * 获取食物来源位置（用于AI决策）
      * 只返回有浆果的灌木位置
      */
-    getFoodSources(): { x: number; y: number; type: string }[] {
-        const sources: { x: number; y: number; type: string }[] = [];
+    getFoodSources(): { id: string; x: number; y: number; type: string; berryCount?: number; maxBerries?: number; hasBerries?: boolean }[] {
+        const sources: { id: string; x: number; y: number; type: string; berryCount?: number; maxBerries?: number; hasBerries?: boolean }[] = [];
         
         // 添加有浆果的灌木
         const bushesWithBerries = this.getBushesWithBerries();
         for (const bush of bushesWithBerries) {
             sources.push({
+                id: bush.id,
                 x: bush.x,
                 y: bush.y,
-                type: 'bush'
+                type: 'bush',
+                berryCount: bush.berryCount,
+                maxBerries: bush.maxBerries,
+                hasBerries: bush.hasBerries
             });
         }
         
         return sources;
+    }
+    
+    /**
+     * 获取指定位置的地面物品
+     */
+    getItemAt(x: number, y: number): GroundItemData | undefined {
+        return this.groundObjects.find(obj => obj.x === x && obj.y === y);
+    }
+    
+    /**
+     * 拾取物品（树枝、石头等）
+     * @param x 位置x
+     * @param y 位置y
+     * @returns 拾取到的物品信息，如果位置没有可拾取物品返回null
+     */
+    pickupItem(x: number, y: number): { type: ItemType; quantity: number } | null {
+        const item = this.getItemAt(x, y);
+        if (!item) return null;
+        
+        // 只有可拾取物品类型才能被拾取
+        if (!['twig', 'stone', 'shell', 'herb'].includes(item.type)) {
+            return null;
+        }
+        
+        const qty = item.quantity || 1;
+        
+        // 从地面移除
+        this.groundObjects = this.groundObjects.filter(obj => !(obj.x === x && obj.y === y));
+        
+        return { type: item.type, quantity: qty };
     }
 }

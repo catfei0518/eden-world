@@ -213,18 +213,38 @@ export class ItemStatusUI {
         };
         if (layerElem) layerElem.textContent = layerNames[item.layer] || '-';
         
-        // 耐久条
+        // 显示物品数量/资源
         const durSection = document.getElementById('durability-section');
         const durFill = document.getElementById('durability-fill');
         const durText = document.getElementById('durability-text');
         
-        if (item.maxDurability > 0 && durSection && durFill && durText) {
-            durSection.style.display = 'block';
-            const pct = item.maxDurability > 0 ? (item.durability / item.maxDurability) * 100 : 0;
-            durFill.style.width = `${pct}%`;
-            durText.textContent = `${item.durability}/${item.maxDurability}`;
-        } else if (durSection) {
-            durSection.style.display = 'none';
+        if (durSection && durFill && durText) {
+            if (item.type === 'bush' && item.berryCount !== undefined) {
+                // 灌木显示浆果数量（实际值/实际值，不需要显示最大容量）
+                durSection.style.display = 'block';
+                const current = item.berryCount || 0;
+                durFill.style.width = '100%';
+                const durTitle = durSection.querySelector('.durability-title');
+                if (durTitle) durTitle.textContent = '🍇 浆果数量';
+                durText.textContent = `🍒 ${current}/${current}`;
+            } else if ((item.type === 'twig' || item.type === 'stone' || item.type === 'shell' || item.type === 'herb') && item.quantity !== undefined) {
+                // 其他物品显示数量
+                durSection.style.display = 'block';
+                durFill.style.width = '100%';
+                const durTitle = durSection.querySelector('.durability-title');
+                if (durTitle) {
+                    const icons: Record<string, string> = {
+                        'twig': '🪵 树枝',
+                        'stone': '🪨 石头',
+                        'shell': '🐚 贝壳',
+                        'herb': '🌿 草本'
+                    };
+                    durTitle.textContent = icons[item.type] || '📦 物品';
+                }
+                durText.textContent = `× ${item.quantity}`;
+            } else {
+                durSection.style.display = 'none';
+            }
         }
     }
     

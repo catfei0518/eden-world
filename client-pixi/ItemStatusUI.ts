@@ -10,6 +10,9 @@ export interface ItemData {
     layer: 'ground' | 'low' | 'high';
     durability?: number;
     maxDurability?: number;
+    berryCount?: number;      // 浆果数量
+    maxBerries?: number;     // 最大浆果数
+    hasBerries?: boolean;    // 是否有浆果
 }
 
 export class ItemStatusUI {
@@ -187,9 +190,14 @@ export class ItemStatusUI {
     
     // 更新显示
     update(): void {
-        if (!this.selectedItem) return;
+        console.log('🔄 ItemStatusUI.update() 被调用');
+        if (!this.selectedItem) {
+            console.log('❌ selectedItem is null');
+            return;
+        }
         
         const item = this.selectedItem;
+        console.log('🔄 更新物品:', item);
         
         // 图标和名称映射
         const icons: Record<string, string> = {
@@ -234,15 +242,30 @@ export class ItemStatusUI {
         const layerElem = document.getElementById('item-layer');
         if (layerElem) layerElem.textContent = layerNames[item.layer] || '-';
         
-        // 耐久条
+        // 资源条（灌木显示浆果，其他显示耐久）
         const durSection = document.getElementById('durability-section');
         const durFill = document.getElementById('durability-fill');
         const durText = document.getElementById('durability-text');
+        const durTitle = durSection?.querySelector('.durability-title');
         
-        if (item.maxDurability && item.maxDurability > 0 && durSection && durFill && durText) {
+        // 调试
+        console.log(`📦 物品显示: ${item.type} berryCount=${item.berryCount} maxBerries=${item.maxBerries} hasBerries=${item.hasBerries}`);
+        
+        if (item.type === 'bush' && item.berryCount !== undefined && item.maxBerries) {
+            // 灌木显示浆果数量
             durSection.style.display = 'block';
+            if (durTitle) durTitle.textContent = '🍇 浆果数量';
+            const pct = item.hasBerries ? (item.berryCount / item.maxBerries * 100) : 0;
+            durFill.style.width = `${pct}%`;
+            durFill.style.background = item.hasBerries ? 'linear-gradient(90deg, #e74c3c, #f39c12)' : '#555';
+            durText.textContent = item.hasBerries ? `${item.berryCount}/${item.maxBerries}` : '无浆果';
+        } else if (item.maxDurability && item.maxDurability > 0 && durSection && durFill && durText) {
+            // 其他物品显示耐久度
+            durSection.style.display = 'block';
+            if (durTitle) durTitle.textContent = '🍇 资源状态';
             const pct = (item.durability || 0) / item.maxDurability * 100;
             durFill.style.width = `${pct}%`;
+            durFill.style.background = 'linear-gradient(90deg, #e74c3c, #f39c12)';
             durText.textContent = `${item.durability || 0}/${item.maxDurability}`;
         } else if (durSection) {
             durSection.style.display = 'none';

@@ -93,10 +93,11 @@ export class StatusUI {
         const posElem = document.getElementById('panel-position');
         if (posElem) posElem.textContent = `(${char.x.toFixed(1)}, ${char.y.toFixed(1)})`;
         
-        // 进度条 - 使用新的饥饿/口渴系统
-        const hungerPct = charAny.hungerPercent !== undefined ? Math.min(100, Math.round(charAny.hungerPercent)) : 50;
-        const thirstPct = charAny.thirstPercent !== undefined ? Math.min(100, Math.round(charAny.thirstPercent)) : 50;
-        const energyPct = Math.round((char.energy / 5) * 100);
+        // 进度条 - 饥饿系统(kcal) / 口渴系统(百分比)
+        const hungerKcal = char.needs?.hunger ?? 2000;
+        const hungerPct = Math.min(100, Math.round((hungerKcal / 2000) * 100));
+        const thirstPct = Math.min(100, Math.round(char.needs?.thirst ?? 50));
+        const energyPct = Math.round(char.energy ?? 50);
         
         const foodBar = document.getElementById('panel-food-bar');
         const waterBar = document.getElementById('panel-water-bar');
@@ -108,7 +109,7 @@ export class StatusUI {
         if (foodBar) foodBar.style.width = `${hungerPct}%`;
         if (waterBar) waterBar.style.width = `${thirstPct}%`;
         if (energyBar) energyBar.style.width = `${energyPct}%`;
-        if (foodVal) foodVal.textContent = `${hungerPct}%`;
+        if (foodVal) foodVal.textContent = `${Math.round(hungerKcal)} kcal`;
         if (waterVal) waterVal.textContent = `${thirstPct}%`;
         if (energyVal) energyVal.textContent = `${energyPct}%`;
         
