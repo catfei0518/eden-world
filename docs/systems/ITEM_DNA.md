@@ -369,4 +369,4 @@ function canStack(item1: ItemInstance, item2: ItemInstance): boolean {
 
 ---
 
-*设计：2026-03-27*
+*设计：2026-04-01*

@@ -473,4 +473,4 @@ INSERT INTO world_state (id) VALUES (1);
 
 ---
 
-*最后更新: 2026-03-23*
+*最后更新: 2026-04-01*
