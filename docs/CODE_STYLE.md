@@ -78,15 +78,22 @@ function generateResourcePoints() {
 
 ```
 /eden-world
-  /src
-    /core           # 核心引擎
-    /world          # 世界相关
-    /systems        # 游戏系统
-    /ai             # AI相关
-    /entities       # 实体
-    /utils          # 工具函数
-  /docs             # 文档
-  /tests            # 测试
+  /src               # 单机版源码
+    /core            # 核心引擎
+    /entities        # 实体
+    /renderer        # 渲染系统
+    /systems         # 游戏系统
+    /world           # 世界相关
+  /client-pixi       # 在线版客户端（PixiJS）
+  /client-console    # 控制台客户端
+  /client-lobby      # 大厅客户端
+  /server            # 在线版服务器
+  /shared            # 共享代码
+  /docs              # 文档
+  /tests             # 测试
+  /public            # 静态资源
+  /img               # 图片素材
+  /saves             # 存档文件
 ```
 
 ## 5. 测试结构
