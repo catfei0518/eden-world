@@ -173,24 +173,30 @@ npm run preview
 
 ```
 /eden-world
-  /src
-    /core           # 核心引擎
-    /world          # 世界相关（地图生成）
-    /renderer       # 渲染系统（PixiJS）
+  /src               # 单机版源码
+    /core            # 核心引擎
+    /entities        # 实体（角色等）
+    /renderer        # 渲染系统（PixiJS）
     │   /pixi
-    │       /layers # 渲染层（地形/物品/角色）
-    │   StatusUI.ts      # 角色状态面板
-    │   ItemStatusUI.ts  # 物品信息面板
-    │   ConsoleUI.ts    # 控制台界面
-    /systems        # 游戏系统
-    │   /dna        # DNA系统（遗传与表现型）
-    │   /needs      # 需求系统（饥饿/口渴/安全等）
-    │   /ai         # AI决策系统
-    │   CommandSystem.ts # 命令系统（支持自定义指令）
-    /entities       # 实体（角色等）
-  /docs             # 文档
-  /tests            # 测试
-  /img              # 游戏素材
+    │       /layers  # 渲染层（地形/物品/角色）
+    │       StatusUI.ts     # 角色状态面板
+    │       ItemStatusUI.ts # 物品信息面板
+    │       ConsoleUI.ts    # 控制台界面
+    /systems         # 游戏系统
+    │   /dna         # DNA系统（遗传与表现型）
+    │   /needs       # 需求系统（饥饿/口渴/安全等）
+    │   /ai          # AI决策系统
+    │   /items       # 物品系统
+    │   CommandSystem.ts # 命令系统
+    /world           # 世界相关（地图生成）
+  /client-pixi       # 在线版客户端（PixiJS）
+  /server            # 在线版服务器（Node.js + WebSocket）
+    /saves           # 存档文件
+  /shared            # 单机版与在线版共享代码
+  /docs              # 文档
+  /tests             # 测试
+  /img               # 游戏素材
+  /public            # 静态资源
 ```
 
 ## 📚 文档
