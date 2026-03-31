@@ -161,7 +161,7 @@ export class CharacterManager {
             TileType.RIVER,
             TileType.MOUNTAIN,
             TileType.SWAMP,
-            TileType.CAVE,
+            TileType.BADLANDS,
         ];
         
         return !blocked.includes(tile.type);

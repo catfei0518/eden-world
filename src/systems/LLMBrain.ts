@@ -24,6 +24,53 @@ export class LLMBrain {
         '休息', '探索', '攻击', '逃跑', '闲置'
     ];
     
+    // 动作翻译映射（英文→中文）
+    private actionTranslations: Record<string, string> = {
+        'find_food': '寻找食物',
+        'find water': '寻找水源',
+        'seek_food': '寻找食物',
+        'seek_water': '寻找水源',
+        'seek water': '寻找水源',
+        'seek food': '寻找食物',
+        'find food': '寻找食物',
+        'eat': '吃东西',
+        'eating': '吃东西',
+        'drink': '喝水',
+        'drinking': '喝水',
+        'rest': '休息',
+        'resting': '休息',
+        'explore': '探索',
+        'exploring': '探索',
+        'wander': '探索',
+        'wandering': '探索',
+        'idle': '闲置',
+        'idling': '闲置',
+        'attack': '攻击',
+        'attacking': '攻击',
+        'flee': '逃跑',
+        'fleeing': '逃跑',
+        'run': '逃跑',
+        'running': '逃跑'
+    };
+    
+    /**
+     * 翻译动作（确保中文显示）
+     */
+    private translateAction(action: string): string {
+        // 如果已经是中文动作，直接返回
+        if (this.availableActions.includes(action)) {
+            return action;
+        }
+        // 尝试翻译
+        const translated = this.actionTranslations[action.toLowerCase()];
+        if (translated) {
+            return translated;
+        }
+        // 无法翻译，返回默认
+        console.warn(`⚠️ 未知动作: ${action}，使用默认"闲置"`);
+        return '闲置';
+    }
+    
     /**
      * 决定角色动作
      */
@@ -164,10 +211,11 @@ export class LLMBrain {
      * 执行决策
      */
     executeDecision(char: Character, decision: LLMDecision): void {
-        char.action = decision.action;
+        // 翻译动作确保中文显示
+        char.action = this.translateAction(decision.action);
         
         // 根据动作设置目标
-        switch (decision.action) {
+        switch (char.action) {
             case '寻找食物':
                 this.goToFood(char);
                 break;

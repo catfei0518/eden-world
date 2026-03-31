@@ -116,7 +116,7 @@ export class AICharacter {
                 aggression: 0.3 + Math.random() * 0.3,      // 0.3-0.6
                 metabolism: 0.8 + Math.random() * 0.4,     // 0.8-1.2
                 intelligence: 0.6 + Math.random() * 0.3,   // 0.6-0.9
-                speed: 0.08 + Math.random() * 0.04,       // 0.08-0.12
+                speed: 0.045 + Math.random() * 0.01,    // 0.045-0.055 (约1秒1格)
                 strength: 0.4 + Math.random() * 0.4,       // 0.4-0.8
                 constitution: 0.5 + Math.random() * 0.3,   // 0.5-0.8
                 lifespan: 900 + Math.random() * 300,        // 900-1200
@@ -131,7 +131,7 @@ export class AICharacter {
                 aggression: 0.2 + Math.random() * 0.2,     // 0.2-0.4
                 metabolism: 0.7 + Math.random() * 0.3,     // 0.7-1.0
                 intelligence: 0.6 + Math.random() * 0.3,   // 0.6-0.9
-                speed: 0.07 + Math.random() * 0.03,       // 0.07-0.10
+                speed: 0.045 + Math.random() * 0.01,    // 0.045-0.055 (约1秒1格)
                 strength: 0.3 + Math.random() * 0.3,       // 0.3-0.6
                 constitution: 0.6 + Math.random() * 0.3,   // 0.6-0.9
                 lifespan: 900 + Math.random() * 300,        // 900-1200
@@ -229,7 +229,7 @@ export class AICharacter {
         // 5️⃣ 默认：在家附近巡逻
         if (this.targetX === null || this.distanceTo(this.targetX, this.targetY) < 1) {
             this.state = 'wandering';
-            this.pickWanderTarget();
+            this.pickWanderTarget(worldState);
         }
     }
     
@@ -240,7 +240,7 @@ export class AICharacter {
         const waters = worldState.getWaterSources();
         if (waters.length === 0) {
             // 没有已知水源，随机走
-            this.pickWanderTarget();
+            this.pickWanderTarget(worldState);
             return;
         }
         
@@ -255,9 +255,28 @@ export class AICharacter {
             }
         }
         
-        // 设置目标为水源附近
-        this.targetX = nearest.x + (Math.random() - 0.5) * 2;
-        this.targetY = nearest.y + (Math.random() - 0.5) * 2;
+        // 设置目标为水源旁边的可通行位置（而不是水源内部）
+        // 尝试水源周围的8个方向，找到可通行的位置
+        const directions = [
+            { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
+            { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+            { dx: 1, dy: 1 }, { dx: -1, dy: 1 },
+            { dx: 1, dy: -1 }, { dx: -1, dy: -1 }
+        ];
+        
+        for (const dir of directions) {
+            const targetX = nearest.x + dir.dx;
+            const targetY = nearest.y + dir.dy;
+            // 检查目标是否在地图边界内且可通行
+            if (targetX >= 0 && targetX < 300 && targetY >= 0 && targetY < 150 && worldState.isWalkable(targetX, targetY)) {
+                this.targetX = targetX + (Math.random() - 0.5) * 0.5;
+                this.targetY = targetY + (Math.random() - 0.5) * 0.5;
+                return;
+            }
+        }
+        
+        // 如果周围都不可通行，使用随机目标
+        this.pickWanderTarget(worldState);
     }
     
     /**
@@ -267,7 +286,7 @@ export class AICharacter {
         const foods = worldState.getFoodSources();
         if (foods.length === 0) {
             // 没有食物，随机走
-            this.pickWanderTarget();
+            this.pickWanderTarget(worldState);
             return;
         }
         
@@ -312,7 +331,7 @@ export class AICharacter {
         if (items.length === 0) {
             // 没有物品，随机走
             console.log(`🔍 ${this.name} 找不到物品，到处走走...`);
-            this.pickWanderTarget();
+            this.pickWanderTarget(worldState);
             return;
         }
         
@@ -377,15 +396,29 @@ export class AICharacter {
     /**
      * 选择巡逻目标
      */
-    private pickWanderTarget(): void {
+    private pickWanderTarget(worldState?: WorldState): void {
         const thresholds = this.getThresholds();
         
-        // 在出生地附近随机选择点
-        const angle = Math.random() * Math.PI * 2;
-        const distance = Math.random() * thresholds.wanderRadius * 0.5;
+        // 尝试多次找到一个可通行的目标
+        for (let i = 0; i < 20; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const distance = Math.random() * thresholds.wanderRadius * 0.5;
+            
+            const targetX = this.birthX + Math.cos(angle) * distance;
+            const targetY = this.birthY + Math.sin(angle) * distance;
+            
+            // 检查目标是否在地图边界内且可通行
+            if (targetX >= 0 && targetX < 300 && targetY >= 0 && targetY < 150 && 
+                worldState && worldState.isWalkable(targetX, targetY)) {
+                this.targetX = targetX;
+                this.targetY = targetY;
+                return;
+            }
+        }
         
-        this.targetX = this.birthX + Math.cos(angle) * distance;
-        this.targetY = this.birthY + Math.sin(angle) * distance;
+        // 如果找不到可通行目标，使用当前位置附近（确保在边界内）
+        this.targetX = Math.max(1, Math.min(298, this.x + (Math.random() - 0.5) * 2));
+        this.targetY = Math.max(1, Math.min(148, this.y + (Math.random() - 0.5) * 2));
     }
     
     /**
@@ -506,7 +539,7 @@ export class AICharacter {
         // 检查地形是否可通行
         if (!worldState.isWalkable(this.targetX, this.targetY)) {
             // 目标不可通行，换一个随机目标
-            this.pickWanderTarget();
+            this.pickWanderTarget(worldState);
             return;
         }
         
@@ -518,9 +551,9 @@ export class AICharacter {
             this.y += (dy / dist) * moveSpeed;
         }
         
-        // 限制在世界边界内
-        this.x = Math.max(0, Math.min(200, this.x));
-        this.y = Math.max(0, Math.min(100, this.y));
+        // 限制在世界边界内 (300x150)
+        this.x = Math.max(0, Math.min(300, this.x));
+        this.y = Math.max(0, Math.min(150, this.y));
         
         // 更新状态
         if (this.state === 'idle') {
@@ -643,6 +676,36 @@ export class AICharacter {
                 totalCalories: this.getInventoryCalories()
             }
         };
+    }
+    
+    /**
+     * 从JSON恢复（仅恢复可变属性）
+     */
+    fromJSON(data: AICharacterData): void {
+        // readonly属性跳过（id/name/type在创建时确定）
+        this.x = data.x;
+        this.y = data.y;
+        this.hunger = data.hunger;
+        this.thirst = data.thirst;
+        this.energy = data.energy;
+        if (data.dna) {
+            this.dna = data.dna;
+            // 确保speed值在合理范围内（约1秒1格 = 0.05）
+            if (this.dna.speed > 0.1 || this.dna.speed < 0.03) {
+                this.dna.speed = 0.045 + Math.random() * 0.01;
+            }
+        }
+        if (data.inventory) {
+            this.inventory.berries = data.inventory.berries || 0;
+            this.inventory.twigs = data.inventory.twigs || 0;
+            this.inventory.stones = data.inventory.stones || 0;
+            this.inventory.herbs = data.inventory.herbs || 0;
+        }
+        // 出生地也恢复
+        if (this.birthX === 0 && this.birthY === 0) {
+            this.birthX = data.x;
+            this.birthY = data.y;
+        }
     }
 }
 

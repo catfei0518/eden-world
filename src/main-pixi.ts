@@ -6,7 +6,7 @@ import { GameApp } from './renderer/pixi/GameApp';
 import { GameMap } from './world/MapGenerator';
 
 const CONFIG = {
-    map: { width: 100, height: 50, seed: 12345 },
+    map: { width: 200, height: 100, seed: 12345 },  // 与服务器保持一致
     viewport: {
         width: Math.floor(window.innerWidth),
         height: Math.floor(window.innerHeight * 0.95),

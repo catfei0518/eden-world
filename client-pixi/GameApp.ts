@@ -11,10 +11,10 @@ import { ItemStatusUI } from '../shared/ui/ItemStatusUI';
 import type { ItemData } from '../shared/ui/ItemStatusUI';
 import { seededRandom } from './utils/seededRandom';
 
-const MAP_WIDTH = 200;
+const MAP_WIDTH = 300;
 const HITBOX_SIZE = 48; // 角色点击热区大小
-const ITEM_HITBOX_SIZE = 40; // 物品点击热区大小
-const MAP_HEIGHT = 100;
+const ITEM_HITBOX_SIZE = 86; // 物品点击热区大小（与SCALED_SIZE一致）
+const MAP_HEIGHT = 150;
 const TILE_SIZE = 64;
 const SCALE = 1.35;
 const SCALED_SIZE = TILE_SIZE * SCALE;
@@ -71,7 +71,11 @@ export class GameApp {
     private textures: Map<string, PIXI.Texture> = new Map();
     private worldSeed: number = 0;  // Latency Compensation: 世界种子
     private groundObjectsRendered: boolean = false;  // 物品是否已从服务器渲染
+    private terrainTextureMissingLogged: boolean = false;  // 是否已打印缺少地形纹理警告
     private serverTiles: any[][] = [];  // 服务器下发的地形数据
+    private lastGroundObjects: any[] = [];  // 保存服务器发送的物品数据（用于季节变化后重新渲染）
+    private viewportOffsetX: number = 0;  // 视口偏移X
+    private viewportOffsetY: number = 0;  // 视口偏移Y
     private selectedCharacterId: string = 'adam';  // 当前选中的角色
     private characterSprites: Map<string, any> = new Map();
     private terrainSprites: Map<string, PIXI.Sprite> = new Map();
@@ -133,6 +137,43 @@ export class GameApp {
 
         console.log('🧹 已清除所有精灵');
     }
+    
+    private clearTerrainSprites(): void {
+        this.terrainSprites.forEach(sprite => sprite.destroy());
+        this.terrainSprites.clear();
+        console.log('🧹 已清除地形精灵');
+    }
+    
+    private lastViewportRequest: number = 0;
+    private viewportRequestCooldown: number = 500; // 500ms 防抖
+    
+    private requestViewportUpdate(): void {
+        const now = Date.now();
+        if (now - this.lastViewportRequest < this.viewportRequestCooldown) {
+            return;
+        }
+        this.lastViewportRequest = now;
+        
+        // 计算相机中心的世界坐标
+        const scale = this.camera.scale;
+        const screenCenterX = window.innerWidth / 2;
+        const screenCenterY = window.innerHeight / 2;
+        const cameraX = this.camera.target.x;
+        const cameraY = this.camera.target.y;
+        
+        // 世界坐标 = (屏幕中心 - 相机偏移) / 缩放 / TILE_SIZE
+        // 注意：camera.target 是 worldContainer 相对于屏幕的偏移
+        // 当 camera.target.x 为负值时，世界向左移动，屏幕中心看到的世界坐标更大
+        const centerX = Math.floor((screenCenterX - cameraX) / scale / TILE_SIZE);
+        const centerY = Math.floor((screenCenterY - cameraY) / scale / TILE_SIZE);
+        
+        // 限制在有效世界范围内
+        const worldX = Math.max(0, Math.min(MAP_WIDTH - 1, centerX));
+        const worldY = Math.max(0, Math.min(MAP_HEIGHT - 1, centerY));
+        
+        console.log(`📡 requestViewport: camera=(${cameraX.toFixed(0)},${cameraY.toFixed(0)}), screenCenter=(${screenCenterX},${screenCenterY}), scale=${scale}, raw=(${centerX},${centerY}), world=(${worldX},${worldY})`);
+        this.server.requestViewport(worldX, worldY);
+    }
 
     // 位置插值系统 - 让角色移动更平滑
     private setupPositionInterpolation() {
@@ -140,6 +181,9 @@ export class GameApp {
 
         this.app.ticker.add((ticker) => {
             const delta = ticker.deltaTime;
+
+            // 视口裁剪：相机移动时生成新地形
+            this.renderTerrain();
 
             this.characterSprites.forEach((container, id) => {
                 const target = this.characterTargets.get(id);
@@ -192,12 +236,16 @@ export class GameApp {
 
         this.camera = new Camera(this.worldContainer, canvas);
 
+        // ===== 移动端触摸支持 =====
+        this.setupMobileControls(canvas);
+
         await this.loadTextures();
         this.setupServer();
         this.setupKeyboard();
         this.setupConsole();
         this.setupStatusPanel();
         this.setupItemStatusUI();
+        this.setupTimePanel();
 
         window.addEventListener('resize', () => {
             this.app.renderer.resize(window.innerWidth, window.innerHeight);
@@ -293,16 +341,25 @@ export class GameApp {
             '森林树木冬': 'forest_tree',
             '森林树木雪': 'forest_tree',
             '石头': 'stone',
+            '岩石': 'rock',
             '灌木': 'bush',
             '灌木果': 'berry',
             '灌木花': 'bush_flower',
+            '树枝': 'twig',
+            '贝壳': 'shell',
             '井': 'well'
+        };
+
+        // 服务器发送的物品类型到纹理的映射
+        const serverItemTextureMap: Record<string, string> = {
+            'rock': 'stone',  // 服务器rock -> 客户端stone纹理
+            'shell': '贝壳'   // 服务器shell -> 客户端贝壳纹理
         };
 
         // 确保所有需要的纹理都加载了（使用英文key）
         const neededKeys = ['grass', 'plain', 'forest', 'forest_autumn', 'forest_winter',
             'desert', 'ocean', 'beach', 'river', 'lake', 'swamp', 'mountain', 'hill',
-            'adam', 'eve', 'tree', 'forest_tree', 'stone', 'bush', 'berry', 'bush_flower', 'well'];
+            'adam', 'eve', 'tree', 'forest_tree', 'stone', 'rock', 'bush', 'berry', 'bush_flower', 'twig', 'shell', 'well'];
 
         for (const texKey of neededKeys) {
             if (this.textures.has(texKey)) continue;  // 已有纹理
@@ -318,11 +375,11 @@ export class GameApp {
                             const texture = PIXI.Texture.from(bitmap);
                             this.textures.set(texKey, texture);
                             console.log(`✅ ${texKey} (本地)`);
+                            break;
                         } catch (e) {
                             console.error(`❌ 加载失败: ${texKey}`);
                         }
                     }
-                    break;
                 }
             }
         }
@@ -402,6 +459,26 @@ export class GameApp {
         this.server.on('init', (state) => {
             try {
             console.log('📊 收到初始状态:', state ? '数据正常' : '数据为空');
+            
+            // 初始化时间面板
+            if (state.time) {
+                // 直接传递时间数据，不包装 data 属性
+                this.refreshTimeDisplay(state.time);
+                // 保存初始时间用于后续更新
+                this.lastServerTime = { ...state.time };
+                this.lastServerTimeMs = Date.now();
+            } else if (state.season) {
+                // 兼容旧版本：使用season字段
+                this.refreshTimeDisplay({
+                    season: state.season,
+                    seasonName: state.season === 'spring' ? '春' : state.season === 'summer' ? '夏' : state.season === 'autumn' ? '秋' : '冬',
+                    seasonEmoji: state.season === 'spring' ? '🌸' : state.season === 'summer' ? '☀️' : state.season === 'autumn' ? '🍂' : '❄️',
+                    year: 1,
+                    day: 1,
+                    timeString: '00:00',
+                    periodEmoji: '☀️'
+                });
+            }
 
             // 重连时清除旧的精灵和状态
             this.clearAllSprites();
@@ -411,13 +488,24 @@ export class GameApp {
                 this.worldSeed = state.world.worldSeed;
             }
 
-            // 存储服务器的地形数据 - 这要在syncState之前设置
-            if (state.world?.tiles) {
+            // 存储服务器的地形数据（如果有的话）
+            if (state.world?.viewport?.tiles) {
+                // 服务器发送的是视口地形
+                this.serverTiles = state.world.viewport.tiles;
+                this.viewportOffsetX = state.world.viewport.centerX - state.world.viewport.radius;
+                this.viewportOffsetY = state.world.viewport.centerY - state.world.viewport.radius;
+                console.log(`🗺️ 收到服务器视口地形: ${this.serverTiles.length}x${this.serverTiles[0]?.length} (偏移: ${this.viewportOffsetX}, ${this.viewportOffsetY})`);
+            } else if (state.world?.tiles) {
+                // 兼容旧格式：完整地形
                 this.serverTiles = state.world.tiles;
-                console.log(`🗺️ 收到服务器地形: ${this.serverTiles.length}x${this.serverTiles[0]?.length}`);
-                console.log(`🗺️ 地形类型: ${[...new Set(this.serverTiles.flat().map(t => t.type))].join(', ')}`);
+                this.viewportOffsetX = 0;
+                this.viewportOffsetY = 0;
+                console.log(`🗺️ 收到服务器完整地形: ${this.serverTiles.length}x${this.serverTiles[0]?.length}`);
             } else {
-                console.log('❌ 未收到服务器地形，使用本地生成');
+                this.serverTiles = [];
+                this.viewportOffsetX = 0;
+                this.viewportOffsetY = 0;
+                console.log('🗺️ 未收到服务器地形，使用本地生成（基于worldSeed）');
             }
 
             // 渲染地面物品（从服务器数据）- 在syncState之前
@@ -425,8 +513,14 @@ export class GameApp {
                 console.log(`📦 收到服务器物品: ${state.world.groundObjects.length}个`);
             }
 
+            // 先移动相机到角色位置，再渲染地形
+            // 这样 renderTerrain 可以正确计算视口范围
+            if (state.characters && state.characters.length > 0) {
+                this.cameraCenterOnAll(state.characters);
+            }
+
             // 先渲染地形（使用服务器数据）
-            if (state.world?.tiles) {
+            if (state.world?.viewport?.tiles || state.world?.tiles) {
                 const loadingText = document.getElementById('loading-text');
                 if (loadingText) loadingText.textContent = '正在生成游戏世界';
                 console.log('🗺️ 开始渲染地形...');
@@ -441,19 +535,18 @@ export class GameApp {
             if (state.world?.groundObjects) {
                 const loadingText = document.getElementById('loading-text');
                 if (loadingText) loadingText.textContent = '正在放置物品';
+                console.log(`🔍 调用renderGroundObjectsFromServer，物品数量: ${state.world.groundObjects.length}`);
                 this.renderGroundObjectsFromServer(state.world.groundObjects);
             } else {
                 console.log('❌ 未收到服务器物品');
             }
 
-            // 相机跟随第一个角色
+            // 相机跟随第一个角色（相机已在前面居中）
             if (state.characters && state.characters.length > 0) {
                 const loadingText = document.getElementById('loading-text');
                 if (loadingText) loadingText.textContent = '正在唤醒角色';
                 // 先设置本地玩家ID
                 this.selectedCharacterId = state.characters[0].id;
-                // 相机居中显示所有角色
-                this.cameraCenterOnAll(state.characters);
 
                 // 如果有选中的角色，更新面板状态
                 if (this.selectedCharacter) {
@@ -485,7 +578,52 @@ export class GameApp {
                 }
             }
         });
-
+        
+        // 处理视口更新（地形数据）
+        this.server.on('viewport_update', (data) => {
+            try {
+                if (data?.viewport?.tiles) {
+                    console.log(`🗺️ 收到视口更新: ${data.viewport.tiles.length}x${data.viewport.tiles[0]?.length}`);
+                    
+                    // 调试：统计收到的地形类型
+                    const terrainStats: Record<string, number> = {};
+                    for (const row of data.viewport.tiles) {
+                        for (const tile of row) {
+                            terrainStats[tile.type] = (terrainStats[tile.type] || 0) + 1;
+                        }
+                    }
+                    console.log(`📊 收到的视口地形统计: ${JSON.stringify(terrainStats)}`);
+                    
+                    this.serverTiles = data.viewport.tiles;
+                    // 计算tiles数组的实际范围
+                    const tilesStartX = data.viewport.centerX - data.viewport.radius;
+                    const tilesStartY = data.viewport.centerY - data.viewport.radius;
+                    const tilesEndX = Math.min(tilesStartX + data.viewport.tiles[0]?.length || 0, data.viewport.centerX + data.viewport.radius);
+                    const tilesEndY = Math.min(tilesStartY + data.viewport.tiles.length, data.viewport.centerY + data.viewport.radius);
+                    
+                    // 如果tiles被裁剪（例如请求的区域超出世界边界），需要调整offset
+                    if (data.viewport.tiles[0]?.[0]) {
+                        this.viewportOffsetX = data.viewport.tiles[0][0].x;
+                        this.viewportOffsetY = data.viewport.tiles[0][0].y;
+                    } else {
+                        this.viewportOffsetX = Math.max(0, tilesStartX);
+                        this.viewportOffsetY = Math.max(0, tilesStartY);
+                    }
+                    
+                    // 调试：检查实际返回的 tile 数据
+                    const firstTile = data.viewport.tiles[0]?.[0];
+                    const lastTile = data.viewport.tiles[data.viewport.tiles.length-1]?.[data.viewport.tiles[0]?.length-1];
+                    console.log(`🗺️ 设置视口偏移: fromTile=(${this.viewportOffsetX},${this.viewportOffsetY}), tiles=${data.viewport.tiles.length}x${data.viewport.tiles[0]?.length || 0}`);
+                    console.log(`🗺️ 第一个tile: (${firstTile?.x}, ${firstTile?.y}), 最后一个tile: (${lastTile?.x}, ${lastTile?.y})`);
+                    
+                    // 清除旧的地形精灵，强制重新渲染
+                    this.clearTerrainSprites();
+                }
+            } catch (e) {
+                console.error('❌ 视口更新出错:', e);
+            }
+        });
+        
         // 超时保护：10秒后强制隐藏加载遮罩
         setTimeout(() => {
             const loadingOverlay = document.getElementById('loading-overlay');
@@ -536,7 +674,7 @@ export class GameApp {
         const terrainTextures: Record<string, Record<string, string>> = {
             spring: { grass: 'grass', plains: 'plain', forest: 'forest', desert: 'desert', ocean: 'ocean', beach: 'beach', river: 'river', lake: 'lake', swamp: 'swamp', mountain: 'mountain', hill: 'hill' },
             summer: { grass: 'grass', plains: 'plain', forest: 'forest', desert: 'desert', ocean: 'ocean', beach: 'beach', river: 'river', lake: 'lake', swamp: 'swamp', mountain: 'mountain', hill: 'hill' },
-            autumn: { grass: 'grass', plains: 'plain', forest: 'forest', desert: 'desert', ocean: 'ocean', beach: 'beach', river: 'river', lake: 'lake', swamp: 'swamp', mountain: 'mountain', hill: 'hill' },
+            autumn: { grass: 'grass', plains: 'plain', forest: 'forest_autumn', desert: 'desert', ocean: 'ocean', beach: 'beach', river: 'river', lake: 'lake', swamp: 'swamp', mountain: 'mountain', hill: 'hill' },
             winter: { grass: 'grass', plains: 'plain', forest: 'forest_winter', desert: 'desert', ocean: 'ocean', beach: 'beach', river: 'river', lake: 'lake', swamp: 'swamp', mountain: 'mountain', hill: 'hill' }
         };
 
@@ -559,20 +697,59 @@ export class GameApp {
             'hill': '山丘春'
         };
 
+        // 检查服务器地形数据是否可用
+        if (!this.serverTiles || this.serverTiles.length === 0) {
+            return; // 等待服务器数据
+        }
+
+        // 计算视口范围（基于相机位置）- 视口裁剪优化
+        const scale = this.camera?.target?.scale?.x || 1;
+        const screenWidth = window.innerWidth;
+        const screenHeight = window.innerHeight;
+        
+        // 世界坐标计算：与 requestViewportUpdate 保持一致
+        // 世界坐标 = (屏幕中心 - 相机偏移) / 缩放 / TILE_SIZE
+        const viewCenterX = Math.floor((screenWidth / 2 - this.camera.target.x) / scale / TILE_SIZE);
+        const viewCenterY = Math.floor((screenHeight / 2 - this.camera.target.y) / scale / TILE_SIZE);
+
         const terrainCount: Record<string, number> = {};
 
-        for (let y = 0; y < MAP_HEIGHT; y++) {
-            for (let x = 0; x < MAP_WIDTH; x++) {
-                const key = `${x},${y}`;
-                if (this.terrainSprites.has(key)) continue;
+        // 计算 serverTiles 的实际范围
+        const serverTilesMinX = this.viewportOffsetX;
+        const serverTilesMinY = this.viewportOffsetY;
+        const serverTilesMaxX = serverTilesMinX + (this.serverTiles[0]?.length || 0) - 1;
+        const serverTilesMaxY = serverTilesMinY + this.serverTiles.length - 1;
 
-                // 优先使用服务器的地形数据
-                let terrainType: string;
-                if (this.serverTiles && this.serverTiles[y] && this.serverTiles[y][x]) {
-                    terrainType = this.serverTiles[y][x].type;
-                } else {
-                    terrainType = this.getTerrainType(x, y);
+        // 只渲染视口范围内的地形，但也要确保在 serverTiles 范围内
+        const minX = Math.max(serverTilesMinX, Math.floor(Math.max(0, viewCenterX - Math.ceil(screenWidth / 2 / TILE_SIZE) - 5)));
+        const maxX = Math.min(serverTilesMaxX, Math.floor(Math.min(MAP_WIDTH - 1, viewCenterX + Math.ceil(screenWidth / 2 / TILE_SIZE) + 5)));
+        const minY = Math.max(serverTilesMinY, Math.floor(Math.max(0, viewCenterY - Math.ceil(screenHeight / 2 / TILE_SIZE) - 5)));
+        const maxY = Math.min(serverTilesMaxY, Math.floor(Math.min(MAP_HEIGHT - 1, viewCenterY + Math.ceil(screenHeight / 2 / TILE_SIZE) + 5)));
+
+        let skippedNoServerData = 0;
+        let skippedAlreadyRendered = 0;
+        let skippedNoTexture = 0;
+
+        for (let y = minY; y <= maxY; y++) {
+            for (let x = minX; x <= maxX; x++) {
+                const key = `${x},${y}`;
+                if (this.terrainSprites.has(key)) {
+                    skippedAlreadyRendered++;
+                    continue;
                 }
+
+                // 只使用服务器的地形数据，超出范围则跳过（使用整数坐标）
+                const serverX = Math.floor(x - this.viewportOffsetX);
+                const serverY = Math.floor(y - this.viewportOffsetY);
+                if (!this.serverTiles || !this.serverTiles[serverY] || !this.serverTiles[serverY][serverX]) {
+                    // 超出服务器数据范围，跳过渲染（等待服务器发送更多数据）
+                    skippedNoServerData++;
+                    if (skippedNoServerData <= 3) {
+                        console.log(`DEBUG 跳过地形 [${x},${y}]: serverX=${serverX}, serverY=${serverY}, serverTiles[${serverY}]?.length=${this.serverTiles?.[serverY]?.length}`);
+                    }
+                    continue;
+                }
+                const terrainType = this.serverTiles[serverY][serverX].type;
                 terrainCount[terrainType] = (terrainCount[terrainType] || 0) + 1;
 
                 const texKey = terrainMap[terrainType] || 'grass';
@@ -581,7 +758,15 @@ export class GameApp {
                 if (!texture && terrainKeyToFile[texKey]) {
                     texture = this.textures.get(terrainKeyToFile[texKey]);
                 }
-                if (!texture) continue;
+                if (!texture) {
+                    // 只打印一次
+                    if (!this.terrainTextureMissingLogged) {
+                        console.log(`❌ 地形找不到纹理: ${terrainType} -> ${texKey} -> ${terrainKeyToFile[texKey]}`);
+                        this.terrainTextureMissingLogged = true;
+                    }
+                    continue;
+                }
+                this.terrainTextureMissingLogged = false;
 
                 const sprite = new PIXI.Sprite(texture);
                 sprite.x = x * TILE_SIZE - OFFSET;
@@ -593,7 +778,7 @@ export class GameApp {
                 this.terrainSprites.set(key, sprite);
             }
         }
-        console.log('🗺️ 地形统计:', terrainCount);
+        console.log(`🗺️ 地形统计: ${Object.entries(terrainCount).map(([k,v]) => `${k}:${v}`).join(', ') || '无'}, 跳过: 已渲染=${skippedAlreadyRendered}, 无数据=${skippedNoServerData} (视口${minX}-${maxX}, ${minY}-${maxY})`);
 
         // 物品渲染：在收到服务器数据后处理，不在这里渲染
     }
@@ -602,10 +787,35 @@ export class GameApp {
     private renderGroundObjectsFromServer(groundObjects: any[]) {
         if (!groundObjects || groundObjects.length === 0) return;
 
+        // 保存物品数据用于季节变化后重新渲染
+        this.lastGroundObjects = groundObjects;
         this.groundObjectsRendered = true;  // 标记已渲染
-        for (const obj of groundObjects) {
-            this.addGroundObject(obj.x, obj.y, obj.type, obj.durability, obj.maxDurability, obj.berryCount, obj.maxBerries, obj.hasBerries);
+
+        // 详细调试坐标
+        if (groundObjects.length > 0) {
+            console.log(`📍 视口偏移: viewportOffsetX=${this.viewportOffsetX}, viewportOffsetY=${this.viewportOffsetY}`);
+            console.log(`📍 相机位置: target.x=${this.camera.target.x.toFixed(0)}, target.y=${this.camera.target.y.toFixed(0)}`);
+            const charClientX = (this.serverTiles[0]?.[0]?.x || 0) - this.viewportOffsetX + 50; // 估算角色位置
+            const charClientY = (this.serverTiles[0]?.[0]?.y || 0) - this.viewportOffsetY + 50;
+            console.log(`📍 角色估算位置: (${charClientX}, ${charClientY})`);
         }
+
+        for (const obj of groundObjects) {
+            // 直接使用服务器坐标，不需要转换
+            // 物品的 x, y 就是世界坐标
+            const worldX = obj.x;
+            const worldY = obj.y;
+            const pixelX = worldX * TILE_SIZE - OFFSET;
+            const pixelY = worldY * TILE_SIZE - OFFSET;
+
+            if (groundObjects.indexOf(obj) < 3) {
+                console.log(`📍 物品坐标: 世界(${worldX}, ${worldY}) -> 像素(${pixelX.toFixed(0)}, ${pixelY.toFixed(0)})`);
+            }
+
+            // 传递像素坐标给 addGroundObject（Y轴微调：0像素）
+            this.addGroundObjectByPixel(pixelX, pixelY, obj.type, obj.durability, obj.maxDurability, obj.berryCount, obj.maxBerries, obj.hasBerries);
+        }
+        console.log(`📦 从服务器渲染了 ${groundObjects.length} 个物品`);
     }
 
     private renderGroundObjects(groundObjects?: any[]) {
@@ -633,11 +843,21 @@ export class GameApp {
         // 确定性生成（与服务器一致）
         for (let y = 0; y < MAP_HEIGHT; y++) {
             for (let x = 0; x < MAP_WIDTH; x++) {
-                const terrainType = this.getTerrainType(x, y);
+                // 使用服务器地形数据
+                const serverX = x - this.viewportOffsetX;
+                const serverY = y - this.viewportOffsetY;
+
+                let terrainType: string;
+                if (this.serverTiles && this.serverTiles[serverY] && this.serverTiles[serverY][serverX]) {
+                    terrainType = this.serverTiles[serverY][serverX].type;
+                } else {
+                    continue; // 超出服务器数据范围，跳过
+                }
+
                 const rand = seededRandom(this.worldSeed, x, y);
 
-                // 森林：树 (15%概率)
-                if (terrainType === 'forest' && rand < 0.15) {
+                // 森林：树 (100%生成)
+                if (terrainType === 'forest') {
                     this.addGroundObject(x, y, 'tree');
                 }
                 // 草地/平原：灌木 (8%概率)
@@ -657,17 +877,29 @@ export class GameApp {
     }
 
     private addGroundObject(x: number, y: number, type: string, durability?: number, maxDurability?: number, berryCount?: number, maxBerries?: number, hasBerries?: boolean) {
-        const tex = this.textures.get(type);
-        if (!tex) return;
+        // 服务器发送的物品类型到纹理的映射
+        const serverItemTextureMap: Record<string, string> = {
+            'rock': 'stone',  // 服务器rock -> 客户端stone纹理
+            'shell': 'rock'   // 服务器shell -> 暂时用石头代替（等素材）
+        };
+
+        // 映射服务器类型到客户端纹理类型
+        const textureKey = serverItemTextureMap[type] || type;
+
+        const tex = this.textures.get(textureKey);
+        if (!tex) {
+            console.log(`❌ 找不到物品纹理: ${type} -> ${textureKey}`);
+            return;
+        }
 
         const container = new PIXI.Container();
 
         const sprite = new PIXI.Sprite(tex);
         // 森林树和果树比格子大1/3
-        const size = (type === 'tree' || type === 'forest_tree' || type === 'tree_fruit') ? TILE_SIZE * 1.33 : 40;
+        const size = (type === 'tree' || type === 'forest_tree' || type === 'tree_fruit') ? TILE_SIZE * 1.33 : SCALED_SIZE;
         sprite.width = size;
         sprite.height = size;
-        sprite.anchor.set(0.5);
+        // 不设置 anchor，保持与地形一致（左上角对齐）
         container.addChild(sprite);
 
         // 创建物品数据（保存格子坐标用于显示）
@@ -683,9 +915,9 @@ export class GameApp {
             hasBerries: hasBerries
         };
 
-        // 创建点击热区
+        // 创建点击热区（覆盖整个格子，从左上角开始）
         const hitbox = new PIXI.Graphics();
-        hitbox.rect(-ITEM_HITBOX_SIZE / 2, -ITEM_HITBOX_SIZE / 2, ITEM_HITBOX_SIZE, ITEM_HITBOX_SIZE);
+        hitbox.rect(0, 0, ITEM_HITBOX_SIZE, ITEM_HITBOX_SIZE);
         hitbox.fill({ color: 0xffffff, alpha: 0.001 });
         hitbox.eventMode = 'static';
         hitbox.cursor = 'pointer';
@@ -693,14 +925,15 @@ export class GameApp {
         // 点击事件
         hitbox.on('pointerdown', (event: PIXI.FederatedPointerEvent) => {
             event.stopPropagation();
+            console.log('🖱️ 点击物品(addGroundObject):', itemData.type, '坐标:', itemData.x, itemData.y);
             this.showItemStatus(itemData);
         });
 
         container.addChild(hitbox);
 
-        // 设置位置（需要转像素坐标）
-        container.x = x * TILE_SIZE + TILE_SIZE / 2;
-        container.y = y * TILE_SIZE + TILE_SIZE / 2;
+        // 设置位置（与地形对齐）
+        container.x = x * TILE_SIZE - OFFSET;
+        container.y = y * TILE_SIZE - OFFSET;
         container.zIndex = 2; // 在地形上面，角色下面
 
         this.worldContainer.addChild(container);
@@ -710,6 +943,67 @@ export class GameApp {
         this.itemSprites.set(itemKey, container);
         (container as any).itemData = itemData;
 
+        this.groundObjects.push(container);
+    }
+
+    // 像素坐标版本的 addGroundObject
+    private addGroundObjectByPixel(pixelX: number, pixelY: number, type: string, durability?: number, maxDurability?: number, berryCount?: number, maxBerries?: number, hasBerries?: boolean) {
+        const serverItemTextureMap: Record<string, string> = {
+            'rock': 'stone',
+            'shell': 'rock'
+        };
+
+        const textureKey = serverItemTextureMap[type] || type;
+        const tex = this.textures.get(textureKey);
+        if (!tex) {
+            console.log(`❌ 找不到物品纹理: ${type} -> ${textureKey}`);
+            return;
+        }
+
+        const container = new PIXI.Container();
+
+        const sprite = new PIXI.Sprite(tex);
+        const size = (type === 'tree' || type === 'forest_tree' || type === 'tree_fruit') ? TILE_SIZE * 1.33 : SCALED_SIZE;
+        sprite.width = size;
+        sprite.height = size;
+        container.addChild(sprite);
+
+        // 从像素坐标计算世界坐标
+        const worldX = Math.round((pixelX + OFFSET) / TILE_SIZE);
+        const worldY = Math.round((pixelY + OFFSET) / TILE_SIZE);
+
+        const itemData: ItemData = {
+            type: type,
+            x: worldX,
+            y: worldY,
+            layer: 'ground',
+            durability: durability,
+            maxDurability: maxDurability,
+            berryCount: berryCount,
+            maxBerries: maxBerries,
+            hasBerries: hasBerries
+        };
+
+        const hitbox = new PIXI.Graphics();
+        hitbox.rect(0, 0, ITEM_HITBOX_SIZE, ITEM_HITBOX_SIZE);
+        hitbox.fill({ color: 0xffffff, alpha: 0.001 });
+        hitbox.eventMode = 'static';
+        hitbox.cursor = 'pointer';
+
+        hitbox.on('pointerdown', (event: PIXI.FederatedPointerEvent) => {
+            event.stopPropagation();
+            console.log('🖱️ 点击物品:', itemData.type, '坐标:', itemData.x, itemData.y);
+            this.showItemStatus(itemData);
+        });
+
+        container.addChild(hitbox);
+
+        // 直接使用像素坐标
+        container.x = pixelX;
+        container.y = pixelY;
+        container.zIndex = 2;
+
+        this.worldContainer.addChild(container);
         this.groundObjects.push(container);
     }
 
@@ -832,18 +1126,18 @@ export class GameApp {
         const centerY = (minY + maxY) / 2;
 
         const scale = this.camera.scale;
-        // 居中到角色中心位置
-        this.camera.target.x = window.innerWidth / 2 - (centerX * TILE_SIZE + TILE_SIZE / 2) * scale;
-        this.camera.target.y = window.innerHeight / 2 - (centerY * TILE_SIZE + TILE_SIZE / 2) * scale;
+        // 居中到角色位置（与地形对齐）
+        this.camera.target.x = window.innerWidth / 2 - (centerX * TILE_SIZE - OFFSET) * scale;
+        this.camera.target.y = window.innerHeight / 2 - (centerY * TILE_SIZE - OFFSET) * scale;
     }
 
     private cameraFollow(char: ServerCharacter) {
         if (char.x === null || char.y === null) return;
 
         const scale = this.camera.scale;
-        // 居中到角色位置
-        this.camera.target.x = window.innerWidth / 2 - (char.x * TILE_SIZE + TILE_SIZE / 2) * scale;
-        this.camera.target.y = window.innerHeight / 2 - (char.y * TILE_SIZE + TILE_SIZE / 2) * scale;
+        // 居中到角色位置（与地形对齐）
+        this.camera.target.x = window.innerWidth / 2 - (char.x * TILE_SIZE - OFFSET) * scale;
+        this.camera.target.y = window.innerHeight / 2 - (char.y * TILE_SIZE - OFFSET) * scale;
     }
 
     private renderCharacter(data: ServerCharacter) {
@@ -859,10 +1153,10 @@ export class GameApp {
         }
 
         if (data.x !== null && data.y !== null) {
-            // 存储目标位置（用于平滑插值）
+            // 存储目标位置（用于平滑插值，与地形对齐）
             this.characterTargets.set(data.id, {
-                x: data.x * TILE_SIZE + TILE_SIZE / 2,
-                y: data.y * TILE_SIZE + TILE_SIZE / 2
+                x: data.x * TILE_SIZE - OFFSET,
+                y: data.y * TILE_SIZE - OFFSET
             });
         }
         container.zIndex = 10;
@@ -1001,10 +1295,117 @@ export class GameApp {
         return container;
     }
 
+    // ===== 移动端触摸控制 =====
+    private setupMobileControls(canvas: HTMLCanvasElement) {
+        // 触摸状态
+        let isTouchDragging = false;
+        let isPinching = false;
+        let lastTouchX = 0;
+        let lastTouchY = 0;
+        let lastPinchDistance = 0;
+        let lastPinchCenterX = 0;
+        let lastPinchCenterY = 0;
+
+        // 阻止默认触摸行为
+        canvas.style.touchAction = 'none';
+
+        canvas.addEventListener('touchstart', (e: TouchEvent) => {
+            e.preventDefault();
+
+            if (e.touches.length === 1) {
+                // 单指触摸 - 开始拖动
+                isTouchDragging = true;
+                lastTouchX = e.touches[0].clientX;
+                lastTouchY = e.touches[0].clientY;
+            } else if (e.touches.length === 2) {
+                // 双指触摸 - 开始缩放
+                isTouchDragging = false;
+                isPinching = true;
+
+                const dx = e.touches[1].clientX - e.touches[0].clientX;
+                const dy = e.touches[1].clientY - e.touches[0].clientY;
+                lastPinchDistance = Math.sqrt(dx * dx + dy * dy);
+                lastPinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                lastPinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e: TouchEvent) => {
+            e.preventDefault();
+
+            if (e.touches.length === 1 && isTouchDragging) {
+                // 单指拖动地图
+                const touch = e.touches[0];
+                const dx = touch.clientX - lastTouchX;
+                const dy = touch.clientY - lastTouchY;
+
+                this.camera.target.x += dx;
+                this.camera.target.y += dy;
+
+                lastTouchX = touch.clientX;
+                lastTouchY = touch.clientY;
+
+                this.camera.clamp();
+
+            } else if (e.touches.length === 2 && isPinching) {
+                // 双指缩放
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+
+                const dx = touch2.clientX - touch1.clientX;
+                const dy = touch2.clientY - touch1.clientY;
+                const currentDistance = Math.sqrt(dx * dx + dy * dy);
+                const currentCenterX = (touch1.clientX + touch2.clientX) / 2;
+                const currentCenterY = (touch1.clientY + touch2.clientY) / 2;
+
+                // 计算缩放比例
+                const scaleChange = currentDistance / lastPinchDistance;
+                const newScale = Math.max(0.15, Math.min(6, this.camera.scale * scaleChange));
+
+                // 以双指中心点为基准缩放
+                if (newScale !== this.camera.scale) {
+                    const worldX = (currentCenterX - this.camera.target.x) / this.camera.scale;
+                    const worldY = (currentCenterY - this.camera.target.y) / this.camera.scale;
+
+                    this.camera.target.scale.set(newScale);
+                    this.camera.scale = newScale;
+
+                    this.camera.target.x = currentCenterX - worldX * newScale;
+                    this.camera.target.y = currentCenterY - worldY * newScale;
+
+                    this.camera.clamp();
+                }
+
+                lastPinchDistance = currentDistance;
+                lastPinchCenterX = currentCenterX;
+                lastPinchCenterY = currentCenterY;
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', (e: TouchEvent) => {
+            e.preventDefault();
+
+            if (e.touches.length === 0) {
+                isTouchDragging = false;
+                isPinching = false;
+            } else if (e.touches.length === 1) {
+                // 从双指切换到单指
+                isPinching = false;
+                isTouchDragging = true;
+                lastTouchX = e.touches[0].clientX;
+                lastTouchY = e.touches[0].clientY;
+            }
+        }, { passive: false });
+
+        console.log('📱 移动端触摸控制已启用');
+    }
+
     private setupKeyboard() {
         window.addEventListener('keydown', (e) => {
             const key = e.key.toLowerCase();
             const step = 5;
+            
+            console.log(`⌨️ keydown: ${key}, before: camera.target.y=${this.camera.target.y.toFixed(0)}`);
 
             switch (key) {
                 case 'w': case 'arrowup':
@@ -1031,6 +1432,9 @@ export class GameApp {
                     break;
             }
             this.camera.clamp();
+            
+            // 请求新视口数据
+            this.requestViewportUpdate();
         });
 
         // 点击画布移动角色
@@ -1215,6 +1619,138 @@ export class GameApp {
             // 显示面板
             this.statusPanel.style.cssText = 'display: block; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999;';
         }, 50);
+    }
+
+    private lastTimeUpdate: any = null;       // 上次收到的时间数据
+    private lastTimeUpdateMs: number = 0;    // 上次收到时间戳（毫秒）
+    private timePredictionInterval: number = 0; // 预测更新定时器
+    
+    private lastServerTime: any = null;      // 上次服务器时间
+    private lastServerTimeMs: number = 0;   // 上次收到服务器时间戳（毫秒）
+    
+    private setupTimePanel() {
+        // 时间面板已通过HTML静态添加，这里只需设置事件监听
+        // 监听服务器时间更新（每游戏小时 = 1真实分钟）
+        this.server.on('time_update', (data: any) => {
+            this.onServerTimeUpdate(data);
+        });
+        
+        // 监听季节变化
+        this.server.on('season_changed', (data: any) => {
+            this.onServerTimeUpdate(data);
+        });
+        
+        // 客户端驱动：每秒更新时间
+        window.setInterval(() => {
+            this.driveTimeUpdate();
+        }, 1000);
+        
+        console.log('⏰ 时间面板初始化完成');
+    }
+    
+    /**
+     * 收到服务器时间更新
+     */
+    private onServerTimeUpdate(data: any) {
+        if (!data) return;
+        
+        // time_update消息数据直接在顶层，type也在顶层
+        // init消息数据在data.data中
+        const timeData = data.type === 'time_update' ? data : (data.data || data);
+        
+        // 检查季节是否变化
+        const newSeason = timeData.season;
+        if (newSeason && newSeason !== this.currentSeason) {
+            console.log(`🌿 季节变化: ${this.currentSeason} → ${newSeason}`);
+            this.currentSeason = newSeason;
+            // 刷新所有地形精灵以更新季节纹理
+            this.terrainSprites.forEach(sprite => sprite.destroy());
+            this.terrainSprites.clear();
+            // 刷新地面物品精灵
+            this.groundObjects.forEach(sprite => sprite.destroy());
+            this.groundObjects.length = 0;
+            this.groundObjectsRendered = false;
+            // 重新渲染地形
+            this.renderTerrain();
+            // 重新渲染物品
+            if (this.lastGroundObjects && this.lastGroundObjects.length > 0) {
+                this.renderGroundObjectsFromServer(this.lastGroundObjects);
+            }
+        }
+        
+        // 保存服务器时间
+        this.lastServerTime = { ...timeData };
+        this.lastServerTimeMs = Date.now();
+        
+        // 立即更新显示
+        this.refreshTimeDisplay(this.lastServerTime);
+    }
+    
+    /**
+     * 客户端驱动时间前进（每秒调用）
+     */
+    private driveTimeUpdate() {
+        if (!this.lastServerTime) return;
+        
+        const now = Date.now();
+        const elapsedMs = now - this.lastServerTimeMs;
+        const elapsedSeconds = elapsedMs / 1000;
+        
+        // 游戏分钟增量 = 真实秒数 * 每真实秒对应的游戏分钟数
+        const gameMinutesPerRealSecond = this.lastServerTime.gameMinutesPerRealSecond || 1;
+        const totalGameMinutes = this.lastServerTime.minute + Math.floor(elapsedSeconds * gameMinutesPerRealSecond);
+        
+        // 分离小时和分钟
+        const gameMinutesInHour = totalGameMinutes % 60;
+        const hoursAdded = Math.floor(totalGameMinutes / 60);
+        let newHour = (this.lastServerTime.hour + hoursAdded) % 24;
+        let newDay = this.lastServerTime.day + Math.floor((this.lastServerTime.hour + hoursAdded) / 24);
+        let newYear = this.lastServerTime.year;
+        
+        // 跨天处理
+        if (newDay > 12) { // 1年=12天
+            newDay = newDay - 12;
+            newYear = this.lastServerTime.year + 1;
+        }
+        
+        // 更新显示
+        const dateEl = document.getElementById('time-date');
+        const seasonEl = document.getElementById('time-season');
+        
+        if (dateEl) {
+            dateEl.textContent = `📅 ${newYear}年${newDay}日`;
+        }
+        
+        if (seasonEl) {
+            const seasonEmoji = this.lastServerTime.seasonEmoji || '🌸';
+            const seasonName = this.lastServerTime.seasonName || '春';
+            const periodEmoji = this.lastServerTime.periodEmoji || '☀️';
+            const timeStr = `${String(newHour).padStart(2, '0')}:${String(gameMinutesInHour).padStart(2, '0')}`;
+            seasonEl.innerHTML = `${seasonEmoji} ${seasonName} ${periodEmoji} ${timeStr}`;
+        }
+    }
+    
+    /**
+     * 刷新时间显示（立即使用服务器数据）
+     */
+    private refreshTimeDisplay(timeData: any) {
+        const dateEl = document.getElementById('time-date');
+        const seasonEl = document.getElementById('time-season');
+        
+        if (!dateEl || !seasonEl || !timeData) return;
+        
+        const year = timeData.year || 1;
+        const day = timeData.day || 1;
+        dateEl.textContent = `📅 ${year}年${day}日`;
+        
+        const seasonEmoji = timeData.seasonEmoji || '🌸';
+        const seasonName = timeData.seasonName || '春';
+        const periodEmoji = timeData.periodEmoji || '☀️';
+        const hour = timeData.hour || 0;
+        const minute = timeData.minute || 0;
+        
+        const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+        seasonEl.innerHTML = `${seasonEmoji} ${seasonName} ${periodEmoji} ${timeStr}`;
     }
 
     private hideStatusPanel() {

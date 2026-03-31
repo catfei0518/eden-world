@@ -190,7 +190,7 @@ export class ItemStatusUI {
     
     // 更新显示
     update(): void {
-        console.log('🔄 ItemStatusUI.update() 被调用');
+        console.log('🔄 ItemStatusUI.update() v2 被调用');
         if (!this.selectedItem) {
             console.log('❌ selectedItem is null');
             return;
@@ -202,20 +202,24 @@ export class ItemStatusUI {
         // 图标和名称映射
         const icons: Record<string, string> = {
             'tree': '🌲',
+            'forest_tree': '🌲',
             'bush': '🌿',
             'stone': '🪨',
             'rock': '🪨',
             'stick': '🪵',
+            'twig': '🪵',
             'berry': '🫐',
             'flower': '🌸',
             'branch': '🌳'
         };
         const names: Record<string, string> = {
             'tree': '树',
+            'forest_tree': '森林树',
             'bush': '灌木',
             'stone': '石头',
             'rock': '石头',
             'stick': '木棍',
+            'twig': '小树枝',
             'berry': '浆果丛',
             'flower': '花朵',
             'branch': '树枝'

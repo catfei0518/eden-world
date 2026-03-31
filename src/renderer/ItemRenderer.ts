@@ -89,7 +89,7 @@ export class ItemManager {
                 }
                 break;
                 
-            case TileType.PLAIN:
+            case TileType.PLAINS:
                 if (rand < 0.15) {
                     this.items.push(new Item('stick', x, y, 'ground'));
                 } else if (rand < 0.22) {

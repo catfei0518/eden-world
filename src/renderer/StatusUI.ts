@@ -260,11 +260,17 @@ export class StatusUI {
         if (thirst < 50) return '💧口渴';
         if (hunger < 50) return '🍖饥饿';
         if (char.energy < 2) return '😴疲惫';
-        if (char.action === '饮水中') return '💧饮水';
-        if (char.action === '进食中') return '🍖进食';
-        if (char.action === '休息中') return '💤休息';
-        if (char.action === '闲置') return '🧘待机';
-        if (char.action.includes('寻找')) return '🔍探索';
+        
+        // 匹配带emoji的状态（服务器发送的格式）
+        const action = char.action || '';
+        if (action.includes('饮水') || action.includes('喝水')) return '💧饮水';
+        if (action.includes('进食') || action.includes('吃东西')) return '🍖进食';
+        if (action.includes('休息')) return '💤休息';
+        if (action.includes('待机') || action.includes('闲置')) return '🧘待机';
+        if (action.includes('找') || action.includes('寻找')) return '🔍探索';
+        if (action.includes('采集')) return '🫐采集';
+        if (action.includes('巡逻')) return '🚶巡逻';
+        
         return '🚶移动';
     }
     

@@ -207,57 +207,105 @@ export class CharacterManager {
     
     // 根据世界状态找到合适的出生地
     static findGoodSpawnPosition(worldState: any): { x: number; y: number } {
+        // 使用新的SpawnPointSelector
+        try {
+            const { SpawnPointSelector, TileType } = require('./SpawnPointSelector');
+
+            // 创建简单的GameMap适配器
+            const mapAdapter = {
+                getSize: () => ({ width: 200, height: 100 }),
+                getTile: (x: number, y: number) => {
+                    const tile = worldState.getTile(x, y);
+                    if (!tile) return null;
+
+                    // 映射服务器TileType到SpawnPointSelector的TileType
+                    const typeMap: Record<string, string> = {
+                        'plains': 'plain',
+                        'grass': 'grass',
+                        'desert': 'desert',
+                        'forest': 'forest',
+                        'ocean': 'ocean',
+                        'lake': 'lake',
+                        'river': 'river',
+                        'swamp': 'swamp',
+                        'mountain': 'mountain',
+                        'hill': 'hill',
+                        'cave': 'cave',
+                        'beach': 'beach',
+                    };
+
+                    return {
+                        type: typeMap[tile.type] || 'plain'
+                    };
+                }
+            };
+
+            const selector = new SpawnPointSelector(mapAdapter);
+            const spawnPoints = selector.selectSpawnPoint(1);
+
+            if (spawnPoints.length > 0) {
+                const point = spawnPoints[0];
+                console.log(`🎯 使用智能出生点: (${point.x}, ${point.y})`);
+                console.log(`   - 水源距离: ${point.criteria.waterDistance}格`);
+                console.log(`   - 食物评分: ${point.criteria.foodNearby}`);
+                console.log(`   - 建材评分: ${point.criteria.shelterNearby}`);
+                console.log(`   - 综合评分: ${point.criteria.totalScore.toFixed(3)}`);
+                return { x: point.x, y: point.y };
+            }
+        } catch (e) {
+            console.warn('SpawnPointSelector初始化失败，使用旧方法:', e);
+        }
+
+        // 备用：使用原有逻辑
         const tiles = worldState.getAllTiles();
         const items = worldState.getAllGroundObjects();
-        
-        // 优先找：草地/平原 + 附近有森林/灌木 + 附近有河流/湖泊
+
         for (let y = 10; y < 90; y++) {
             for (let x = 10; x < 190; x++) {
                 const tile = tiles.find((t: any) => t.x === x && t.y === y);
                 if (!tile) continue;
-                
-                // 只在草地或平原
+
                 if (tile.type !== 'grass' && tile.type !== 'plains') continue;
-                
-                // 检查附近是否有水源
-                const hasWater = tiles.some((t: any) => 
-                    Math.abs(t.x - x) <= 5 && 
-                    Math.abs(t.y - y) <= 5 && 
+
+                const hasWater = tiles.some((t: any) =>
+                    Math.abs(t.x - x) <= 5 &&
+                    Math.abs(t.y - y) <= 5 &&
                     (t.type === 'river' || t.type === 'lake')
                 );
                 if (!hasWater) continue;
-                
-                // 检查附近是否有食物（森林或灌木）
+
                 const hasFood = items.some((item: any) =>
                     Math.abs(item.x - x) <= 8 &&
                     Math.abs(item.y - y) <= 8 &&
                     (item.type === 'tree' || item.type === 'bush' || item.type === 'forest_tree')
                 );
                 if (!hasFood) continue;
-                
-                // 找到一个好位置
+
+                console.log(`🎯 使用备用出生点: (${x}, ${y})`);
                 return { x, y };
             }
         }
-        
-        // 如果找不到完美的，就找草地附近有水的
+
         for (let y = 10; y < 90; y++) {
             for (let x = 10; x < 190; x++) {
                 const tile = tiles.find((t: any) => t.x === x && t.y === y);
                 if (!tile) continue;
-                
+
                 if (tile.type !== 'grass' && tile.type !== 'plains') continue;
-                
+
                 const hasWater = tiles.some((t: any) =>
                     Math.abs(t.x - x) <= 3 &&
                     Math.abs(t.y - y) <= 3 &&
                     (t.type === 'river' || t.type === 'lake')
                 );
-                if (hasWater) return { x, y };
+                if (hasWater) {
+                    console.log(`🎯 使用备用出生点: (${x}, ${y})`);
+                    return { x, y };
+                }
             }
         }
-        
-        // 默认返回地图中心
+
+        console.log(`🎯 使用默认出生点: (100, 50)`);
         return { x: 100, y: 50 };
     }
     
@@ -278,5 +326,48 @@ export class CharacterManager {
         }));
         
         return new ServerWorldState(tiles, objects);
+    }
+    
+    /**
+     * 导出存档数据
+     */
+    toJSON(): any[] {
+        return Array.from(this.characters.values()).map(state => state.ai.toJSON());
+    }
+    
+    /**
+     * 从存档数据恢复
+     */
+    fromJSON(data: any[]): void {
+        // 恢复每个角色
+        for (const charData of data) {
+            const existing = this.characters.get(charData.id);
+            if (existing) {
+                existing.ai.fromJSON(charData);
+            }
+        }
+    }
+    
+    /**
+     * 从存档数据创建角色
+     */
+    createCharacterFromSave(charData: any): void {
+        const id = charData.id;
+        const name = charData.name;
+        const type = charData.type;
+        const x = charData.x;
+        const y = charData.y;
+        
+        // 创建 AI 角色
+        const ai = new AICharacter(id, name, type, x, y, charData.dna);
+        
+        // 恢复所有状态
+        ai.fromJSON(charData);
+        
+        // 存储角色
+        const state: CharacterState = { ai };
+        this.characters.set(id, state);
+        
+        console.log(`✅ 角色已创建: ${name} (${id}) 位置(${x.toFixed(1)}, ${y.toFixed(1)})`);
     }
 }

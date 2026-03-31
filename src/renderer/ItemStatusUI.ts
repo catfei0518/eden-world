@@ -165,6 +165,7 @@ export class ItemStatusUI {
     
     // 显示物品信息
     showItem(item: GameItem): void {
+        console.log('📋 ItemStatusUI.showItem 收到:', item, 'type:', item?.type, 'x:', item?.x, 'y:', item?.y);
         this.selectedItem = item;
         this.lastClickTime = Date.now();
         this.panel.style.display = 'block';
@@ -217,31 +218,21 @@ export class ItemStatusUI {
         const durSection = document.getElementById('durability-section');
         const durFill = document.getElementById('durability-fill');
         const durText = document.getElementById('durability-text');
-        
+
         if (durSection && durFill && durText) {
-            if (item.type === 'bush' && item.berryCount !== undefined) {
-                // 灌木显示浆果数量（实际值/实际值，不需要显示最大容量）
+            // 灌木显示耐久
+            if (item.type === 'bush' || item.type === 'branch') {
                 durSection.style.display = 'block';
-                const current = item.berryCount || 0;
-                durFill.style.width = '100%';
-                const durTitle = durSection.querySelector('.durability-title');
-                if (durTitle) durTitle.textContent = '🍇 浆果数量';
-                durText.textContent = `🍒 ${current}/${current}`;
-            } else if ((item.type === 'twig' || item.type === 'stone' || item.type === 'shell' || item.type === 'herb') && item.quantity !== undefined) {
-                // 其他物品显示数量
-                durSection.style.display = 'block';
-                durFill.style.width = '100%';
                 const durTitle = durSection.querySelector('.durability-title');
                 if (durTitle) {
-                    const icons: Record<string, string> = {
-                        'twig': '🪵 树枝',
-                        'stone': '🪨 石头',
-                        'shell': '🐚 贝壳',
-                        'herb': '🌿 草本'
-                    };
-                    durTitle.textContent = icons[item.type] || '📦 物品';
+                    durTitle.textContent = item.type === 'bush' ? '🌿 灌木耐久' : '🌳 树枝耐久';
                 }
-                durText.textContent = `× ${item.quantity}`;
+
+                // 使用新的 resource 属性
+                const current = item.resource?.current || 0;
+                const max = item.resource?.max || 1;
+                durFill.style.width = `${(current / max) * 100}%`;
+                durText.textContent = `${current}/${max}`;
             } else {
                 durSection.style.display = 'none';
             }

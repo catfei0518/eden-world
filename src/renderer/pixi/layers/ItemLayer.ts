@@ -1,430 +1,473 @@
 /**
- * 物品层 - 支持耐久和季节
+ * 物品层 - 使用统一物品系统
+ * 已重构为使用 src/systems/items 中的统一物品定义
  */
 
 import * as PIXI from 'pixi.js';
-import { GameMap, TileType } from '../../../world/MapGenerator';
-
-export type ItemType = 'tree' | 'bush' | 'rock' | 'stick' | 'berry' | 'flower' | 'branch';
-export type ItemLayerType = 'ground' | 'low' | 'high';
-export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
+import { GameMap } from '../../../world/MapGenerator';
+import {
+  ItemType,
+  Season,
+  TileType,
+  ITEM_DEFINITIONS,
+  getItemTexture,
+  getItemSize,
+} from '../../../systems/items';
 
 const TILE_SIZE = 64;
 
-export class GameItem {
-    type: ItemType;
-    x: number;
-    y: number;
-    layer: ItemLayerType;
-    
-    // 耐久相关（用于灌木/浆果丛）
-    durability: number = 0;
-    maxDurability: number = 0;
-    
-    constructor(type: ItemType, x: number, y: number, layer: ItemLayerType) {
-        this.type = type;
-        this.x = x;
-        this.y = y;
-        this.layer = layer;
-    }
-    
-    // 获取物品名称
-    getName(): string {
-        const names: Record<ItemType, string> = {
-            'tree': '树',
-            'bush': '灌木',
-            'rock': '石头',
-            'stick': '木棍',
-            'berry': '浆果丛',
-            'flower': '花朵',
-            'branch': '树枝'
-        };
-        return names[this.type] || '未知物品';
-    }
-    
-    // 是否还有资源
-    hasResources(): boolean {
-        return this.durability > 0;
-    }
-    
-    // 采集（返回采集数量）
-    harvest(amount: number = 1): number {
-        if (this.durability <= 0) return 0;
-        const harvested = Math.min(this.durability, amount);
-        this.durability -= harvested;
-        return harvested;
-    }
+/**
+ * 创建 LCG RNG（线性同余生成器）
+ * 与服务器保持一致
+ */
+function createLCGRNG(seed: number): () => number {
+  return function() {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  };
 }
 
+export class GameItem {
+  id: string;
+  type: ItemType;
+  x: number;
+  y: number;
+  layer: 'ground' | 'low' | 'high';
+
+  resource: {
+    current: number;
+    max: number;
+    regrowTime?: number;
+    regrowTimer?: number;
+  } | null;
+
+  harvested: boolean;
+  lastHarvestTime?: number;
+
+  constructor(id: string, type: ItemType, x: number, y: number, rng?: () => number) {
+    this.id = id;
+    this.type = type;
+    this.x = x;
+    this.y = y;
+    this.layer = ITEM_DEFINITIONS[type].spawn.layer;
+    this.harvested = false;
+
+    const randomFunc = rng || Math.random;
+    const def = ITEM_DEFINITIONS[type];
+    if (def.resource) {
+      const amount = Math.floor(randomFunc() * (def.resource.max - def.resource.min + 1)) + def.resource.min;
+      this.resource = {
+        current: amount,
+        max: amount,
+        regrowTime: def.resource.regrowTime,
+        regrowTimer: 0,
+      };
+    } else {
+      this.resource = null;
+    }
+  }
+
+  getName(): string {
+    return ITEM_DEFINITIONS[this.type]?.displayName || '未知物品';
+  }
+
+  hasResources(): boolean {
+    return this.resource !== null && this.resource.current > 0;
+  }
+
+  harvest(amount: number = 1): number {
+    if (!this.resource || this.resource.current <= 0) return 0;
+
+    const harvested = Math.min(this.resource.current, amount);
+    this.resource.current -= harvested;
+
+    if (this.resource.current <= 0) {
+      this.harvested = true;
+      this.lastHarvestTime = Date.now();
+      if (this.resource.regrowTime) {
+        this.resource.regrowTimer = 0;
+      }
+    }
+
+    return harvested;
+  }
+
+  update(deltaTime: number): void {
+    if (
+      this.harvested &&
+      this.resource &&
+      this.resource.regrowTime &&
+      this.resource.regrowTimer !== undefined
+    ) {
+      this.resource.regrowTimer += deltaTime;
+
+      if (this.resource.regrowTimer >= this.resource.regrowTime) {
+        this.harvested = false;
+        this.resource.current = this.resource.max;
+        this.resource.regrowTimer = 0;
+        this.lastHarvestTime = undefined;
+      }
+    }
+  }
+}
+
+import { createNoise2D, NoiseFunction2D } from 'simplex-noise';
+
 export class ItemLayer {
-    private container: PIXI.Container;
-    private map: GameMap;
-    private items: GameItem[] = [];
-    private sprites: Map<GameItem, PIXI.Sprite> = new Map();
-    private hitboxes: Map<GameItem, PIXI.Graphics> = new Map();
-    private textureCache: Map<string, PIXI.Texture> = new Map();
-    private currentSeason: Season = 'summer'; // 默认夏天
-    
-    // 点击回调
-    public onItemClick: ((item: GameItem) => void) | null = null;
-    
-    // 物品贴图（按季节）
-    private readonly ASSETS: Record<ItemType, Record<Season, string>> = {
-        'tree': {
-            spring: 'img/树.png',
-            summer: 'img/树.png',
-            autumn: 'img/树.png',
-            winter: 'img/树冬.png'
-        },
-        'bush': {
-            spring: 'img/灌木花.png',
-            summer: 'img/灌木果.png',
-            autumn: 'img/灌木果.png',
-            winter: 'img/灌木冬.png'
-        },
-        'rock': {
-            spring: 'img/石头.png',
-            summer: 'img/石头.png',
-            autumn: 'img/石头.png',
-            winter: 'img/石头.png'
-        },
-        'stick': {
-            spring: 'img/木棍.png',
-            summer: 'img/木棍.png',
-            autumn: 'img/木棍.png',
-            winter: 'img/木棍.png'
-        },
-        'berry': {
-            spring: 'img/灌木花.png',
-            summer: 'img/灌木果.png',
-            autumn: 'img/灌木果.png',
-            winter: 'img/灌木冬.png'
-        },
-        'flower': {
-            spring: 'img/花.png',
-            summer: 'img/花.png',
-            autumn: 'img/花.png',
-            winter: 'img/花.png'
-        },
-        'branch': {
-            spring: 'img/树枝.png',
-            summer: 'img/树枝.png',
-            autumn: 'img/树枝.png',
-            winter: 'img/树枝.png'
+  private container: PIXI.Container;
+  private map: GameMap;
+  private items: GameItem[] = [];
+  private sprites: Map<string, PIXI.Sprite> = new Map();
+  private hitboxes: Map<string, PIXI.Graphics> = new Map();
+  private textureCache: Map<string, PIXI.Texture> = new Map();
+  private currentSeason: Season = Season.SUMMER;
+  private itemNoise: NoiseFunction2D;
+  private itemRNG: () => number;
+
+  public onItemClick: ((item: GameItem) => void) | null = null;
+
+  constructor(map: GameMap) {
+    this.map = map;
+    this.container = new PIXI.Container();
+    // 创建物品生成专用噪声函数（与服务器 seed + 200 一致）
+    this.itemRNG = createLCGRNG(map.getSeed() + 200);
+    this.itemNoise = createNoise2D(this.itemRNG);
+  }
+
+  setSeason(season: Season): void {
+    const previousSeason = this.currentSeason;
+    this.currentSeason = season;
+
+    if (season === Season.SPRING && previousSeason !== Season.SPRING) {
+      this.generateSeasonalItems();
+    } else if (previousSeason === Season.SPRING && season !== Season.SPRING) {
+      this.removeSeasonalItems();
+    }
+
+    this.updateAllSprites();
+  }
+
+  private generateSeasonalItems(): void {
+    const hasFlowers = this.items.some(i => i.type === ItemType.FLOWER);
+    if (hasFlowers) return;
+
+    console.log('🌸 春天生成花朵...');
+    const mapSize = this.map.getSize();
+    let count = 0;
+
+    for (let y = 0; y < mapSize.height; y++) {
+      for (let x = 0; x < mapSize.width; x++) {
+        const tile = this.map.getTile(x, y);
+        if (!tile) continue;
+
+        const tileType = tile.type as TileType;
+        const rand = this.itemRNG();
+        const def = ITEM_DEFINITIONS[ItemType.FLOWER];
+
+        if (tileType === TileType.GRASS && rand < def.spawn.probability) {
+          const item = new GameItem(`seasonal_${Date.now()}_${count}`, ItemType.FLOWER, x, y, this.itemRNG);
+          this.items.push(item);
+          this.createSprite(item);
+          count++;
+        } else if (tileType === TileType.PLAINS && rand < def.spawn.probability * 0.5) {
+          const item = new GameItem(`seasonal_${Date.now()}_${count}`, ItemType.FLOWER, x, y, this.itemRNG);
+          this.items.push(item);
+          this.createSprite(item);
+          count++;
         }
+      }
+    }
+
+    console.log(`🌸 生成了 ${count} 朵花`);
+  }
+
+  private removeSeasonalItems(): void {
+    const flowers = this.items.filter(i => i.type === ItemType.FLOWER);
+    if (flowers.length === 0) return;
+
+    console.log(`🍃 移除 ${flowers.length} 朵花...`);
+
+    for (const flower of flowers) {
+      const sprite = this.sprites.get(flower.id);
+      if (sprite) {
+        this.container.removeChild(sprite);
+        sprite.destroy();
+        this.sprites.delete(flower.id);
+      }
+
+      const hitbox = this.hitboxes.get(flower.id);
+      if (hitbox) {
+        this.container.removeChild(hitbox);
+        hitbox.destroy();
+        this.hitboxes.delete(flower.id);
+      }
+
+      const index = this.items.indexOf(flower);
+      if (index > -1) {
+        this.items.splice(index, 1);
+      }
+    }
+  }
+
+  async init(): Promise<void> {
+    this.generateItems();
+    await this.loadTextures();
+    this.render();
+  }
+
+  private generateItems(): void {
+    const mapSize = this.map.getSize();
+
+    // 统计地形分布
+    const terrainCounts = new Map<TileType, number>();
+
+    for (let y = 0; y < mapSize.height; y++) {
+      for (let x = 0; x < mapSize.width; x++) {
+        const tile = this.map.getTile(x, y);
+        if (!tile) continue;
+
+        const tileType = tile.type as TileType;
+        terrainCounts.set(tileType, (terrainCounts.get(tileType) || 0) + 1);
+
+        // 跳过不可生成物品的地形
+        if (tileType === TileType.OCEAN || tileType === TileType.LAKE || tileType === TileType.RIVER) {
+          continue;
+        }
+
+        // 森林地形：每个格子都生成树（100%覆盖）
+        if (tileType === TileType.FOREST) {
+          // 确定性随机选择树种（1:5比例）
+          const hash = (x * 12345 + y * 67890 + this.map.getSeed()) % 100;
+          const treeType = hash < 17 ? ItemType.TREE : ItemType.TREE;
+
+          const item = new GameItem(`tree_${x}_${y}`, treeType, x, y, this.itemRNG);
+          this.items.push(item);
+        } else if (tileType === TileType.GRASS && Math.abs(this.itemNoise(x * 0.3, y * 0.3)) < 0.05) {
+          // 灌木 - 5%概率
+          const item = new GameItem(`bush_${x}_${y}`, ItemType.BUSH, x, y, this.itemRNG);
+          this.items.push(item);
+        } else if (tileType === TileType.MOUNTAIN && Math.abs(this.itemNoise(x * 0.4, y * 0.4)) < 0.08) {
+          // 石头 - 山地8%概率
+          const item = new GameItem(`rock_${x}_${y}`, ItemType.ROCK, x, y, this.itemRNG);
+          this.items.push(item);
+        } else if (tileType === TileType.HILL && Math.abs(this.itemNoise(x * 0.4, y * 0.4)) < 0.05) {
+          // 石头 - 山丘5%概率
+          const item = new GameItem(`rock_${x}_${y}`, ItemType.ROCK, x, y, this.itemRNG);
+          this.items.push(item);
+        } else if (tileType === TileType.BEACH && Math.abs(this.itemNoise(x * 0.6, y * 0.6)) < 0.02) {
+          // 贝壳 - 沙滩2%概率
+          const item = new GameItem(`shell_${x}_${y}`, ItemType.SHELL, x, y, this.itemRNG);
+          this.items.push(item);
+        } else if (tileType === TileType.GRASS && Math.abs(this.itemNoise(x * 0.5, y * 0.5)) < 0.03) {
+          // 树枝 - 草地3%概率
+          const item = new GameItem(`twig_${x}_${y}`, ItemType.TWIG, x, y, this.itemRNG);
+          this.items.push(item);
+        } else if ((tileType === TileType.GRASS || tileType === TileType.PLAINS) && Math.abs(this.itemNoise(x * 0.8, y * 0.8)) < 0.02) {
+          // 石头 - 草地/平原2%概率
+          const item = new GameItem(`stone_${x}_${y}`, ItemType.STONE, x, y, this.itemRNG);
+          this.items.push(item);
+        }
+      }
+    }
+
+    // 输出地形统计
+    console.log('\n🗺️ 地形分布:');
+    for (const [type, count] of terrainCounts) {
+      console.log(`  ${type}: ${count}块`);
+    }
+
+    console.log(`📦 生成了 ${this.items.length} 个物品`);
+    this.logItemCounts();
+  }
+
+  private logItemCounts(): void {
+    const counts = new Map<ItemType, number>();
+
+    for (const item of this.items) {
+      counts.set(item.type, (counts.get(item.type) || 0) + 1);
+    }
+
+    console.log('\n📊 物品统计:');
+    for (const [type, count] of counts) {
+      const def = ITEM_DEFINITIONS[type];
+      console.log(`  ${def.displayName}: ${count}`);
+    }
+  }
+
+  private async loadTextures(): Promise<void> {
+    const toLoad: string[] = [];
+
+    for (const def of Object.values(ITEM_DEFINITIONS)) {
+      const textures = def.textures;
+      for (const texture of Object.values(textures)) {
+        if (texture && !toLoad.includes(texture)) {
+          toLoad.push(texture);
+        }
+      }
+    }
+
+    for (const path of toLoad) {
+      try {
+        const texture = await PIXI.Assets.load(path);
+        this.textureCache.set(path, texture);
+      } catch (e) {
+        console.warn(`Failed to load: ${path}`);
+      }
+    }
+
+    console.log(`✅ 加载了 ${this.textureCache.size} 个物品纹理`);
+  }
+
+  private getTexture(item: GameItem): PIXI.Texture | null {
+    const path = getItemTexture(item.type, this.currentSeason);
+    if (!path) return null;
+
+    if (item.type === ItemType.BUSH && item.resource) {
+      if (this.currentSeason === Season.WINTER) {
+        return this.textureCache.get(ITEM_DEFINITIONS[ItemType.BUSH].textures.winter || path) || null;
+      }
+      if (this.currentSeason === Season.SPRING) {
+        return this.textureCache.get(ITEM_DEFINITIONS[ItemType.BUSH].textures.spring || path) || null;
+      }
+      if (item.resource.current <= 0) {
+        return this.textureCache.get('img/灌木.png') || null;
+      }
+    }
+
+    if (item.type === ItemType.FLOWER) {
+      if (this.currentSeason !== Season.SPRING) {
+        return null;
+      }
+    }
+
+    return this.textureCache.get(path) || null;
+  }
+
+  private render(): void {
+    for (const layer of ['ground', 'low', 'high'] as const) {
+      for (const item of this.items.filter(i => i.layer === layer)) {
+        this.createSprite(item);
+      }
+    }
+  }
+
+  private createSprite(item: GameItem): void {
+    const texture = this.getTexture(item);
+    if (!texture) return;
+
+    const def = ITEM_DEFINITIONS[item.type];
+    const sizeConfig = getItemSize(item.type);
+    const size = sizeConfig.width;
+
+    const sprite = new PIXI.Sprite(texture);
+    const pixelX = item.x * TILE_SIZE + TILE_SIZE / 2;
+    const pixelY = item.y * TILE_SIZE + TILE_SIZE / 2;
+
+    sprite.x = pixelX - size / 2;
+    sprite.y = pixelY - size / 2;
+    sprite.width = size;
+    sprite.height = size;
+
+    this.container.addChild(sprite);
+    this.sprites.set(item.id, sprite);
+
+    // 所有可交互物品都创建点击区域
+    if (def.interaction.canHarvest || def.interaction.canEat || def.interaction.canDrink) {
+      const hitbox = new PIXI.Graphics();
+      // 点击区域使用整个格子大小，更容易点击
+      hitbox.beginFill(0xffffff, 0.001);
+      hitbox.drawRect(0, 0, TILE_SIZE, TILE_SIZE);
+      hitbox.endFill();
+      // 居中放置在格子中心
+      hitbox.x = item.x * TILE_SIZE;
+      hitbox.y = item.y * TILE_SIZE;
+      hitbox.eventMode = 'static';
+      hitbox.cursor = 'pointer';
+      hitbox.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
+        e.stopPropagation();
+        console.log('🖱️ 点击物品:', item.id, item.type, item.x, item.y, item.getName());
+        if (this.onItemClick) {
+          this.onItemClick(item);
+        }
+      });
+      this.container.addChild(hitbox);
+      this.hitboxes.set(item.id, hitbox);
+    }
+  }
+
+  private updateAllSprites(): void {
+    for (const [id, sprite] of this.sprites) {
+      const item = this.items.find(i => i.id === id);
+      if (!item) continue;
+
+      const texture = this.getTexture(item);
+      if (texture) {
+        sprite.texture = texture;
+        sprite.visible = true;
+      } else {
+        sprite.visible = false;
+      }
+    }
+  }
+
+  updateItem(item: GameItem): void {
+    const sprite = this.sprites.get(item.id);
+    const hitbox = this.hitboxes.get(item.id);
+    if (!sprite) return;
+
+    const texture = this.getTexture(item);
+    if (texture) {
+      sprite.texture = texture;
+      sprite.visible = true;
+    } else {
+      sprite.visible = false;
+    }
+
+    // hitbox 始终保持可见（只要 sprite 可见）
+    if (hitbox) {
+      hitbox.visible = sprite.visible;
+    }
+  }
+
+  update(deltaTime: number): void {
+    for (const item of this.items) {
+      if (item.harvested) {
+        item.update(deltaTime);
+        this.updateItem(item);
+      }
+    }
+  }
+
+  getItems(): GameItem[] {
+    return this.items;
+  }
+
+  getItemsByType(type: ItemType): GameItem[] {
+    return this.items.filter(i => i.type === type);
+  }
+
+  getContainer(): PIXI.Container {
+    return this.container;
+  }
+
+  harvestItem(itemId: string, amount: number = 1): { success: boolean; harvested: number; message: string } {
+    const item = this.items.find(i => i.id === itemId);
+    if (!item) {
+      return { success: false, harvested: 0, message: '物品不存在' };
+    }
+
+    if (!item.hasResources()) {
+      return { success: false, harvested: 0, message: '物品已被采集完' };
+    }
+
+    const harvested = item.harvest(amount);
+    this.updateItem(item);
+
+    const def = ITEM_DEFINITIONS[item.type];
+    return {
+      success: true,
+      harvested,
+      message: `采集了 ${harvested} 个${def.displayName}`,
     };
-    
-    private readonly SIZES: Record<ItemLayerType, number> = {
-        'ground': 40,
-        'low': 48,
-        'high': 64,
-    };
-    
-    constructor(map: GameMap) {
-        this.map = map;
-        this.container = new PIXI.Container();
-    }
-    
-    // 设置季节
-    setSeason(season: Season): void {
-        this.currentSeason = season;
-        
-        // 季节性物品管理
-        if (season === 'spring') {
-            // 春天：生成花朵（如果还没有）
-            this.generateSeasonalItems();
-        } else {
-            // 其他季节：删除花朵
-            this.removeSeasonalItems();
-        }
-        
-        this.updateAllSprites();
-    }
-    
-    // 生成季节性物品（春天生成花朵）
-    private generateSeasonalItems(): void {
-        // 检查是否已有花朵
-        const hasFlowers = this.items.some(i => i.type === 'flower');
-        if (hasFlowers) return;
-        
-        console.log('🌸 春天生成花朵...');
-        const mapSize = this.map.getSize();
-        let count = 0;
-        
-        for (let y = 0; y < mapSize.height; y++) {
-            for (let x = 0; x < mapSize.width; x++) {
-                const tile = this.map.getTile(x, y);
-                if (!tile) continue;
-                
-                const rand = Math.random();
-                
-                // 草地上5%概率生成花朵
-                if (tile.type === TileType.GRASS && rand < 0.05) {
-                    const item = new GameItem('flower', x, y, 'ground');
-                    this.items.push(item);
-                    this.createSprite(item);
-                    count++;
-                }
-                // 平地上2%概率生成花朵
-                else if (tile.type === TileType.PLAIN && rand < 0.02) {
-                    const item = new GameItem('flower', x, y, 'ground');
-                    this.items.push(item);
-                    this.createSprite(item);
-                    count++;
-                }
-            }
-        }
-        
-        console.log(`🌸 生成了 ${count} 朵花`);
-    }
-    
-    // 删除季节性物品（其他季节删除花朵）
-    private removeSeasonalItems(): void {
-        const flowers = this.items.filter(i => i.type === 'flower');
-        if (flowers.length === 0) return;
-        
-        console.log(`🍃 移除 ${flowers.length} 朵花...`);
-        
-        for (const flower of flowers) {
-            // 移除精灵
-            const sprite = this.sprites.get(flower);
-            if (sprite) {
-                this.container.removeChild(sprite);
-                sprite.destroy();
-                this.sprites.delete(flower);
-            }
-            // 移除点击区域
-            const hitbox = this.hitboxes.get(flower);
-            if (hitbox) {
-                this.container.removeChild(hitbox);
-                hitbox.destroy();
-                this.hitboxes.delete(flower);
-            }
-            // 从数组中移除
-            const index = this.items.indexOf(flower);
-            if (index > -1) {
-                this.items.splice(index, 1);
-            }
-        }
-    }
-    
-    async init(): Promise<void> {
-        this.generateItems();
-        await this.loadTextures();
-        this.render();
-    }
-    
-    private generateItems(): void {
-        const mapSize = this.map.getSize();
-        
-        for (let y = 0; y < mapSize.height; y++) {
-            for (let x = 0; x < mapSize.width; x++) {
-                const tile = this.map.getTile(x, y);
-                if (!tile) continue;
-                
-                const rand = Math.random();
-                
-                switch (tile.type) {
-                    case TileType.FOREST:
-                        if (rand < 0.12) {
-                            const item = new GameItem('tree', x, y, 'high');
-                            this.items.push(item);
-                        }
-                        else if (rand < 0.25) {
-                            const item = new GameItem('bush', x, y, 'low');
-                            // 灌木有耐久（10-20）
-                            item.maxDurability = 10 + Math.floor(Math.random() * 11);
-                            item.durability = item.maxDurability;
-                            this.items.push(item);
-                        }
-                        else if (rand < 0.30) {
-                            const item = new GameItem('branch', x, y, 'ground');
-                            item.maxDurability = 1 + Math.floor(Math.random() * 3);
-                            item.durability = item.maxDurability;
-                            this.items.push(item);
-                        }
-                        break;
-                    case TileType.GRASS:
-                        // 花朵在春天动态生成
-                        if (rand < 0.08) {
-                            const item = new GameItem('bush', x, y, 'low');
-                            item.maxDurability = 8 + Math.floor(Math.random() * 9);
-                            item.durability = item.maxDurability;
-                            this.items.push(item);
-                        }
-                        break;
-                    case TileType.PLAIN:
-                        if (rand < 0.15) this.items.push(new GameItem('stick', x, y, 'ground'));
-                        else if (rand < 0.26) {
-                            const item = new GameItem('branch', x, y, 'ground');
-                            item.maxDurability = 1 + Math.floor(Math.random() * 2);
-                            item.durability = item.maxDurability;
-                            this.items.push(item);
-                        }
-                        break;
-                    case TileType.HILL:
-                        if (rand < 0.08) this.items.push(new GameItem('rock', x, y, 'ground'));
-                        else if (rand < 0.15) {
-                            const item = new GameItem('bush', x, y, 'low');
-                            item.maxDurability = 5 + Math.floor(Math.random() * 6);
-                            item.durability = item.maxDurability;
-                            this.items.push(item);
-                        }
-                        break;
-                    case TileType.MOUNTAIN:
-                        if (rand < 0.10) this.items.push(new GameItem('rock', x, y, 'ground'));
-                        break;
-                }
-            }
-        }
-        
-        console.log(`📦 生成了 ${this.items.length} 个物品`);
-        const bushes = this.items.filter(i => i.type === 'bush');
-        console.log(`🌿 其中 ${bushes.length} 个灌木`);
-    }
-    
-    private async loadTextures(): Promise<void> {
-        // 加载所有季节的所有物品纹理
-        const toLoad: string[] = [];
-        const seasons: Season[] = ['spring', 'summer', 'autumn', 'winter'];
-        
-        for (const type of Object.keys(this.ASSETS)) {
-            for (const season of seasons) {
-                const path = this.ASSETS[type as ItemType][season];
-                if (!toLoad.includes(path)) {
-                    toLoad.push(path);
-                }
-            }
-        }
-        
-        for (const path of toLoad) {
-            try {
-                const texture = await PIXI.Assets.load(path);
-                this.textureCache.set(path, texture);
-            } catch (e) {
-                console.warn(`Failed to load: ${path}`);
-            }
-        }
-        
-        console.log(`✅ 加载了 ${this.textureCache.size} 个物品纹理`);
-    }
-    
-    // 获取物品贴图
-    private getTexture(item: GameItem): PIXI.Texture | null {
-        let path: string;
-        
-        if (item.type === 'bush') {
-            // 灌木：根据季节和耐久决定贴图
-            if (this.currentSeason === 'winter') {
-                path = this.ASSETS.bush.winter;
-            } else if (this.currentSeason === 'spring') {
-                path = this.ASSETS.bush.spring;
-            } else {
-                // 夏秋：有耐久显示果，否则显示普通
-                path = item.durability > 0 ? this.ASSETS.bush.summer : 'img/灌木.png';
-            }
-        } else if (item.type === 'flower') {
-            // 花朵：只在春天显示
-            if (this.currentSeason === 'spring') {
-                path = this.ASSETS.flower.spring;
-            } else {
-                return null; // 其他季节不显示
-            }
-        } else {
-            path = this.ASSETS[item.type][this.currentSeason];
-        }
-        
-        return this.textureCache.get(path) || null;
-    }
-    
-    private render(): void {
-        // 按层级渲染
-        for (const layer of ['ground', 'low', 'high'] as ItemLayerType[]) {
-            for (const item of this.items.filter(i => i.layer === layer)) {
-                this.createSprite(item);
-            }
-        }
-    }
-    
-    private createSprite(item: GameItem): void {
-        const texture = this.getTexture(item);
-        if (!texture) return;
-        
-        const sprite = new PIXI.Sprite(texture);
-        const size = this.SIZES[item.layer];
-        const pixelX = item.x * TILE_SIZE + TILE_SIZE / 2;
-        const pixelY = item.y * TILE_SIZE + TILE_SIZE / 2;
-        
-        sprite.x = pixelX - size / 2;
-        sprite.y = pixelY - size / 2;
-        sprite.width = size;
-        sprite.height = size;
-        
-        this.container.addChild(sprite);
-        this.sprites.set(item, sprite);
-        
-        // 添加点击区域（只有有耐久的东西才能点击）
-        if (item.maxDurability > 0) {
-            const hitbox = new PIXI.Graphics();
-            hitbox.beginFill(0xffffff, 0.001);
-            hitbox.drawRect(0, 0, size, size);
-            hitbox.endFill();
-            hitbox.x = sprite.x;
-            hitbox.y = sprite.y;
-            hitbox.eventMode = 'static';
-            hitbox.cursor = 'pointer';
-            hitbox.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
-                e.stopPropagation();
-                if (this.onItemClick) {
-                    this.onItemClick(item);
-                }
-            });
-            this.container.addChild(hitbox);
-            this.hitboxes.set(item, hitbox);
-        }
-    }
-    
-    // 更新所有物品贴图（季节变化时调用）
-    private updateAllSprites(): void {
-        for (const [item, sprite] of this.sprites) {
-            const texture = this.getTexture(item);
-            if (texture) {
-                sprite.texture = texture;
-            }
-        }
-    }
-    
-    // 更新单个物品（采集后调用）
-    updateItem(item: GameItem): void {
-        const sprite = this.sprites.get(item);
-        const hitbox = this.hitboxes.get(item);
-        if (!sprite) return;
-        
-        const texture = this.getTexture(item);
-        if (texture) {
-            sprite.texture = texture;
-            sprite.visible = true;
-        } else {
-            sprite.visible = false; // 季节性隐藏（如夏天的花）
-        }
-        
-        // 如果耐久为0，移除点击区域
-        if (hitbox) {
-            hitbox.visible = item.durability > 0 && sprite.visible;
-        }
-    }
-    
-    // 获取所有物品
-    getItems(): GameItem[] {
-        return this.items;
-    }
-    
-    // 获取特定类型的物品
-    getItemsByType(type: ItemType): GameItem[] {
-        return this.items.filter(i => i.type === type);
-    }
-    
-    getContainer(): PIXI.Container {
-        return this.container;
-    }
+  }
 }

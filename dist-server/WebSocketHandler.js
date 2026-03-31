@@ -5,15 +5,23 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WebSocketHandler = void 0;
 class WebSocketHandler {
-    constructor(characterManager, worldState, gameLoop = null) {
+    constructor(characterManager, worldState) {
         this.clients = new Map();
+        this.timeManager = null; // 时间管理器（稍后设置）
         this.pendingInputs = new Map();
         this.inputSeq = 0;
         // 允许的命令（仅管理员可执行）
         this.adminCommands = ['season', 'spawn', 'kill', 'time', 'kick', 'give'];
+        // 视口大小配置
+        this.VIEWPORT_TILES = 50; // 视口半径（50 = 101x101格子）足够覆盖初始视口
         this.characterManager = characterManager;
         this.worldState = worldState;
-        this.gameLoop = gameLoop;
+    }
+    /**
+     * 设置时间管理器
+     */
+    setTimeManager(timeManager) {
+        this.timeManager = timeManager;
     }
     handleConnection(ws) {
         const clientId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
@@ -51,28 +59,105 @@ class WebSocketHandler {
         const conn = this.clients.get(clientId);
         if (!conn)
             return;
+        // 获取时间数据
+        const timeInfo = this.timeManager ? this.timeManager.getFullTimeInfo() : {
+            season: 'spring',
+            seasonName: '春',
+            seasonEmoji: '🌸',
+            year: 1,
+            day: 1,
+            hour: 0,
+            minute: 0,
+            timeString: '00:00',
+            period: 'day',
+            periodName: '白天',
+            periodEmoji: '☀️',
+            lightCoefficient: 1
+        };
+        // 只发送视口区域的地形（基于角色位置）
+        const characters = this.characterManager.serialize();
+        const centerX = characters.length > 0 ? Math.floor(characters[0].x) : 50;
+        const centerY = characters.length > 0 ? Math.floor(characters[0].y) : 25;
+        // 获取视口区域的地形
+        const viewportTiles = this.getViewportTiles(centerX, centerY, this.VIEWPORT_TILES);
+        // 只发送视口内的物品
+        const viewportObjects = this.getViewportGroundObjects(centerX, centerY, this.VIEWPORT_TILES);
         const initMessage = {
             type: 'init',
             data: {
                 world: {
-                    tiles: this.worldState.getTiles2D(),
-                    groundObjects: this.worldState.getAllGroundObjects(),
-                    foods: this.worldState.getFoodSources(),
+                    // 地形数据：只发送视口区域
+                    viewport: {
+                        tiles: viewportTiles,
+                        centerX,
+                        centerY,
+                        radius: this.VIEWPORT_TILES
+                    },
+                    // 不再发送完整地形，客户端用worldSeed本地生成
+                    groundObjects: viewportObjects,
+                    foods: this.worldState.getFoodSources().filter(f => Math.abs(f.x - centerX) <= this.VIEWPORT_TILES &&
+                        Math.abs(f.y - centerY) <= this.VIEWPORT_TILES),
                     worldSeed: this.worldState.getSeed()
                 },
                 characters: this.characterManager.serialize(),
                 season: this.worldState.getSeason(),
                 width: this.worldState.getWidth(),
-                height: this.worldState.getHeight()
+                height: this.worldState.getHeight(),
+                time: timeInfo
             }
         };
         conn.ws.send(JSON.stringify(initMessage));
-        console.log(`📤 发送init给 ${clientId}: ${this.worldState.getAllTiles().length} 格子, ${this.worldState.getAllGroundObjects().length} 物品`);
+        console.log(`📤 发送init给 ${clientId}: 视口${this.VIEWPORT_TILES * 2 + 1}x${this.VIEWPORT_TILES * 2 + 1}, 物品${viewportObjects.length}个`);
+    }
+    /**
+     * 获取视口区域的地形数据
+     */
+    getViewportTiles(centerX, centerY, radius) {
+        const tiles = [];
+        // 确保坐标在有效范围内
+        const worldWidth = this.worldState.getWidth();
+        const worldHeight = this.worldState.getHeight();
+        // 如果坐标超出范围，使用世界中心作为默认值
+        if (centerX < 0 || centerX >= worldWidth || centerY < 0 || centerY >= worldHeight) {
+            console.log(`⚠️ 视口坐标超出范围: centerX=${centerX}, centerY=${centerY}，使用默认值`);
+            centerX = Math.floor(worldWidth / 2);
+            centerY = Math.floor(worldHeight / 2);
+        }
+        const startX = Math.max(0, centerX - radius);
+        const startY = Math.max(0, centerY - radius);
+        const endX = Math.min(worldWidth - 1, centerX + radius);
+        const endY = Math.min(worldHeight - 1, centerY + radius);
+        // 如果起始坐标大于结束坐标，返回空数组
+        if (startX > endX || startY > endY) {
+            console.log(`⚠️ 视口范围无效: startX=${startX}, endX=${endX}, startY=${startY}, endY=${endY}`);
+            return tiles;
+        }
+        console.log(`🔧 getViewportTiles: centerX=${centerX}, centerY=${centerY}, radius=${radius}`);
+        console.log(`🔧 getViewportTiles: startX=${startX}, startY=${startY}, endX=${endX}, endY=${endY}`);
+        for (let y = startY; y <= endY; y++) {
+            const row = [];
+            for (let x = startX; x <= endX; x++) {
+                const tile = this.worldState.getTile(x, y);
+                row.push(tile || { x, y, type: 'grass' });
+            }
+            tiles.push(row);
+        }
+        console.log(`🔧 getViewportTiles: 返回 ${tiles.length} 行, 每行 ${tiles[0]?.length || 0} 列`);
+        return tiles;
+    }
+    /**
+     * 获取视口区域的物品数据
+     */
+    getViewportGroundObjects(centerX, centerY, radius) {
+        const allObjects = this.worldState.getAllGroundObjects();
+        return allObjects.filter(obj => Math.abs(obj.x - centerX) <= radius &&
+            Math.abs(obj.y - centerY) <= radius);
     }
     handleMessage(clientId, message) {
         const conn = this.clients.get(clientId);
         if (!conn)
             return;
+        console.log(`📨 收到消息: type=${message.type}, client=${clientId}`);
         switch (message.type) {
             case 'auth':
                 // 处理WebSocket认证
@@ -83,6 +168,9 @@ class WebSocketHandler {
                 break;
             case 'input':
                 this.handleInput(clientId, message);
+                break;
+            case 'get_viewport':
+                this.handleGetViewport(clientId, message.centerX, message.centerY);
                 break;
             case 'season':
                 // 检查管理员权限
@@ -192,7 +280,18 @@ class WebSocketHandler {
         // 角色删除逻辑
     }
     handleTimeSpeed(args) {
-        // 时间速度调整逻辑
+        if (!this.timeManager)
+            return;
+        const speed = parseInt(args);
+        if (isNaN(speed) || speed < 0) {
+            return;
+        }
+        this.timeManager.setTimeSpeed(speed);
+        // 广播时间变化
+        this.broadcast({
+            type: 'time_speed_changed',
+            speed
+        });
     }
     handleSelectCharacter(clientId, characterId) {
         const success = this.characterManager.selectCharacter(characterId);
@@ -293,16 +392,67 @@ class WebSocketHandler {
         }
     }
     broadcastState(tick) {
-        const timeInfo = this.gameLoop ? this.gameLoop.getTimeInfo() : null;
         const message = {
             type: 'state',
             data: {
                 characters: this.characterManager.serialize(),
-                tick,
-                time: timeInfo
+                tick
             }
         };
         this.broadcast(message);
+    }
+    /**
+     * 处理获取视口地形数据请求
+     */
+    handleGetViewport(clientId, centerX, centerY) {
+        const conn = this.clients.get(clientId);
+        if (!conn)
+            return;
+        console.log(`📥 收到 get_viewport 请求: client=${clientId}, centerX=${centerX}, centerY=${centerY}`);
+        // 获取角色位置作为中心点（如果没有指定）
+        let cx = centerX;
+        let cy = centerY;
+        if (cx === undefined || cy === undefined) {
+            const characters = this.characterManager.serialize();
+            const playerChar = characters.find(c => c.id === conn.characterId);
+            if (playerChar && playerChar.x !== null && playerChar.y !== null) {
+                cx = Math.floor(playerChar.x);
+                cy = Math.floor(playerChar.y);
+            }
+            else if (characters.length > 0) {
+                cx = Math.floor(characters[0].x);
+                cy = Math.floor(characters[0].y);
+            }
+            else {
+                cx = 50;
+                cy = 25;
+            }
+        }
+        // 获取视口区域的地形
+        const viewportTiles = this.getViewportTiles(cx, cy, this.VIEWPORT_TILES);
+        const viewportObjects = this.getViewportGroundObjects(cx, cy, this.VIEWPORT_TILES);
+        // 调试：统计视口中的地形类型
+        const terrainStats = {};
+        for (const row of viewportTiles) {
+            for (const tile of row) {
+                terrainStats[tile.type] = (terrainStats[tile.type] || 0) + 1;
+            }
+        }
+        console.log(`📊 视口地形统计 (center=${cx},${cy}): ${JSON.stringify(terrainStats)}`);
+        const response = {
+            type: 'viewport_update',
+            data: {
+                viewport: {
+                    tiles: viewportTiles,
+                    centerX: cx,
+                    centerY: cy,
+                    radius: this.VIEWPORT_TILES
+                },
+                groundObjects: viewportObjects
+            }
+        };
+        conn.ws.send(JSON.stringify(response));
+        console.log(`📤 发送 viewport_update: tiles=${viewportTiles.length}x${viewportTiles[0]?.length}, objects=${viewportObjects.length}`);
     }
     getClientCount() {
         return this.clients.size;

@@ -19,7 +19,7 @@ export class TileLayer {
     
     // 按季节的地形纹理
     private readonly TEXTURES: Record<TileType, Record<Season, string>> = {
-        [TileType.PLAIN]: {
+        [TileType.PLAINS]: {
             spring: 'img/64x64像素草平原.png',
             summer: 'img/64x64像素草平原.png',
             autumn: 'img/64x64像素草平原.png',
@@ -79,17 +79,23 @@ export class TileLayer {
             autumn: 'img/山丘.png',
             winter: 'img/山丘雪.png'
         },
-        [TileType.CAVE]: {
-            spring: 'img/石头.png',
-            summer: 'img/石头.png',
-            autumn: 'img/石头.png',
-            winter: 'img/石头.png'
-        },
         [TileType.BEACH]: {
             spring: 'img/沙滩.png',
             summer: 'img/沙滩.png',
             autumn: 'img/沙滩.png',
             winter: 'img/沙滩雪.png'
+        },
+        [TileType.MARSH]: {
+            spring: 'img/沼泽.png',
+            summer: 'img/沼泽.png',
+            autumn: 'img/沼泽.png',
+            winter: 'img/沼泽雪.png'
+        },
+        [TileType.BADLANDS]: {
+            spring: 'img/山地.png',
+            summer: 'img/山地.png',
+            autumn: 'img/山地.png',
+            winter: 'img/山地雪.png'
         }
     };
     

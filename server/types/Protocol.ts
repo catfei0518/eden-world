@@ -41,6 +41,30 @@ export interface CharacterSelectedMessage {
 export interface SeasonChangedMessage {
     type: 'season_changed';
     season: Season;
+    seasonInfo?: any;
+}
+
+export interface TimeUpdateMessage {
+    type: 'time_update';
+    season: Season;
+    seasonName: string;
+    seasonEmoji: string;
+    year: number;
+    day: number;
+    hour: number;
+    minute: number;
+    timeString: string;
+    period: string;
+    periodName: string;
+    periodEmoji: string;
+    lightCoefficient: number;
+    timeSpeed: number;
+    gameMinutesPerRealSecond: number;
+}
+
+export interface TimeSpeedChangedMessage {
+    type: 'time_speed_changed';
+    speed: number;
 }
 
 // ============ 客户端 → 服务器 ============
@@ -73,6 +97,12 @@ export interface AuthMessage {
     token: string;
 }
 
+export interface GetViewportMessage {
+    type: 'get_viewport';
+    centerX?: number;
+    centerY?: number;
+}
+
 // ============ 共享类型 ============
 
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
@@ -88,7 +118,7 @@ export interface TileData {
 export type TerrainType = 
     | 'grass' | 'plains' | 'forest' | 'desert'
     | 'mountain' | 'hill' | 'ocean' | 'beach'
-    | 'river' | 'lake' | 'swamp';
+    | 'river' | 'lake' | 'swamp' | 'marsh' | 'badlands';
 
 export interface GroundItemData {
     id: string;
@@ -219,6 +249,8 @@ export type ServerMessage =
     | InputAckMessage 
     | CharacterSelectedMessage 
     | SeasonChangedMessage
+    | TimeUpdateMessage
+    | TimeSpeedChangedMessage
     | { type: 'item_spawned'; data: any }
     | { type: 'error'; message: string }
     | { type: 'command_result'; result: any };
@@ -228,4 +260,5 @@ export type ClientMessage =
     | SelectCharacterMessage 
     | ChangeSeasonMessage
     | CommandMessage
-    | AuthMessage;
+    | AuthMessage
+    | GetViewportMessage;

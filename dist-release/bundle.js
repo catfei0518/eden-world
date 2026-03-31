@@ -46209,155 +46209,205 @@ ${e2}`);
   }
 
   // src/world/MapGenerator.ts
+  function createRNG(seed) {
+    return function() {
+      seed = seed * 1103515245 + 12345 & 2147483647;
+      return seed / 2147483647;
+    };
+  }
   var GameMap = class {
-    constructor(width = 100, height = 50, seed = Date.now()) {
+    constructor(width = 300, height = 150, seed = 12345) {
       this.tiles = [];
-      this.riverTiles = /* @__PURE__ */ new Set();
       this.width = width;
       this.height = height;
-      const simpleRng = () => {
-        seed = seed * 1103515245 + 12345 & 2147483647;
-        return seed / 2147483647;
-      };
-      this.noise2D = createNoise2D(simpleRng);
+      this.seed = seed;
+      const elevationRNG = createRNG(seed);
+      const moistureRNG = createRNG(seed + 100);
+      const riverRNG = createRNG(seed + 500);
+      const lakeRNG = createRNG(seed + 600);
+      const regionRNG = createRNG(seed + 700);
+      const detailRNG = createRNG(seed + 800);
+      this.elevationNoise = createNoise2D(elevationRNG);
+      this.moistureNoise = createNoise2D(moistureRNG);
+      this.riverNoise = createNoise2D(riverRNG);
+      this.lakeNoise = createNoise2D(lakeRNG);
+      this.regionNoise = createNoise2D(regionRNG);
+      this.detailNoise = createNoise2D(detailRNG);
     }
-    fbm(x2, y2, octaves, freq, persist) {
-      let value = 0;
-      let amp = 1;
-      let maxVal = 0;
-      for (let i2 = 0; i2 < octaves; i2++) {
-        value += amp * this.noise2D(x2 * freq, y2 * freq);
-        maxVal += amp;
-        amp *= persist;
-        freq *= 2;
-      }
-      return (value / maxVal + 1) / 2;
+    /**
+     * 获取地图种子
+     */
+    getSeed() {
+      return this.seed;
+    }
+    /**
+     * 简化版多层噪声 - 性能优化
+     */
+    fbm(x2, y2, noise) {
+      return noise(x2, y2) * 0.7 + noise(x2 * 2, y2 * 2) * 0.3;
     }
     generate() {
       this.tiles = [];
-      const centerX = this.width / 2;
-      const centerY = this.height / 2;
-      this.generateRivers(centerX, centerY);
-      const oceanSides = this.selectOceanSides();
+      this.generateWaterBodies();
+      this.generateLandTerrain();
+    }
+    // 第一遍：生成所有水体
+    generateWaterBodies() {
       for (let y2 = 0; y2 < this.height; y2++) {
         const row = [];
         for (let x2 = 0; x2 < this.width; x2++) {
-          const baseNoise = this.fbm(x2 * 0.04, y2 * 0.04, 4, 1, 0.5);
-          const detailNoise = this.fbm(x2 * 0.1, y2 * 0.1, 2, 1, 0.5);
-          let height = baseNoise * 0.7 + detailNoise * 0.3;
-          const moisture = this.fbm(x2 * 0.03 + 500, y2 * 0.03, 3, 1, 0.5);
-          const temperature = this.fbm(x2 * 0.02 + 1e3, y2 * 0.02, 2, 1, 0.5);
-          const leftDist = x2;
-          const rightDist = this.width - 1 - x2;
-          const topDist = y2;
-          const bottomDist = this.height - 1 - y2;
-          let isOcean = false;
-          const maxOceanDepth = 15;
-          for (const side of oceanSides) {
-            let dist = 0;
-            if (side === "left") dist = leftDist;
-            if (side === "right") dist = rightDist;
-            if (side === "top") dist = topDist;
-            if (side === "bottom") dist = bottomDist;
-            const edgeNoise = this.fbm(x2 * 0.2, y2 * 0.2, 2, 2, 0.5);
-            const oceanLimit = maxOceanDepth + edgeNoise * 5;
-            if (dist < oceanLimit) {
-              isOcean = true;
-            }
+          const verticalBias = (1 - y2 / this.height) * 0.35;
+          const coastlineNoise = this.regionNoise(x2 * 0.08, 0);
+          const normalizedNoise = (coastlineNoise + 1) / 2;
+          const coastlineVariation = Math.floor(normalizedNoise * 3);
+          const coastlineHeight = this.height - 3 + coastlineVariation;
+          if (y2 >= coastlineHeight) {
+            row.push({ type: "ocean" /* OCEAN */, height: 0, moisture: 1, temperature: 0.5 });
+            continue;
           }
-          if (isOcean) {
-            height = 0.1;
+          const riverTile = this.isRiverTile(x2, y2);
+          if (riverTile && y2 > 5 && y2 < this.height - 5) {
+            row.push({ type: "river" /* RIVER */, height: 0.1, moisture: 1, temperature: 0.5 });
+            continue;
           }
-          const type = this.getTileType(height, moisture, temperature, x2, y2);
-          row.push({ type, height, moisture, temperature });
+          const lakeTile = this.isLakeAreaNew(x2, y2);
+          if (lakeTile && y2 > 8 && y2 < this.height - 8) {
+            row.push({ type: "lake" /* LAKE */, height: 0.1, moisture: 1, temperature: 0.5 });
+            continue;
+          }
+          row.push({ type: "grass" /* GRASS */, height: 0.5, moisture: 0.5, temperature: 0.5 });
         }
         this.tiles.push(row);
       }
-      this.addBeachBorder();
     }
-    // 随机选择相邻的两边
-    selectOceanSides() {
-      const adjacentPairs = [
-        ["left", "top"],
-        ["left", "bottom"],
-        ["right", "top"],
-        ["right", "bottom"],
-        ["top", "bottom"],
-        // 上下也是相邻的
-        ["left", "right"]
-        // 左右也是相邻的（形成左海+右海）
-      ];
-      const index = Math.floor(this.fbm(Date.now(), 0, 1, 1, 1) * adjacentPairs.length);
-      return adjacentPairs[index % adjacentPairs.length];
-    }
-    generateRivers(cx, cy) {
-      const numRivers = 2;
-      for (let i2 = 0; i2 < numRivers; i2++) {
-        let x2 = cx;
-        let y2 = cy;
-        const dir = i2 === 0 ? 1 : -1;
-        for (let step = 0; step < 50; step++) {
-          this.riverTiles.add(`${Math.floor(x2)},${Math.floor(y2)}`);
-          const noiseVal = this.noise2D(x2 * 0.2, y2 * 0.2);
-          if (noiseVal > 0.2) {
-            x2 += dir * 0.7;
-            y2 += 0.6;
-          } else if (noiseVal < -0.2) {
-            x2 -= dir * 0.3;
-            y2 += 0.8;
-          } else {
-            y2 += 1;
-          }
-          if (x2 < 10 || x2 > this.width - 10 || y2 > this.height - 10) {
-            break;
-          }
-        }
-      }
-    }
-    addBeachBorder() {
-      for (let y2 = 1; y2 < this.height - 1; y2++) {
-        for (let x2 = 1; x2 < this.width - 1; x2++) {
+    // 第二遍：生成陆地地形（使用第一遍的水体数据）
+    generateLandTerrain() {
+      for (let y2 = 0; y2 < this.height; y2++) {
+        for (let x2 = 0; x2 < this.width; x2++) {
           const tile = this.tiles[y2][x2];
-          if (tile.type === "ocean" /* OCEAN */) {
-            const neighbors = [[x2 - 1, y2], [x2 + 1, y2], [x2, y2 - 1], [x2, y2 + 1]];
-            for (const [nx, ny] of neighbors) {
-              if (this.tiles[ny][nx].type !== "ocean" /* OCEAN */) {
-                this.tiles[ny][nx].type = "beach" /* BEACH */;
-              }
-            }
+          if (tile.type === "ocean" /* OCEAN */ || tile.type === "river" /* RIVER */ || tile.type === "lake" /* LAKE */) {
+            continue;
           }
+          const verticalBias = (1 - y2 / this.height) * 0.35;
+          const regionValue = this.regionNoise(x2 * 0.015, y2 * 0.015);
+          const elevation = this.fbm(x2 * 0.03, y2 * 0.03, this.elevationNoise);
+          const moisture = this.fbm(x2 * 0.04, y2 * 0.04, this.moistureNoise);
+          const detail = this.detailNoise(x2 * 0.1, y2 * 0.1);
+          const combinedElevation = elevation * 0.6 + regionValue * 0.2 + detail * 0.2 + verticalBias;
+          const combinedMoisture = moisture * 0.7 + regionValue * 0.3;
+          if (this.isBeachTile(x2, y2)) {
+            this.tiles[y2][x2].type = "beach" /* BEACH */;
+            continue;
+          }
+          const terrain = this.getTerrainTypeNew(combinedElevation, combinedMoisture, regionValue, detail, x2, y2);
+          this.tiles[y2][x2].type = terrain;
+          this.tiles[y2][x2].height = (combinedElevation + 1) / 2;
+          this.tiles[y2][x2].moisture = (combinedMoisture + 1) / 2;
         }
       }
     }
-    getTileType(h2, m2, t2, x2, y2) {
-      if (this.riverTiles.has(`${x2},${y2}`)) {
-        return "river" /* RIVER */;
+    // 检查是否为沙滩格子（只在海洋正上方）
+    isBeachTile(x2, y2) {
+      if (y2 + 1 < this.height) {
+        const belowTile = this.tiles[y2 + 1][x2];
+        if (belowTile && belowTile.type === "ocean" /* OCEAN */) {
+          return true;
+        }
       }
-      if (h2 < 0.2) {
-        return "ocean" /* OCEAN */;
+      if (y2 + 1 < this.height && x2 - 1 >= 0) {
+        const belowLeftTile = this.tiles[y2 + 1][x2 - 1];
+        if (belowLeftTile && belowLeftTile.type === "ocean" /* OCEAN */) {
+          return true;
+        }
       }
-      if (h2 < 0.3) {
-        return "lake" /* LAKE */;
+      if (y2 + 1 < this.height && x2 + 1 < this.width) {
+        const belowRightTile = this.tiles[y2 + 1][x2 + 1];
+        if (belowRightTile && belowRightTile.type === "ocean" /* OCEAN */) {
+          return true;
+        }
       }
-      if (h2 > 0.78) {
-        return "mountain" /* MOUNTAIN */;
-      }
-      if (h2 > 0.65) {
-        return "hill" /* HILL */;
-      }
-      if (t2 > 0.75 && m2 < 0.3) {
+      return false;
+    }
+    // 检测是否为河流格子
+    isRiverTile(x2, y2) {
+      const riverX = 0.5 + this.riverNoise(y2 * 0.05, 0) * 0.2 - 0.1;
+      const dist = Math.abs(x2 / this.width - riverX);
+      return dist < 0.015;
+    }
+    // 新湖泊检测 - 使用区域噪声
+    isLakeAreaNew(x2, y2) {
+      const lakeCenter1 = this.regionNoise(50, 50) * 0.3 + 0.35;
+      const lakeCenter2 = this.regionNoise(150, 80) * 0.3 + 0.65;
+      const dx1 = x2 / this.width - lakeCenter1;
+      const dy1 = y2 / this.height - 0.5;
+      const dist1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+      const dx2 = x2 / this.width - lakeCenter2;
+      const dy2 = y2 / this.height - 0.6;
+      const dist2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+      return dist1 < 0.04 || dist2 < 0.03;
+    }
+    // 新的地形类型决定函数 - 基于宪法规则
+    getTerrainTypeNew(elevation, moisture, region, detail, x2, y2) {
+      const e2 = (elevation + 1) / 2;
+      const m2 = (moisture + 1) / 2;
+      const r2 = (region + 1) / 2;
+      const d2 = (detail + 1) / 2;
+      const regionMoisture = m2 + (r2 - 0.5) * 0.3;
+      if (e2 < 0.3 && regionMoisture < 0.3) {
         return "desert" /* DESERT */;
       }
-      if (m2 > 0.6 && t2 > 0.25 && t2 < 0.7) {
-        return "forest" /* FOREST */;
+      if (e2 < 0.5 && regionMoisture < 0.5 && regionMoisture >= 0.2) {
+        return "plains" /* PLAINS */;
       }
-      if (h2 < 0.35 && m2 > 0.7) {
-        return "swamp" /* SWAMP */;
-      }
-      if (m2 > 0.4) {
+      if (e2 >= 0.35 && e2 < 0.55 && regionMoisture >= 0.4 && regionMoisture < 0.6) {
         return "grass" /* GRASS */;
       }
-      return "plain" /* PLAIN */;
+      if (e2 < 0.4 && regionMoisture > 0.75 && this.isNearWater(x2, y2)) {
+        return "swamp" /* SWAMP */;
+      }
+      if (this.isNearWater(x2, y2) && regionMoisture > 0.7) {
+        return "marsh" /* MARSH */;
+      }
+      if (y2 < this.height * 0.5 && e2 > 0.65 && regionMoisture < 0.4) {
+        return "badlands" /* BADLANDS */;
+      }
+      if (y2 < this.height * 0.5 && e2 > 0.75) {
+        return "mountain" /* MOUNTAIN */;
+      }
+      if (y2 < this.height * 0.6 && e2 > 0.55 && e2 <= 0.75 && regionMoisture >= 0.35 && regionMoisture < 0.7) {
+        return "hill" /* HILL */;
+      }
+      if (e2 >= 0.45 && e2 <= 0.75 && regionMoisture > 0.65) {
+        return "forest" /* FOREST */;
+      }
+      if (e2 < 0.4 && regionMoisture > 0.75) {
+        return "swamp" /* SWAMP */;
+      }
+      if (e2 >= 0.4 && e2 < 0.6 && regionMoisture >= 0.45 && regionMoisture < 0.65) {
+        return "grass" /* GRASS */;
+      }
+      if (e2 < 0.5 && regionMoisture >= 0.4 && regionMoisture < 0.6) {
+        return "plains" /* PLAINS */;
+      }
+      if (e2 < 0.4 && regionMoisture < 0.4) {
+        return "desert" /* DESERT */;
+      }
+      return "grass" /* GRASS */;
+    }
+    // 检查是否靠近水体
+    isNearWater(x2, y2) {
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const nx = x2 + dx;
+          const ny = y2 + dy;
+          if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) continue;
+          const tile = this.tiles[ny][nx];
+          if (tile && (tile.type === "lake" /* LAKE */ || tile.type === "river" /* RIVER */ || tile.type === "ocean" /* OCEAN */)) {
+            return true;
+          }
+        }
+      }
+      return false;
     }
     getTile(x2, y2) {
       if (x2 < 0 || x2 >= this.width || y2 < 0 || y2 >= this.height) return null;
@@ -46371,15 +46421,16 @@ ${e2}`);
         ocean: "~",
         lake: "~",
         swamp: "%",
-        plain: ".",
+        plains: ".",
         grass: ",",
         desert: "*",
         forest: "T",
         mountain: "^",
         hill: "n",
-        cave: "o",
         river: "=",
-        beach: "|"
+        beach: "|",
+        marsh: "~",
+        badlands: "x"
       };
       let out2 = "";
       for (let y2 = 0; y2 < Math.min(50, this.height); y2++) {
@@ -46402,7 +46453,7 @@ ${e2}`);
       this.tileSprites = [];
       // 按季节的地形纹理
       this.TEXTURES = {
-        ["plain" /* PLAIN */]: {
+        ["plains" /* PLAINS */]: {
           spring: "img/64x64\u50CF\u7D20\u8349\u5E73\u539F.png",
           summer: "img/64x64\u50CF\u7D20\u8349\u5E73\u539F.png",
           autumn: "img/64x64\u50CF\u7D20\u8349\u5E73\u539F.png",
@@ -46462,17 +46513,23 @@ ${e2}`);
           autumn: "img/\u5C71\u4E18.png",
           winter: "img/\u5C71\u4E18\u96EA.png"
         },
-        ["cave" /* CAVE */]: {
-          spring: "img/\u77F3\u5934.png",
-          summer: "img/\u77F3\u5934.png",
-          autumn: "img/\u77F3\u5934.png",
-          winter: "img/\u77F3\u5934.png"
-        },
         ["beach" /* BEACH */]: {
           spring: "img/\u6C99\u6EE9.png",
           summer: "img/\u6C99\u6EE9.png",
           autumn: "img/\u6C99\u6EE9.png",
           winter: "img/\u6C99\u6EE9\u96EA.png"
+        },
+        ["marsh" /* MARSH */]: {
+          spring: "img/\u6CBC\u6CFD.png",
+          summer: "img/\u6CBC\u6CFD.png",
+          autumn: "img/\u6CBC\u6CFD.png",
+          winter: "img/\u6CBC\u6CFD\u96EA.png"
+        },
+        ["badlands" /* BADLANDS */]: {
+          spring: "img/\u5C71\u5730.png",
+          summer: "img/\u5C71\u5730.png",
+          autumn: "img/\u5C71\u5730.png",
+          winter: "img/\u5C71\u5730\u96EA.png"
         }
       };
       this.map = map;
@@ -46563,41 +46620,993 @@ ${e2}`);
     }
   };
 
+  // src/systems/items/ItemDefinition.ts
+  var ITEM_DEFINITIONS = {
+    // ========== 自然物品 ==========
+    tree: {
+      type: "tree" /* TREE */,
+      displayName: "\u6811",
+      description: "\u9AD8\u5927\u7684\u6811\u6728\uFF0C\u53EF\u4EE5\u780D\u4F10\u83B7\u53D6\u6728\u6750",
+      spawn: {
+        biomes: ["forest" /* FOREST */],
+        probability: 1,
+        // 森林地形100%生成树木
+        minPerChunk: 0,
+        maxPerChunk: 10,
+        layer: "high"
+      },
+      interaction: {
+        canHarvest: false,
+        canEat: false,
+        canDrink: false,
+        canEquip: false,
+        canCraft: true
+      },
+      seasonal: {
+        spawn: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */]
+      },
+      size: { width: 64, height: 64 },
+      textures: {
+        default: "img/\u6811.png",
+        winter: "img/\u6811\u51AC.png"
+      }
+    },
+    bush: {
+      type: "bush" /* BUSH */,
+      displayName: "\u704C\u6728\u4E1B",
+      description: "\u704C\u6728\u4E1B\uFF0C\u53EF\u4EE5\u91C7\u96C6\u6811\u679D\u548C\u6D46\u679C",
+      spawn: {
+        biomes: ["forest" /* FOREST */, "grass" /* GRASS */, "hill" /* HILL */],
+        probability: 0.1,
+        minPerChunk: 0,
+        maxPerChunk: 8,
+        layer: "low"
+      },
+      resource: {
+        type: "durability",
+        min: 8,
+        max: 20,
+        regrowTime: 3600
+      },
+      interaction: {
+        canHarvest: true,
+        canEat: false,
+        canDrink: false,
+        canEquip: false,
+        canCraft: true
+      },
+      seasonal: {
+        spawn: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */]
+      },
+      size: { width: 48, height: 48 },
+      textures: {
+        default: "img/\u704C\u6728.png",
+        spring: "img/\u704C\u6728\u82B1.png",
+        summer: "img/\u704C\u6728\u679C.png",
+        autumn: "img/\u704C\u6728\u679C.png",
+        winter: "img/\u704C\u6728\u51AC.png"
+      }
+    },
+    rock: {
+      type: "rock" /* ROCK */,
+      displayName: "\u5CA9\u77F3",
+      description: "\u5927\u77F3\u5934\uFF0C\u53EF\u4EE5\u91C7\u96C6\u77F3\u5757",
+      spawn: {
+        biomes: ["hill" /* HILL */, "mountain" /* MOUNTAIN */, "plains" /* PLAINS */],
+        probability: 0.08,
+        minPerChunk: 0,
+        maxPerChunk: 5,
+        layer: "ground"
+      },
+      interaction: {
+        canHarvest: true,
+        canEat: false,
+        canDrink: false,
+        canEquip: false,
+        canCraft: true
+      },
+      seasonal: {
+        spawn: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */]
+      },
+      size: { width: 40, height: 40 },
+      textures: {
+        default: "img/\u77F3\u5934.png"
+      }
+    },
+    twig: {
+      type: "twig" /* TWIG */,
+      displayName: "\u5C0F\u6811\u679D",
+      description: "\u5C0F\u6811\u679D\uFF0C\u53EF\u4EE5\u4F5C\u4E3A\u71C3\u6599\u6216\u5236\u4F5C\u6750\u6599",
+      spawn: {
+        biomes: ["grass" /* GRASS */, "forest" /* FOREST */, "plains" /* PLAINS */],
+        probability: 0.03,
+        minPerChunk: 0,
+        maxPerChunk: 15,
+        layer: "ground"
+      },
+      resource: {
+        type: "quantity",
+        min: 2,
+        max: 4,
+        regrowTime: 1800
+      },
+      interaction: {
+        canHarvest: true,
+        canEat: false,
+        canDrink: false,
+        canEquip: false,
+        canCraft: true
+      },
+      seasonal: {
+        spawn: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */]
+      },
+      size: { width: 32, height: 32 },
+      textures: {
+        default: "img/\u6811\u679D.png"
+      }
+    },
+    stone: {
+      type: "stone" /* STONE */,
+      displayName: "\u77F3\u5934",
+      description: "\u5C0F\u77F3\u5757\uFF0C\u53EF\u4EE5\u7528\u4E8E\u5236\u4F5C\u5DE5\u5177",
+      spawn: {
+        biomes: ["grass" /* GRASS */, "plains" /* PLAINS */, "hill" /* HILL */, "mountain" /* MOUNTAIN */],
+        probability: 0.02,
+        minPerChunk: 0,
+        maxPerChunk: 10,
+        layer: "ground"
+      },
+      resource: {
+        type: "quantity",
+        min: 1,
+        max: 2,
+        regrowTime: 3600
+      },
+      interaction: {
+        canHarvest: true,
+        canEat: false,
+        canDrink: false,
+        canEquip: false,
+        canCraft: true
+      },
+      seasonal: {
+        spawn: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */]
+      },
+      size: { width: 32, height: 32 },
+      textures: {
+        default: "img/\u77F3\u5934.png"
+      }
+    },
+    branch: {
+      type: "branch" /* BRANCH */,
+      displayName: "\u6811\u679D",
+      description: "\u6811\u679D\uFF0C\u53EF\u4EE5\u4F5C\u4E3A\u5DE5\u5177\u6216\u71C3\u6599",
+      spawn: {
+        biomes: ["forest" /* FOREST */, "grass" /* GRASS */, "plains" /* PLAINS */],
+        probability: 0.08,
+        minPerChunk: 0,
+        maxPerChunk: 15,
+        layer: "ground"
+      },
+      resource: {
+        type: "durability",
+        min: 1,
+        max: 3,
+        regrowTime: 1800
+      },
+      interaction: {
+        canHarvest: true,
+        canEat: false,
+        canDrink: false,
+        canEquip: false,
+        canCraft: true
+      },
+      seasonal: {
+        spawn: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */]
+      },
+      size: { width: 40, height: 40 },
+      textures: {
+        default: "img/\u6811\u679D.png"
+      }
+    },
+    stick: {
+      type: "stick" /* STICK */,
+      displayName: "\u6728\u68CD",
+      description: "\u7EC6\u957F\u7684\u6728\u68CD\uFF0C\u53EF\u4EE5\u4F5C\u4E3A\u5DE5\u5177",
+      spawn: {
+        biomes: ["plains" /* PLAINS */, "grass" /* GRASS */],
+        probability: 0.15,
+        minPerChunk: 0,
+        maxPerChunk: 20,
+        layer: "ground"
+      },
+      interaction: {
+        canHarvest: true,
+        canEat: false,
+        canDrink: false,
+        canEquip: true,
+        canCraft: true,
+        toolRequired: void 0
+      },
+      seasonal: {
+        spawn: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */]
+      },
+      size: { width: 40, height: 40 },
+      textures: {
+        default: "img/\u6728\u68CD.png"
+      }
+    },
+    flower: {
+      type: "flower" /* FLOWER */,
+      displayName: "\u82B1\u6735",
+      description: "\u7F8E\u4E3D\u7684\u82B1\u6735\uFF0C\u6625\u5B63\u9650\u5B9A",
+      spawn: {
+        biomes: ["grass" /* GRASS */, "plains" /* PLAINS */],
+        probability: 0.05,
+        minPerChunk: 0,
+        maxPerChunk: 30,
+        layer: "ground"
+      },
+      interaction: {
+        canHarvest: true,
+        canEat: false,
+        canDrink: false,
+        canEquip: false,
+        canCraft: false
+      },
+      seasonal: {
+        spawn: ["spring" /* SPRING */],
+        harvestable: ["spring" /* SPRING */]
+      },
+      size: { width: 32, height: 32 },
+      textures: {
+        default: "img/\u82B1.png"
+      }
+    },
+    mushroom: {
+      type: "mushroom" /* MUSHROOM */,
+      displayName: "\u8611\u83C7",
+      description: "\u68EE\u6797\u91CC\u7684\u8611\u83C7\uFF0C\u6CE8\u610F\u6709\u4E9B\u53EF\u80FD\u6709\u6BD2",
+      spawn: {
+        biomes: ["forest" /* FOREST */, "grass" /* GRASS */],
+        probability: 0.03,
+        minPerChunk: 0,
+        maxPerChunk: 10,
+        layer: "ground"
+      },
+      nutrition: {
+        calories: 20,
+        water: 10,
+        vitamins: 5,
+        protein: 2,
+        fat: 0.5,
+        fiber: 1
+      },
+      risk: {
+        diseaseChance: 0,
+        parasiteChance: 0,
+        poisonChance: 0.15
+      },
+      interaction: {
+        canHarvest: true,
+        canEat: true,
+        canDrink: false,
+        canEquip: false,
+        canCraft: false
+      },
+      seasonal: {
+        spawn: ["spring" /* SPRING */, "autumn" /* AUTUMN */],
+        harvestable: ["spring" /* SPRING */, "autumn" /* AUTUMN */]
+      },
+      size: { width: 32, height: 32 },
+      textures: {
+        default: "img/\u8611\u83C7.png"
+      }
+    },
+    // ========== 食物类 ==========
+    berry: {
+      type: "berry" /* BERRY */,
+      displayName: "\u6D46\u679C",
+      description: "\u65B0\u9C9C\u6D46\u679C\uFF0C\u53EF\u6062\u590D\u9971\u98DF\u5EA6\u548C\u6C34\u5206",
+      spawn: {
+        biomes: ["grass" /* GRASS */, "forest" /* FOREST */],
+        probability: 0.08,
+        minPerChunk: 0,
+        maxPerChunk: 10,
+        layer: "low"
+      },
+      nutrition: {
+        calories: 30,
+        water: 5,
+        vitamins: 10,
+        protein: 0.5,
+        fat: 0.1,
+        fiber: 2
+      },
+      interaction: {
+        canHarvest: true,
+        canEat: true,
+        canDrink: false,
+        canEquip: false,
+        canCraft: false
+      },
+      seasonal: {
+        spawn: ["summer" /* SUMMER */, "autumn" /* AUTUMN */],
+        harvestable: ["summer" /* SUMMER */, "autumn" /* AUTUMN */]
+      },
+      size: { width: 48, height: 48 },
+      textures: {
+        default: "img/\u704C\u6728\u679C.png",
+        summer: "img/\u704C\u6728\u679C.png",
+        autumn: "img/\u704C\u6728\u679C.png"
+      }
+    },
+    wild_fruit: {
+      type: "wild_fruit" /* WILD_FRUIT */,
+      displayName: "\u91CE\u679C",
+      description: "\u91CE\u5916\u751F\u957F\u7684\u6C34\u679C\uFF0C\u8425\u517B\u4E30\u5BCC",
+      spawn: {
+        biomes: ["forest" /* FOREST */, "grass" /* GRASS */],
+        probability: 0.04,
+        minPerChunk: 0,
+        maxPerChunk: 8,
+        layer: "low"
+      },
+      nutrition: {
+        calories: 50,
+        water: 10,
+        vitamins: 15,
+        protein: 1,
+        fat: 0.2,
+        fiber: 3
+      },
+      interaction: {
+        canHarvest: true,
+        canEat: true,
+        canDrink: false,
+        canEquip: false,
+        canCraft: false
+      },
+      seasonal: {
+        spawn: ["summer" /* SUMMER */, "autumn" /* AUTUMN */],
+        harvestable: ["summer" /* SUMMER */, "autumn" /* AUTUMN */]
+      },
+      size: { width: 32, height: 32 },
+      textures: {
+        default: "img/\u91CE\u679C.png"
+      }
+    },
+    raw_meat: {
+      type: "raw_meat" /* RAW_MEAT */,
+      displayName: "\u751F\u8089",
+      description: "\u65B0\u9C9C\u7684\u751F\u8089\uFF0C\u98DF\u7528\u6709\u75BE\u75C5\u98CE\u9669",
+      spawn: {
+        biomes: [],
+        probability: 0,
+        minPerChunk: 0,
+        maxPerChunk: 0,
+        layer: "ground"
+      },
+      nutrition: {
+        calories: 250,
+        water: 0,
+        vitamins: 0,
+        protein: 26,
+        fat: 15,
+        fiber: 0
+      },
+      risk: {
+        diseaseChance: 0.05,
+        parasiteChance: 0.03,
+        poisonChance: 0
+      },
+      interaction: {
+        canHarvest: false,
+        canEat: true,
+        canDrink: false,
+        canEquip: false,
+        canCraft: false
+      },
+      seasonal: {
+        spawn: [],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */]
+      },
+      size: { width: 32, height: 32 },
+      textures: {
+        default: "img/\u751F\u8089.png"
+      }
+    },
+    cooked_meat: {
+      type: "cooked_meat" /* COOKED_MEAT */,
+      displayName: "\u719F\u8089",
+      description: "\u70F9\u996A\u540E\u7684\u8089\uFF0C\u5B89\u5168\u7F8E\u5473",
+      spawn: {
+        biomes: [],
+        probability: 0,
+        minPerChunk: 0,
+        maxPerChunk: 0,
+        layer: "ground"
+      },
+      nutrition: {
+        calories: 300,
+        water: 0,
+        vitamins: 0,
+        protein: 30,
+        fat: 12,
+        fiber: 0
+      },
+      interaction: {
+        canHarvest: false,
+        canEat: true,
+        canDrink: false,
+        canEquip: false,
+        canCraft: false
+      },
+      seasonal: {
+        spawn: [],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */]
+      },
+      size: { width: 32, height: 32 },
+      textures: {
+        default: "img/\u719F\u8089.png"
+      }
+    },
+    fish: {
+      type: "fish" /* FISH */,
+      displayName: "\u9C7C",
+      description: "\u65B0\u9C9C\u7684\u9C7C\uFF0C\u5BCC\u542B\u86CB\u767D\u8D28",
+      spawn: {
+        biomes: ["river" /* RIVER */, "lake" /* LAKE */],
+        probability: 0.02,
+        minPerChunk: 0,
+        maxPerChunk: 5,
+        layer: "ground"
+      },
+      nutrition: {
+        calories: 100,
+        water: 0,
+        vitamins: 5,
+        protein: 20,
+        fat: 3,
+        fiber: 0
+      },
+      risk: {
+        diseaseChance: 0.02,
+        parasiteChance: 0.01,
+        poisonChance: 0
+      },
+      interaction: {
+        canHarvest: true,
+        canEat: true,
+        canDrink: false,
+        canEquip: false,
+        canCraft: false
+      },
+      seasonal: {
+        spawn: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */]
+      },
+      size: { width: 32, height: 32 },
+      textures: {
+        default: "img/\u9C7C.png"
+      }
+    },
+    herb: {
+      type: "herb" /* HERB */,
+      displayName: "\u8349\u836F",
+      description: "\u6709\u836F\u7528\u4EF7\u503C\u7684\u8349\u672C\u690D\u7269",
+      spawn: {
+        biomes: ["grass" /* GRASS */, "forest" /* FOREST */],
+        probability: 0.04,
+        minPerChunk: 0,
+        maxPerChunk: 8,
+        layer: "ground"
+      },
+      nutrition: {
+        calories: 20,
+        water: 60,
+        vitamins: 8,
+        protein: 1,
+        fat: 0.2,
+        fiber: 2
+      },
+      interaction: {
+        canHarvest: true,
+        canEat: true,
+        canDrink: false,
+        canEquip: false,
+        canCraft: false
+      },
+      seasonal: {
+        spawn: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */]
+      },
+      size: { width: 24, height: 24 },
+      textures: {
+        default: "img/\u8349\u836F.png"
+      }
+    },
+    // ========== 饮水类 ==========
+    river_water: {
+      type: "river_water" /* RIVER_WATER */,
+      displayName: "\u6CB3\u6C34",
+      description: "\u4ECE\u6CB3\u6D41\u4E2D\u53D6\u7684\u6C34\uFF0C\u9700\u8981\u716E\u6CB8\u540E\u624D\u80FD\u5B89\u5168\u996E\u7528",
+      spawn: {
+        biomes: ["river" /* RIVER */, "lake" /* LAKE */],
+        probability: 1,
+        minPerChunk: 0,
+        maxPerChunk: 1,
+        layer: "ground"
+      },
+      nutrition: {
+        calories: 0,
+        water: 100,
+        vitamins: 0,
+        protein: 0,
+        fat: 0,
+        fiber: 0
+      },
+      risk: {
+        diseaseChance: 0.05,
+        parasiteChance: 0.02,
+        poisonChance: 0
+      },
+      interaction: {
+        canHarvest: true,
+        canEat: false,
+        canDrink: true,
+        canEquip: false,
+        canCraft: false
+      },
+      seasonal: {
+        spawn: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */]
+      },
+      size: { width: 24, height: 24 },
+      textures: {
+        default: "img/\u6C34.png"
+      }
+    },
+    clean_water: {
+      type: "clean_water" /* CLEAN_WATER */,
+      displayName: "\u51C0\u6C34",
+      description: "\u7ECF\u8FC7\u5904\u7406\u7684\u5E72\u51C0\u6C34",
+      spawn: {
+        biomes: [],
+        probability: 0,
+        minPerChunk: 0,
+        maxPerChunk: 0,
+        layer: "ground"
+      },
+      nutrition: {
+        calories: 0,
+        water: 100,
+        vitamins: 0,
+        protein: 0,
+        fat: 0,
+        fiber: 0
+      },
+      interaction: {
+        canHarvest: false,
+        canEat: false,
+        canDrink: true,
+        canEquip: false,
+        canCraft: false
+      },
+      seasonal: {
+        spawn: [],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */]
+      },
+      size: { width: 24, height: 24 },
+      textures: {
+        default: "img/\u51C0\u6C34.png"
+      }
+    },
+    rain_water: {
+      type: "rain_water" /* RAIN_WATER */,
+      displayName: "\u96E8\u6C34",
+      description: "\u6536\u96C6\u7684\u96E8\u6C34\uFF0C\u9700\u8981\u716E\u6CB8\u540E\u996E\u7528",
+      spawn: {
+        biomes: [],
+        probability: 0,
+        minPerChunk: 0,
+        maxPerChunk: 0,
+        layer: "ground"
+      },
+      nutrition: {
+        calories: 0,
+        water: 80,
+        vitamins: 0,
+        protein: 0,
+        fat: 0,
+        fiber: 0
+      },
+      risk: {
+        diseaseChance: 0.01,
+        parasiteChance: 0,
+        poisonChance: 0
+      },
+      interaction: {
+        canHarvest: false,
+        canEat: false,
+        canDrink: true,
+        canEquip: false,
+        canCraft: false
+      },
+      seasonal: {
+        spawn: ["spring" /* SPRING */, "autumn" /* AUTUMN */],
+        harvestable: ["spring" /* SPRING */, "autumn" /* AUTUMN */]
+      },
+      size: { width: 24, height: 24 },
+      textures: {
+        default: "img/\u96E8\u6C34.png"
+      }
+    },
+    coconut: {
+      type: "coconut" /* COCONUT */,
+      displayName: "\u6930\u5B50",
+      description: "\u6D77\u8FB9\u53D1\u73B0\u7684\u6930\u5B50\uFF0C\u53EF\u4EE5\u996E\u7528\u548C\u98DF\u7528",
+      spawn: {
+        biomes: ["beach" /* BEACH */],
+        probability: 0.02,
+        minPerChunk: 0,
+        maxPerChunk: 3,
+        layer: "ground"
+      },
+      nutrition: {
+        calories: 150,
+        water: 50,
+        vitamins: 5,
+        protein: 3,
+        fat: 15,
+        fiber: 5
+      },
+      interaction: {
+        canHarvest: true,
+        canEat: true,
+        canDrink: true,
+        canEquip: false,
+        canCraft: false
+      },
+      seasonal: {
+        spawn: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */]
+      },
+      size: { width: 32, height: 32 },
+      textures: {
+        default: "img/\u6930\u5B50.png"
+      }
+    },
+    // ========== 材料类 ==========
+    stone_tool: {
+      type: "stone_tool" /* STONE_TOOL */,
+      displayName: "\u77F3\u5236\u5DE5\u5177",
+      description: "\u7528\u77F3\u5934\u5236\u4F5C\u7684\u5DE5\u5177",
+      spawn: {
+        biomes: [],
+        probability: 0,
+        minPerChunk: 0,
+        maxPerChunk: 0,
+        layer: "ground"
+      },
+      resource: {
+        type: "durability",
+        min: 30,
+        max: 50
+      },
+      interaction: {
+        canHarvest: false,
+        canEat: false,
+        canDrink: false,
+        canEquip: true,
+        canCraft: true
+      },
+      seasonal: {
+        spawn: [],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */]
+      },
+      size: { width: 32, height: 32 },
+      textures: {
+        default: "img/\u77F3\u65A7.png"
+      }
+    },
+    wood_tool: {
+      type: "wood_tool" /* WOOD_TOOL */,
+      displayName: "\u6728\u5236\u5DE5\u5177",
+      description: "\u7528\u6728\u6750\u5236\u4F5C\u7684\u5DE5\u5177",
+      spawn: {
+        biomes: [],
+        probability: 0,
+        minPerChunk: 0,
+        maxPerChunk: 0,
+        layer: "ground"
+      },
+      resource: {
+        type: "durability",
+        min: 20,
+        max: 40
+      },
+      interaction: {
+        canHarvest: false,
+        canEat: false,
+        canDrink: false,
+        canEquip: true,
+        canCraft: true
+      },
+      seasonal: {
+        spawn: [],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */]
+      },
+      size: { width: 32, height: 32 },
+      textures: {
+        default: "img/\u6728\u77DB.png"
+      }
+    },
+    fiber: {
+      type: "fiber" /* FIBER */,
+      displayName: "\u7EA4\u7EF4",
+      description: "\u690D\u7269\u7EA4\u7EF4\uFF0C\u53EF\u7528\u4E8E\u5236\u4F5C\u7EF3\u7D22",
+      spawn: {
+        biomes: ["grass" /* GRASS */, "forest" /* FOREST */],
+        probability: 0.06,
+        minPerChunk: 0,
+        maxPerChunk: 10,
+        layer: "ground"
+      },
+      interaction: {
+        canHarvest: true,
+        canEat: false,
+        canDrink: false,
+        canEquip: false,
+        canCraft: true
+      },
+      seasonal: {
+        spawn: ["summer" /* SUMMER */, "autumn" /* AUTUMN */],
+        harvestable: ["summer" /* SUMMER */, "autumn" /* AUTUMN */]
+      },
+      size: { width: 24, height: 24 },
+      textures: {
+        default: "img/\u7EA4\u7EF4.png"
+      }
+    },
+    bone: {
+      type: "bone" /* BONE */,
+      displayName: "\u9AA8\u5934",
+      description: "\u52A8\u7269\u9AA8\u5934\uFF0C\u53EF\u7528\u4E8E\u5236\u4F5C\u9AA8\u5668",
+      spawn: {
+        biomes: [],
+        probability: 0,
+        minPerChunk: 0,
+        maxPerChunk: 0,
+        layer: "ground"
+      },
+      interaction: {
+        canHarvest: false,
+        canEat: false,
+        canDrink: false,
+        canEquip: false,
+        canCraft: true
+      },
+      seasonal: {
+        spawn: [],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */]
+      },
+      size: { width: 24, height: 24 },
+      textures: {
+        default: "img/\u9AA8\u5934.png"
+      }
+    },
+    // ========== 特殊物品 ==========
+    bone_tool: {
+      type: "bone_tool" /* BONE_TOOL */,
+      displayName: "\u9AA8\u5236\u5DE5\u5177",
+      description: "\u7528\u9AA8\u5934\u5236\u4F5C\u7684\u5DE5\u5177",
+      spawn: {
+        biomes: [],
+        probability: 0,
+        minPerChunk: 0,
+        maxPerChunk: 0,
+        layer: "ground"
+      },
+      resource: {
+        type: "durability",
+        min: 25,
+        max: 45
+      },
+      interaction: {
+        canHarvest: false,
+        canEat: false,
+        canDrink: false,
+        canEquip: true,
+        canCraft: true
+      },
+      seasonal: {
+        spawn: [],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */]
+      },
+      size: { width: 32, height: 32 },
+      textures: {
+        default: "img/\u9AA8\u9488.png"
+      }
+    },
+    shell: {
+      type: "shell" /* SHELL */,
+      displayName: "\u8D1D\u58F3",
+      description: "\u6D77\u8FB9\u7684\u8D1D\u58F3\uFF0C\u53EF\u7528\u4E8E\u5236\u4F5C\u5DE5\u5177\u6216\u5BB9\u5668",
+      spawn: {
+        biomes: ["beach" /* BEACH */],
+        probability: 0.05,
+        minPerChunk: 0,
+        maxPerChunk: 15,
+        layer: "ground"
+      },
+      interaction: {
+        canHarvest: true,
+        canEat: false,
+        canDrink: false,
+        canEquip: false,
+        canCraft: true
+      },
+      seasonal: {
+        spawn: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */, "autumn" /* AUTUMN */, "winter" /* WINTER */]
+      },
+      size: { width: 24, height: 24 },
+      textures: {
+        default: "img/\u8D1D\u58F3.png"
+      }
+    },
+    feather: {
+      type: "feather" /* FEATHER */,
+      displayName: "\u7FBD\u6BDB",
+      description: "\u9E1F\u7C7B\u7684\u7FBD\u6BDB\uFF0C\u53EF\u7528\u4E8E\u5236\u4F5C\u7BAD\u77E2",
+      spawn: {
+        biomes: ["forest" /* FOREST */, "grass" /* GRASS */],
+        probability: 0.02,
+        minPerChunk: 0,
+        maxPerChunk: 8,
+        layer: "ground"
+      },
+      interaction: {
+        canHarvest: true,
+        canEat: false,
+        canDrink: false,
+        canEquip: false,
+        canCraft: true
+      },
+      seasonal: {
+        spawn: ["spring" /* SPRING */, "summer" /* SUMMER */],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */]
+      },
+      size: { width: 16, height: 16 },
+      textures: {
+        default: "img/\u7FBD\u6BDB.png"
+      }
+    },
+    egg: {
+      type: "egg" /* EGG */,
+      displayName: "\u86CB",
+      description: "\u9E1F\u86CB\uFF0C\u53EF\u4EE5\u98DF\u7528",
+      spawn: {
+        biomes: ["forest" /* FOREST */, "grass" /* GRASS */],
+        probability: 0.01,
+        minPerChunk: 0,
+        maxPerChunk: 3,
+        layer: "ground"
+      },
+      nutrition: {
+        calories: 140,
+        water: 0,
+        vitamins: 8,
+        protein: 13,
+        fat: 10,
+        fiber: 0
+      },
+      interaction: {
+        canHarvest: true,
+        canEat: true,
+        canDrink: false,
+        canEquip: false,
+        canCraft: false
+      },
+      seasonal: {
+        spawn: ["spring" /* SPRING */, "summer" /* SUMMER */],
+        harvestable: ["spring" /* SPRING */, "summer" /* SUMMER */]
+      },
+      size: { width: 24, height: 24 },
+      textures: {
+        default: "img/\u86CB.png"
+      }
+    }
+  };
+  function getItemTexture(type, season) {
+    const def = ITEM_DEFINITIONS[type];
+    if (!def) return "";
+    const seasonalTextures = def.textures;
+    switch (season) {
+      case "spring" /* SPRING */:
+        return seasonalTextures.spring || seasonalTextures.default;
+      case "summer" /* SUMMER */:
+        return seasonalTextures.summer || seasonalTextures.default;
+      case "autumn" /* AUTUMN */:
+        return seasonalTextures.autumn || seasonalTextures.default;
+      case "winter" /* WINTER */:
+        return seasonalTextures.winter || seasonalTextures.default;
+      default:
+        return seasonalTextures.default;
+    }
+  }
+  function getItemSize(type) {
+    const def = ITEM_DEFINITIONS[type];
+    return def?.size || { width: 40, height: 40 };
+  }
+
   // src/renderer/pixi/layers/ItemLayer.ts
   var TILE_SIZE2 = 64;
+  function createLCGRNG(seed) {
+    return function() {
+      seed = seed * 1103515245 + 12345 & 2147483647;
+      return seed / 2147483647;
+    };
+  }
   var GameItem = class {
-    constructor(type, x2, y2, layer) {
-      // 耐久相关（用于灌木/浆果丛）
-      this.durability = 0;
-      this.maxDurability = 0;
+    constructor(id, type, x2, y2, rng) {
+      this.id = id;
       this.type = type;
       this.x = x2;
       this.y = y2;
-      this.layer = layer;
+      this.layer = ITEM_DEFINITIONS[type].spawn.layer;
+      this.harvested = false;
+      const randomFunc = rng || Math.random;
+      const def = ITEM_DEFINITIONS[type];
+      if (def.resource) {
+        const amount = Math.floor(randomFunc() * (def.resource.max - def.resource.min + 1)) + def.resource.min;
+        this.resource = {
+          current: amount,
+          max: amount,
+          regrowTime: def.resource.regrowTime,
+          regrowTimer: 0
+        };
+      } else {
+        this.resource = null;
+      }
     }
-    // 获取物品名称
     getName() {
-      const names = {
-        "tree": "\u6811",
-        "bush": "\u704C\u6728",
-        "rock": "\u77F3\u5934",
-        "stick": "\u6728\u68CD",
-        "berry": "\u6D46\u679C\u4E1B",
-        "flower": "\u82B1\u6735",
-        "branch": "\u6811\u679D"
-      };
-      return names[this.type] || "\u672A\u77E5\u7269\u54C1";
+      return ITEM_DEFINITIONS[this.type]?.displayName || "\u672A\u77E5\u7269\u54C1";
     }
-    // 是否还有资源
     hasResources() {
-      return this.durability > 0;
+      return this.resource !== null && this.resource.current > 0;
     }
-    // 采集（返回采集数量）
     harvest(amount = 1) {
-      if (this.durability <= 0) return 0;
-      const harvested = Math.min(this.durability, amount);
-      this.durability -= harvested;
+      if (!this.resource || this.resource.current <= 0) return 0;
+      const harvested = Math.min(this.resource.current, amount);
+      this.resource.current -= harvested;
+      if (this.resource.current <= 0) {
+        this.harvested = true;
+        this.lastHarvestTime = Date.now();
+        if (this.resource.regrowTime) {
+          this.resource.regrowTimer = 0;
+        }
+      }
       return harvested;
+    }
+    update(deltaTime) {
+      if (this.harvested && this.resource && this.resource.regrowTime && this.resource.regrowTimer !== void 0) {
+        this.resource.regrowTimer += deltaTime;
+        if (this.resource.regrowTimer >= this.resource.regrowTime) {
+          this.harvested = false;
+          this.resource.current = this.resource.max;
+          this.resource.regrowTimer = 0;
+          this.lastHarvestTime = void 0;
+        }
+      }
     }
   };
   var ItemLayer = class {
@@ -46606,76 +47615,25 @@ ${e2}`);
       this.sprites = /* @__PURE__ */ new Map();
       this.hitboxes = /* @__PURE__ */ new Map();
       this.textureCache = /* @__PURE__ */ new Map();
-      this.currentSeason = "summer";
-      // 默认夏天
-      // 点击回调
+      this.currentSeason = "summer" /* SUMMER */;
       this.onItemClick = null;
-      // 物品贴图（按季节）
-      this.ASSETS = {
-        "tree": {
-          spring: "img/\u6811.png",
-          summer: "img/\u6811.png",
-          autumn: "img/\u6811.png",
-          winter: "img/\u6811\u51AC.png"
-        },
-        "bush": {
-          spring: "img/\u704C\u6728\u82B1.png",
-          summer: "img/\u704C\u6728\u679C.png",
-          autumn: "img/\u704C\u6728\u679C.png",
-          winter: "img/\u704C\u6728\u51AC.png"
-        },
-        "rock": {
-          spring: "img/\u77F3\u5934.png",
-          summer: "img/\u77F3\u5934.png",
-          autumn: "img/\u77F3\u5934.png",
-          winter: "img/\u77F3\u5934.png"
-        },
-        "stick": {
-          spring: "img/\u6728\u68CD.png",
-          summer: "img/\u6728\u68CD.png",
-          autumn: "img/\u6728\u68CD.png",
-          winter: "img/\u6728\u68CD.png"
-        },
-        "berry": {
-          spring: "img/\u704C\u6728\u82B1.png",
-          summer: "img/\u704C\u6728\u679C.png",
-          autumn: "img/\u704C\u6728\u679C.png",
-          winter: "img/\u704C\u6728\u51AC.png"
-        },
-        "flower": {
-          spring: "img/\u82B1.png",
-          summer: "img/\u82B1.png",
-          autumn: "img/\u82B1.png",
-          winter: "img/\u82B1.png"
-        },
-        "branch": {
-          spring: "img/\u6811\u679D.png",
-          summer: "img/\u6811\u679D.png",
-          autumn: "img/\u6811\u679D.png",
-          winter: "img/\u6811\u679D.png"
-        }
-      };
-      this.SIZES = {
-        "ground": 40,
-        "low": 48,
-        "high": 64
-      };
       this.map = map;
       this.container = new Container();
+      this.itemRNG = createLCGRNG(map.getSeed() + 200);
+      this.itemNoise = createNoise2D(this.itemRNG);
     }
-    // 设置季节
     setSeason(season) {
+      const previousSeason = this.currentSeason;
       this.currentSeason = season;
-      if (season === "spring") {
+      if (season === "spring" /* SPRING */ && previousSeason !== "spring" /* SPRING */) {
         this.generateSeasonalItems();
-      } else {
+      } else if (previousSeason === "spring" /* SPRING */ && season !== "spring" /* SPRING */) {
         this.removeSeasonalItems();
       }
       this.updateAllSprites();
     }
-    // 生成季节性物品（春天生成花朵）
     generateSeasonalItems() {
-      const hasFlowers = this.items.some((i2) => i2.type === "flower");
+      const hasFlowers = this.items.some((i2) => i2.type === "flower" /* FLOWER */);
       if (hasFlowers) return;
       console.log("\u{1F338} \u6625\u5929\u751F\u6210\u82B1\u6735...");
       const mapSize = this.map.getSize();
@@ -46684,14 +47642,16 @@ ${e2}`);
         for (let x2 = 0; x2 < mapSize.width; x2++) {
           const tile = this.map.getTile(x2, y2);
           if (!tile) continue;
-          const rand = Math.random();
-          if (tile.type === "grass" /* GRASS */ && rand < 0.05) {
-            const item = new GameItem("flower", x2, y2, "ground");
+          const tileType = tile.type;
+          const rand = this.itemRNG();
+          const def = ITEM_DEFINITIONS["flower" /* FLOWER */];
+          if (tileType === "grass" /* GRASS */ && rand < def.spawn.probability) {
+            const item = new GameItem(`seasonal_${Date.now()}_${count2}`, "flower" /* FLOWER */, x2, y2, this.itemRNG);
             this.items.push(item);
             this.createSprite(item);
             count2++;
-          } else if (tile.type === "plain" /* PLAIN */ && rand < 0.02) {
-            const item = new GameItem("flower", x2, y2, "ground");
+          } else if (tileType === "plains" /* PLAINS */ && rand < def.spawn.probability * 0.5) {
+            const item = new GameItem(`seasonal_${Date.now()}_${count2}`, "flower" /* FLOWER */, x2, y2, this.itemRNG);
             this.items.push(item);
             this.createSprite(item);
             count2++;
@@ -46700,23 +47660,22 @@ ${e2}`);
       }
       console.log(`\u{1F338} \u751F\u6210\u4E86 ${count2} \u6735\u82B1`);
     }
-    // 删除季节性物品（其他季节删除花朵）
     removeSeasonalItems() {
-      const flowers = this.items.filter((i2) => i2.type === "flower");
+      const flowers = this.items.filter((i2) => i2.type === "flower" /* FLOWER */);
       if (flowers.length === 0) return;
       console.log(`\u{1F343} \u79FB\u9664 ${flowers.length} \u6735\u82B1...`);
       for (const flower of flowers) {
-        const sprite = this.sprites.get(flower);
+        const sprite = this.sprites.get(flower.id);
         if (sprite) {
           this.container.removeChild(sprite);
           sprite.destroy();
-          this.sprites.delete(flower);
+          this.sprites.delete(flower.id);
         }
-        const hitbox = this.hitboxes.get(flower);
+        const hitbox = this.hitboxes.get(flower.id);
         if (hitbox) {
           this.container.removeChild(hitbox);
           hitbox.destroy();
-          this.hitboxes.delete(flower);
+          this.hitboxes.delete(flower.id);
         }
         const index = this.items.indexOf(flower);
         if (index > -1) {
@@ -46731,72 +47690,67 @@ ${e2}`);
     }
     generateItems() {
       const mapSize = this.map.getSize();
+      const terrainCounts = /* @__PURE__ */ new Map();
       for (let y2 = 0; y2 < mapSize.height; y2++) {
         for (let x2 = 0; x2 < mapSize.width; x2++) {
           const tile = this.map.getTile(x2, y2);
           if (!tile) continue;
-          const rand = Math.random();
-          switch (tile.type) {
-            case "forest" /* FOREST */:
-              if (rand < 0.12) {
-                const item = new GameItem("tree", x2, y2, "high");
-                this.items.push(item);
-              } else if (rand < 0.25) {
-                const item = new GameItem("bush", x2, y2, "low");
-                item.maxDurability = 10 + Math.floor(Math.random() * 11);
-                item.durability = item.maxDurability;
-                this.items.push(item);
-              } else if (rand < 0.3) {
-                const item = new GameItem("branch", x2, y2, "ground");
-                item.maxDurability = 1 + Math.floor(Math.random() * 3);
-                item.durability = item.maxDurability;
-                this.items.push(item);
-              }
-              break;
-            case "grass" /* GRASS */:
-              if (rand < 0.08) {
-                const item = new GameItem("bush", x2, y2, "low");
-                item.maxDurability = 8 + Math.floor(Math.random() * 9);
-                item.durability = item.maxDurability;
-                this.items.push(item);
-              }
-              break;
-            case "plain" /* PLAIN */:
-              if (rand < 0.15) this.items.push(new GameItem("stick", x2, y2, "ground"));
-              else if (rand < 0.26) {
-                const item = new GameItem("branch", x2, y2, "ground");
-                item.maxDurability = 1 + Math.floor(Math.random() * 2);
-                item.durability = item.maxDurability;
-                this.items.push(item);
-              }
-              break;
-            case "hill" /* HILL */:
-              if (rand < 0.08) this.items.push(new GameItem("rock", x2, y2, "ground"));
-              else if (rand < 0.15) {
-                const item = new GameItem("bush", x2, y2, "low");
-                item.maxDurability = 5 + Math.floor(Math.random() * 6);
-                item.durability = item.maxDurability;
-                this.items.push(item);
-              }
-              break;
-            case "mountain" /* MOUNTAIN */:
-              if (rand < 0.1) this.items.push(new GameItem("rock", x2, y2, "ground"));
-              break;
+          const tileType = tile.type;
+          terrainCounts.set(tileType, (terrainCounts.get(tileType) || 0) + 1);
+          if (tileType === "ocean" /* OCEAN */ || tileType === "lake" /* LAKE */ || tileType === "river" /* RIVER */) {
+            continue;
+          }
+          if (tileType === "forest" /* FOREST */) {
+            const hash = (x2 * 12345 + y2 * 67890 + this.map.getSeed()) % 100;
+            const treeType = hash < 17 ? "tree" /* TREE */ : "tree" /* TREE */;
+            const item = new GameItem(`tree_${x2}_${y2}`, treeType, x2, y2, this.itemRNG);
+            this.items.push(item);
+          } else if (tileType === "grass" /* GRASS */ && Math.abs(this.itemNoise(x2 * 0.3, y2 * 0.3)) < 0.05) {
+            const item = new GameItem(`bush_${x2}_${y2}`, "bush" /* BUSH */, x2, y2, this.itemRNG);
+            this.items.push(item);
+          } else if (tileType === "mountain" /* MOUNTAIN */ && Math.abs(this.itemNoise(x2 * 0.4, y2 * 0.4)) < 0.08) {
+            const item = new GameItem(`rock_${x2}_${y2}`, "rock" /* ROCK */, x2, y2, this.itemRNG);
+            this.items.push(item);
+          } else if (tileType === "hill" /* HILL */ && Math.abs(this.itemNoise(x2 * 0.4, y2 * 0.4)) < 0.05) {
+            const item = new GameItem(`rock_${x2}_${y2}`, "rock" /* ROCK */, x2, y2, this.itemRNG);
+            this.items.push(item);
+          } else if (tileType === "beach" /* BEACH */ && Math.abs(this.itemNoise(x2 * 0.6, y2 * 0.6)) < 0.02) {
+            const item = new GameItem(`shell_${x2}_${y2}`, "shell" /* SHELL */, x2, y2, this.itemRNG);
+            this.items.push(item);
+          } else if (tileType === "grass" /* GRASS */ && Math.abs(this.itemNoise(x2 * 0.5, y2 * 0.5)) < 0.03) {
+            const item = new GameItem(`twig_${x2}_${y2}`, "twig" /* TWIG */, x2, y2, this.itemRNG);
+            this.items.push(item);
+          } else if ((tileType === "grass" /* GRASS */ || tileType === "plains" /* PLAINS */) && Math.abs(this.itemNoise(x2 * 0.8, y2 * 0.8)) < 0.02) {
+            const item = new GameItem(`stone_${x2}_${y2}`, "stone" /* STONE */, x2, y2, this.itemRNG);
+            this.items.push(item);
           }
         }
       }
+      console.log("\n\u{1F5FA}\uFE0F \u5730\u5F62\u5206\u5E03:");
+      for (const [type, count2] of terrainCounts) {
+        console.log(`  ${type}: ${count2}\u5757`);
+      }
       console.log(`\u{1F4E6} \u751F\u6210\u4E86 ${this.items.length} \u4E2A\u7269\u54C1`);
-      const bushes = this.items.filter((i2) => i2.type === "bush");
-      console.log(`\u{1F33F} \u5176\u4E2D ${bushes.length} \u4E2A\u704C\u6728`);
+      this.logItemCounts();
+    }
+    logItemCounts() {
+      const counts = /* @__PURE__ */ new Map();
+      for (const item of this.items) {
+        counts.set(item.type, (counts.get(item.type) || 0) + 1);
+      }
+      console.log("\n\u{1F4CA} \u7269\u54C1\u7EDF\u8BA1:");
+      for (const [type, count2] of counts) {
+        const def = ITEM_DEFINITIONS[type];
+        console.log(`  ${def.displayName}: ${count2}`);
+      }
     }
     async loadTextures() {
       const toLoad = [];
-      const seasons = ["spring", "summer", "autumn", "winter"];
-      for (const type of Object.keys(this.ASSETS)) {
-        for (const season of seasons) {
-          const path2 = this.ASSETS[type][season];
-          if (!toLoad.includes(path2)) {
-            toLoad.push(path2);
+      for (const def of Object.values(ITEM_DEFINITIONS)) {
+        const textures = def.textures;
+        for (const texture of Object.values(textures)) {
+          if (texture && !toLoad.includes(texture)) {
+            toLoad.push(texture);
           }
         }
       }
@@ -46810,25 +47764,24 @@ ${e2}`);
       }
       console.log(`\u2705 \u52A0\u8F7D\u4E86 ${this.textureCache.size} \u4E2A\u7269\u54C1\u7EB9\u7406`);
     }
-    // 获取物品贴图
     getTexture(item) {
-      let path2;
-      if (item.type === "bush") {
-        if (this.currentSeason === "winter") {
-          path2 = this.ASSETS.bush.winter;
-        } else if (this.currentSeason === "spring") {
-          path2 = this.ASSETS.bush.spring;
-        } else {
-          path2 = item.durability > 0 ? this.ASSETS.bush.summer : "img/\u704C\u6728.png";
+      const path2 = getItemTexture(item.type, this.currentSeason);
+      if (!path2) return null;
+      if (item.type === "bush" /* BUSH */ && item.resource) {
+        if (this.currentSeason === "winter" /* WINTER */) {
+          return this.textureCache.get(ITEM_DEFINITIONS["bush" /* BUSH */].textures.winter || path2) || null;
         }
-      } else if (item.type === "flower") {
-        if (this.currentSeason === "spring") {
-          path2 = this.ASSETS.flower.spring;
-        } else {
+        if (this.currentSeason === "spring" /* SPRING */) {
+          return this.textureCache.get(ITEM_DEFINITIONS["bush" /* BUSH */].textures.spring || path2) || null;
+        }
+        if (item.resource.current <= 0) {
+          return this.textureCache.get("img/\u704C\u6728.png") || null;
+        }
+      }
+      if (item.type === "flower" /* FLOWER */) {
+        if (this.currentSeason !== "spring" /* SPRING */) {
           return null;
         }
-      } else {
-        path2 = this.ASSETS[item.type][this.currentSeason];
       }
       return this.textureCache.get(path2) || null;
     }
@@ -46842,8 +47795,10 @@ ${e2}`);
     createSprite(item) {
       const texture = this.getTexture(item);
       if (!texture) return;
+      const def = ITEM_DEFINITIONS[item.type];
+      const sizeConfig = getItemSize(item.type);
+      const size = sizeConfig.width;
       const sprite = new Sprite(texture);
-      const size = this.SIZES[item.layer];
       const pixelX = item.x * TILE_SIZE2 + TILE_SIZE2 / 2;
       const pixelY = item.y * TILE_SIZE2 + TILE_SIZE2 / 2;
       sprite.x = pixelX - size / 2;
@@ -46851,39 +47806,43 @@ ${e2}`);
       sprite.width = size;
       sprite.height = size;
       this.container.addChild(sprite);
-      this.sprites.set(item, sprite);
-      if (item.maxDurability > 0) {
+      this.sprites.set(item.id, sprite);
+      if (def.interaction.canHarvest || def.interaction.canEat || def.interaction.canDrink) {
         const hitbox = new Graphics();
         hitbox.beginFill(16777215, 1e-3);
-        hitbox.drawRect(0, 0, size, size);
+        hitbox.drawRect(0, 0, TILE_SIZE2, TILE_SIZE2);
         hitbox.endFill();
-        hitbox.x = sprite.x;
-        hitbox.y = sprite.y;
+        hitbox.x = item.x * TILE_SIZE2;
+        hitbox.y = item.y * TILE_SIZE2;
         hitbox.eventMode = "static";
         hitbox.cursor = "pointer";
         hitbox.on("pointerdown", (e2) => {
           e2.stopPropagation();
+          console.log("\u{1F5B1}\uFE0F \u70B9\u51FB\u7269\u54C1:", item.id, item.type, item.x, item.y, item.getName());
           if (this.onItemClick) {
             this.onItemClick(item);
           }
         });
         this.container.addChild(hitbox);
-        this.hitboxes.set(item, hitbox);
+        this.hitboxes.set(item.id, hitbox);
       }
     }
-    // 更新所有物品贴图（季节变化时调用）
     updateAllSprites() {
-      for (const [item, sprite] of this.sprites) {
+      for (const [id, sprite] of this.sprites) {
+        const item = this.items.find((i2) => i2.id === id);
+        if (!item) continue;
         const texture = this.getTexture(item);
         if (texture) {
           sprite.texture = texture;
+          sprite.visible = true;
+        } else {
+          sprite.visible = false;
         }
       }
     }
-    // 更新单个物品（采集后调用）
     updateItem(item) {
-      const sprite = this.sprites.get(item);
-      const hitbox = this.hitboxes.get(item);
+      const sprite = this.sprites.get(item.id);
+      const hitbox = this.hitboxes.get(item.id);
       if (!sprite) return;
       const texture = this.getTexture(item);
       if (texture) {
@@ -46893,19 +47852,42 @@ ${e2}`);
         sprite.visible = false;
       }
       if (hitbox) {
-        hitbox.visible = item.durability > 0 && sprite.visible;
+        hitbox.visible = sprite.visible;
       }
     }
-    // 获取所有物品
+    update(deltaTime) {
+      for (const item of this.items) {
+        if (item.harvested) {
+          item.update(deltaTime);
+          this.updateItem(item);
+        }
+      }
+    }
     getItems() {
       return this.items;
     }
-    // 获取特定类型的物品
     getItemsByType(type) {
       return this.items.filter((i2) => i2.type === type);
     }
     getContainer() {
       return this.container;
+    }
+    harvestItem(itemId, amount = 1) {
+      const item = this.items.find((i2) => i2.id === itemId);
+      if (!item) {
+        return { success: false, harvested: 0, message: "\u7269\u54C1\u4E0D\u5B58\u5728" };
+      }
+      if (!item.hasResources()) {
+        return { success: false, harvested: 0, message: "\u7269\u54C1\u5DF2\u88AB\u91C7\u96C6\u5B8C" };
+      }
+      const harvested = item.harvest(amount);
+      this.updateItem(item);
+      const def = ITEM_DEFINITIONS[item.type];
+      return {
+        success: true,
+        harvested,
+        message: `\u91C7\u96C6\u4E86 ${harvested} \u4E2A${def.displayName}`
+      };
     }
   };
 
@@ -47835,7 +48817,6 @@ ${e2}`);
       console.log(`\u{1F3AD} \u7CBE\u7075\u6570\u91CF: ${this.sprites.size}`);
     }
     setupInteraction() {
-      this.container.eventMode = "static";
     }
     update(deltaTime) {
       const world = this.getWorldState();
@@ -48210,11 +49191,14 @@ ${e2}`);
       if (thirst < 50) return "\u{1F4A7}\u53E3\u6E34";
       if (hunger < 50) return "\u{1F356}\u9965\u997F";
       if (char.energy < 2) return "\u{1F634}\u75B2\u60EB";
-      if (char.action === "\u996E\u6C34\u4E2D") return "\u{1F4A7}\u996E\u6C34";
-      if (char.action === "\u8FDB\u98DF\u4E2D") return "\u{1F356}\u8FDB\u98DF";
-      if (char.action === "\u4F11\u606F\u4E2D") return "\u{1F4A4}\u4F11\u606F";
-      if (char.action === "\u95F2\u7F6E") return "\u{1F9D8}\u5F85\u673A";
-      if (char.action.includes("\u5BFB\u627E")) return "\u{1F50D}\u63A2\u7D22";
+      const action = char.action || "";
+      if (action.includes("\u996E\u6C34") || action.includes("\u559D\u6C34")) return "\u{1F4A7}\u996E\u6C34";
+      if (action.includes("\u8FDB\u98DF") || action.includes("\u5403\u4E1C\u897F")) return "\u{1F356}\u8FDB\u98DF";
+      if (action.includes("\u4F11\u606F")) return "\u{1F4A4}\u4F11\u606F";
+      if (action.includes("\u5F85\u673A") || action.includes("\u95F2\u7F6E")) return "\u{1F9D8}\u5F85\u673A";
+      if (action.includes("\u627E") || action.includes("\u5BFB\u627E")) return "\u{1F50D}\u63A2\u7D22";
+      if (action.includes("\u91C7\u96C6")) return "\u{1FAD0}\u91C7\u96C6";
+      if (action.includes("\u5DE1\u903B")) return "\u{1F6B6}\u5DE1\u903B";
       return "\u{1F6B6}\u79FB\u52A8";
     }
     // 点击空白处关闭
@@ -48395,6 +49379,7 @@ ${e2}`);
     }
     // 显示物品信息
     showItem(item) {
+      console.log("\u{1F4CB} ItemStatusUI.showItem \u6536\u5230:", item, "type:", item?.type, "x:", item?.x, "y:", item?.y);
       this.selectedItem = item;
       this.lastClickTime = Date.now();
       this.panel.style.display = "block";
@@ -48434,19 +49419,20 @@ ${e2}`);
       const durSection = document.getElementById("durability-section");
       const durFill = document.getElementById("durability-fill");
       const durText = document.getElementById("durability-text");
-      if (item.maxDurability > 0 && durSection && durFill && durText) {
-        durSection.style.display = "block";
-        const pct = item.maxDurability > 0 ? item.durability / item.maxDurability * 100 : 0;
-        durFill.style.width = `${pct}%`;
-        if (item.type === "bush") {
+      if (durSection && durFill && durText) {
+        if (item.type === "bush" || item.type === "branch") {
+          durSection.style.display = "block";
           const durTitle = durSection.querySelector(".durability-title");
-          if (durTitle) durTitle.textContent = "\u{1F347} \u6D46\u679C\u6570\u91CF";
-          durText.textContent = `\u{1F352} ${item.durability}/${item.maxDurability}`;
+          if (durTitle) {
+            durTitle.textContent = item.type === "bush" ? "\u{1F33F} \u704C\u6728\u8010\u4E45" : "\u{1F333} \u6811\u679D\u8010\u4E45";
+          }
+          const current = item.resource?.current || 0;
+          const max = item.resource?.max || 1;
+          durFill.style.width = `${current / max * 100}%`;
+          durText.textContent = `${current}/${max}`;
         } else {
-          durText.textContent = `${item.durability}/${item.maxDurability}`;
+          durSection.style.display = "none";
         }
-      } else if (durSection) {
-        durSection.style.display = "none";
       }
     }
     // 点击空白处关闭
@@ -48861,6 +49847,42 @@ ${e2}`);
         "\u63A2\u7D22",
         "\u95F2\u7F6E"
       ];
+      // 动作翻译映射（英文→中文）
+      this.actionTranslations = {
+        "find_food": "\u5BFB\u627E\u98DF\u7269",
+        "find water": "\u5BFB\u627E\u6C34\u6E90",
+        "seek_food": "\u5BFB\u627E\u98DF\u7269",
+        "seek_water": "\u5BFB\u627E\u6C34\u6E90",
+        "seek water": "\u5BFB\u627E\u6C34\u6E90",
+        "seek food": "\u5BFB\u627E\u98DF\u7269",
+        "find food": "\u5BFB\u627E\u98DF\u7269",
+        "eat": "\u5403\u4E1C\u897F",
+        "eating": "\u5403\u4E1C\u897F",
+        "drink": "\u559D\u6C34",
+        "drinking": "\u559D\u6C34",
+        "rest": "\u4F11\u606F",
+        "resting": "\u4F11\u606F",
+        "explore": "\u63A2\u7D22",
+        "exploring": "\u63A2\u7D22",
+        "wander": "\u63A2\u7D22",
+        "wandering": "\u63A2\u7D22",
+        "idle": "\u95F2\u7F6E",
+        "idling": "\u95F2\u7F6E"
+      };
+    }
+    /**
+     * 翻译动作（确保中文显示）
+     */
+    translateAction(action) {
+      if (this.actions.includes(action)) {
+        return action;
+      }
+      const translated = this.actionTranslations[action.toLowerCase()];
+      if (translated) {
+        return translated;
+      }
+      console.warn(`\u26A0\uFE0F \u672A\u77E5\u52A8\u4F5C: ${action}\uFF0C\u4F7F\u7528\u9ED8\u8BA4"\u95F2\u7F6E"`);
+      return "\u95F2\u7F6E";
     }
     /**
      * 添加角色到LLM控制
@@ -49026,8 +50048,8 @@ ${e2}`);
      * 执行决策
      */
     executeDecision(char, decision, world) {
-      char.action = decision.action;
-      switch (decision.action) {
+      char.action = this.translateAction(decision.action);
+      switch (char.action) {
         case "\u5BFB\u627E\u98DF\u7269":
           this.goToNearest(char, world.nearbyFood);
           const foodTarget = char.target ? ` \u2192 (${char.target.x.toFixed(1)}, ${char.target.y.toFixed(1)})` : " (\u65E0\u76EE\u6807)";
@@ -49216,7 +50238,8 @@ ${e2}`);
 
   // src/main-pixi.ts
   var CONFIG = {
-    map: { width: 100, height: 50, seed: 12345 },
+    map: { width: 200, height: 100, seed: 12345 },
+    // 与服务器保持一致
     viewport: {
       width: Math.floor(window.innerWidth),
       height: Math.floor(window.innerHeight * 0.95)

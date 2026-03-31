@@ -145,9 +145,8 @@ export class CharacterLayer {
     }
     
     private setupInteraction(): void {
-        // 让容器可以点击
-        this.container.eventMode = 'static';
-        // 注意：不设置hitArea，让子元素可以接收点击事件
+        // 不设置容器的eventMode，让事件穿透到下层的物品层
+        // 只让角色的hitbox可以接收点击
     }
     
     update(deltaTime: number): void {

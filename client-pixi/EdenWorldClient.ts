@@ -24,6 +24,7 @@ class EdenWorldClient {
             await this.loadTextures();
             this.setupServerConnection();
             this.setupStatusUI();
+            this.setupTimePanel();
             this.setupConsoleUI();
             
             // 内联调试面板 - 使用alert确保显示
@@ -121,6 +122,16 @@ class EdenWorldClient {
         
         this.server.on('state', (state) => {
             this.renderState(state);
+        });
+        
+        // 时间更新
+        this.server.on('time_update', (data) => {
+            this.updateTimePanel(data);
+        });
+        
+        // 季节更新
+        this.server.on('season_changed', (data) => {
+            this.updateTimePanel(data);
         });
         
         this.server.connect();
@@ -493,6 +504,58 @@ class EdenWorldClient {
                 </div>
             </div>
         `}).join('');
+    }
+    
+    setupTimePanel() {
+        // 时间面板HTML - 右上角显示
+        const panel = document.createElement('div');
+        panel.id = 'time-panel';
+        panel.style.cssText = `
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, rgba(30,30,50,0.95), rgba(20,20,40,0.95));
+            color: white;
+            padding: 12px 24px;
+            border-radius: 0 0 20px 20px;
+            font-family: 'Microsoft YaHei', 'PingFang SC', Arial, sans-serif;
+            font-size: 14px;
+            z-index: 1001;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-top: none;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        `;
+        
+        panel.innerHTML = `
+            <div id="time-date" style="font-weight:bold;color:#ffd700;">📅 加载中...</div>
+            <div id="time-season" style="font-size:16px;"></div>
+            <div id="time-weather" style="color:#87ceeb;">☀️ 晴</div>
+            <div id="time-temp" style="color:#ffa500;">🌡️ --°C</div>
+        `;
+        document.body.appendChild(panel);
+    }
+    
+    updateTimePanel(timeData: any) {
+        const dateEl = document.getElementById('time-date');
+        const seasonEl = document.getElementById('time-season');
+        
+        if (dateEl && timeData) {
+            const year = timeData.year || 1;
+            const day = timeData.day || 1;
+            dateEl.textContent = `📅 ${year}年${day}日`;
+        }
+        
+        if (seasonEl && timeData) {
+            const seasonEmoji = timeData.seasonEmoji || '🌸';
+            const seasonName = timeData.seasonName || '春';
+            const timeStr = timeData.timeString || '00:00';
+            const periodEmoji = timeData.periodEmoji || '☀️';
+            seasonEl.innerHTML = `${seasonEmoji} ${seasonName} ${periodEmoji} ${timeStr}`;
+        }
     }
     
     setupConsoleUI() {

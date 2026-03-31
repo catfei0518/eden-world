@@ -11,8 +11,9 @@
 
 import * as PIXI from 'pixi.js';
 
-const MAP_WIDTH = 100;
-const MAP_HEIGHT = 50;
+// 这些常量需要与服务器和客户端其他地方的 MAP_WIDTH, MAP_HEIGHT, TILE_SIZE 保持一致
+const MAP_WIDTH = 300;
+const MAP_HEIGHT = 150;
 const TILE_SIZE = 64;
 
 export class Camera {
@@ -294,12 +295,15 @@ export class Camera {
         if (worldWidth <= canvasWidth) {
             this.target.x = (canvasWidth - worldWidth) / 2;
         } else {
+            // 允许相机移动到任何位置，但限制在合理范围内
+            // 相机应该能在世界范围内移动
             this.target.x = Math.max(canvasWidth - worldWidth, Math.min(0, this.target.x));
         }
         
         if (worldHeight <= canvasHeight) {
             this.target.y = (canvasHeight - worldHeight) / 2;
         } else {
+            // 允许相机移动到任何位置，但限制在合理范围内
             this.target.y = Math.max(canvasHeight - worldHeight, Math.min(0, this.target.y));
         }
     }

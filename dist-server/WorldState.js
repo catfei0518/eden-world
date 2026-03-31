@@ -1,39 +1,25 @@
 "use strict";
 /**
- * 伊甸世界 - 世界状态管理 v1.1
+ * 伊甸世界 - 世界状态管理 v1.2
  *
  * Phase 1: 浆果采集系统
+ * 使用 simplex-noise 与客户端保持一致
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WorldState = void 0;
-const MAP_WIDTH = 200;
-const MAP_HEIGHT = 100;
+const simplex_noise_1 = require("simplex-noise");
+const MAP_WIDTH = 300;
+const MAP_HEIGHT = 150;
 const TILE_SIZE = 64;
 const WORLD_SEED = 12345;
-// Simplex噪声简化实现
-function createNoise(seed) {
-    // 简化的确定性噪声
-    const permutation = [151, 160, 137, 91, 90, 15, 131, 13, 201, 95, 96, 53, 194, 233, 7, 225, 140, 36, 103, 30, 69, 142, 8, 99, 37, 240, 21, 10, 23, 190, 6, 148, 247, 120, 234, 75, 0, 26, 197, 62, 94, 252, 219, 203, 117, 35, 11, 32, 57, 177, 33, 88, 237, 149, 56, 87, 174, 20, 125, 136, 171, 168, 68, 175, 74, 165, 71, 134, 139, 48, 27, 166, 77, 146, 158, 231, 83, 111, 229, 122, 60, 211, 133, 230, 220, 105, 92, 41, 55, 46, 245, 40, 244, 102, 143, 54, 65, 25, 63, 161, 1, 216, 80, 73, 209, 76, 132, 187, 208, 89, 18, 169, 200, 196, 135, 130, 116, 188, 159, 86, 164, 100, 109, 198, 173, 186, 3, 64, 52, 217, 226, 250, 124, 123, 5, 202, 38, 147, 118, 126, 255, 82, 85, 212, 207, 206, 59, 227, 47, 16, 58, 17, 182, 189, 28, 42, 223, 183, 170, 213, 119, 248, 152, 2, 44, 154, 163, 70, 221, 153, 101, 155, 167, 43, 172, 9, 129, 22, 39, 253, 19, 98, 108, 110, 79, 113, 224, 232, 178, 185, 112, 104, 218, 246, 97, 228, 251, 34, 242, 193, 238, 210, 144, 12, 191, 179, 162, 241, 81, 51, 145, 235, 249, 14, 239, 107, 49, 192, 214, 31, 181, 199, 106, 157, 184, 84, 204, 176, 115, 121, 50, 45, 127, 4, 150, 254, 138, 236, 205, 93, 222, 114, 67, 29, 24, 72, 243, 141, 128, 195, 78, 66, 215, 61, 156, 180];
-    // 复制置换表
-    const p = [...permutation, ...permutation];
-    function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
-    function lerp(a, b, t) { return a + t * (b - a); }
-    function grad(hash, x, y) {
-        const h = hash & 3;
-        const u = h < 2 ? x : y;
-        const v = h < 2 ? y : x;
-        return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
-    }
-    return function noise2D(x, y) {
-        const X = Math.floor(x) & 255;
-        const Y = Math.floor(y) & 255;
-        x -= Math.floor(x);
-        y -= Math.floor(y);
-        const u = fade(x);
-        const v = fade(y);
-        const A = p[X] + Y;
-        const B = p[X + 1] + Y;
-        return lerp(lerp(grad(p[A], x, y), grad(p[B], x - 1, y), u), lerp(grad(p[A + 1], x, y - 1), grad(p[B + 1], x - 1, y - 1), u), v);
+/**
+ * 创建与客户端一致的 RNG
+ * 使用与 simplex-noise 相同的线性同余生成器
+ */
+function createRNG(seed) {
+    return function () {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff;
     };
 }
 class WorldState {
@@ -45,96 +31,349 @@ class WorldState {
         this.season = 'spring';
         this.tick = 0;
         this.seed = seed;
+        // 使用与客户端一致的 RNG 创建噪声函数
+        const elevationRNG = createRNG(seed);
+        const moistureRNG = createRNG(seed + 100);
+        const riverRNG = createRNG(seed + 500);
+        const lakeRNG = createRNG(seed + 600);
+        const itemRNG = createRNG(seed + 200); // 物品生成专用 RNG
+        const regionRNG = createRNG(seed + 700); // 大区域 RNG
+        const detailRNG = createRNG(seed + 800); // 细节 RNG
+        this.elevationNoise = (0, simplex_noise_1.createNoise2D)(elevationRNG);
+        this.moistureNoise = (0, simplex_noise_1.createNoise2D)(moistureRNG);
+        this.riverNoise = (0, simplex_noise_1.createNoise2D)(riverRNG);
+        this.lakeNoise = (0, simplex_noise_1.createNoise2D)(lakeRNG);
+        this.itemNoise = (0, simplex_noise_1.createNoise2D)(itemRNG);
+        this.regionNoise = (0, simplex_noise_1.createNoise2D)(regionRNG);
+        this.detailNoise = (0, simplex_noise_1.createNoise2D)(detailRNG);
         this.generateWorld();
     }
+    /**
+     * 简化版多层噪声 - 性能优化
+     */
+    fbm(x, y, noise) {
+        // 2层噪声叠加，平衡质量和性能
+        return noise(x, y) * 0.7 + noise(x * 2, y * 2) * 0.3;
+    }
     generateWorld() {
-        const noise = createNoise(this.seed);
-        const noise2 = createNoise(this.seed + 100);
+        // 第一遍：生成所有水体（海洋、河流、湖泊）
+        this.generateWaterBodies();
+        // 第二遍：生成其他地形（利用第一遍的水体数据进行isNearWater判断）
+        this.generateLandTerrain();
+        // 生成地面物品
+        this.generateGroundObjects();
+    }
+    // 第一遍：生成所有水体
+    generateWaterBodies() {
+        // 调试：计算海岸线高度分布
+        console.log('\n🌊 海岸线高度分布 (MAP_HEIGHT=' + MAP_HEIGHT + '):');
+        const coastlineHeights = [];
+        for (let x = 0; x < MAP_WIDTH; x++) {
+            const coastlineNoise = this.regionNoise(x * 0.06, 0);
+            const normalizedNoise = (coastlineNoise + 1) / 2;
+            const coastlineVariation = Math.floor(normalizedNoise * 3); // 0-2 格变化
+            const coastlineHeight = MAP_HEIGHT - 5 + coastlineVariation; // 从 y=145 开始变化，海洋2-5格
+            coastlineHeights.push(coastlineHeight);
+        }
+        const minHeight = Math.min(...coastlineHeights);
+        const maxHeight = Math.max(...coastlineHeights);
+        console.log('  最小高度: ' + minHeight + ', 最大高度: ' + maxHeight);
+        // 统计各高度的格子数
+        const heightCounts = {};
+        for (const h of coastlineHeights) {
+            heightCounts[h] = (heightCounts[h] || 0) + 1;
+        }
+        console.log('  各高度分布: ' + JSON.stringify(heightCounts));
+        let oceanCount = 0;
+        let beachCount = 0;
         for (let y = 0; y < MAP_HEIGHT; y++) {
             for (let x = 0; x < MAP_WIDTH; x++) {
-                // 只用一层基础噪声，不用detail
-                const elevation = noise(x * 0.04, y * 0.04);
-                const moisture = noise2(x * 0.06, y * 0.06);
-                // 只在底部3行放置海洋
-                if (y >= MAP_HEIGHT - 3) {
+                // 垂直海拔偏差：北部高，南部低
+                const verticalBias = (1 - y / MAP_HEIGHT) * 0.35;
+                // 1. 海洋 - 地图底部 2-5 格 + 不规则海岸线
+                const coastlineNoise = this.regionNoise(x * 0.06, 0);
+                const normalizedNoise = (coastlineNoise + 1) / 2;
+                const coastlineVariation = Math.floor(normalizedNoise * 3); // 0-2 格变化
+                const coastlineHeight = MAP_HEIGHT - 5 + coastlineVariation; // 从 y=145 开始
+                if (y >= coastlineHeight) {
                     this.tiles.push({ x, y, type: 'ocean' });
+                    oceanCount++;
                     continue;
                 }
-                // 河流检测（只在中间区域）
+                // 1.5 沙滩 - 海岸线上方 1-2 格
+                if (y >= coastlineHeight - 2 && y < coastlineHeight) {
+                    this.tiles.push({ x, y, type: 'beach' });
+                    beachCount++;
+                    continue;
+                }
+                // 2. 河流 - 扩大范围
                 const riverTile = this.isRiverTile(x, y);
                 if (riverTile && y > 5 && y < MAP_HEIGHT - 5) {
                     this.tiles.push({ x, y, type: 'river' });
                     continue;
                 }
-                // 湖泊检测（只在中间区域）
-                const lakeTile = this.isLakeArea(x, y);
-                if (lakeTile && y > 10 && y < MAP_HEIGHT - 10) {
+                // 3. 湖泊 - 扩大范围，增加数量
+                const lakeTile = this.isLakeAreaNew(x, y);
+                if (lakeTile && y > 8 && y < MAP_HEIGHT - 8) {
                     this.tiles.push({ x, y, type: 'lake' });
                     continue;
                 }
-                const terrain = this.getTerrainType(elevation, moisture);
-                this.tiles.push({
-                    x,
-                    y,
-                    type: terrain
-                });
+                // 非水体格子，先用占位符
+                this.tiles.push({ x, y, type: 'grass' });
             }
         }
-        // 生成地面物品
-        this.generateGroundObjects();
+        console.log(`🌊 水体生成完成: 海洋 ${oceanCount} 格, 沙滩 ${beachCount} 格`);
+    }
+    // 第二遍：生成陆地地形（使用第一遍的水体数据）
+    generateLandTerrain() {
+        // 统计地形分布
+        const stats = {};
+        let beachCount = 0;
+        for (let y = 0; y < MAP_HEIGHT; y++) {
+            for (let x = 0; x < MAP_WIDTH; x++) {
+                const tileIndex = y * MAP_WIDTH + x;
+                const tile = this.tiles[tileIndex];
+                // 跳过水体和沙滩
+                if (tile.type === 'ocean' || tile.type === 'river' || tile.type === 'lake' || tile.type === 'beach') {
+                    stats[tile.type] = (stats[tile.type] || 0) + 1;
+                    continue;
+                }
+                // 垂直海拔偏差：北部高，南部低
+                const verticalBias = (1 - y / MAP_HEIGHT) * 0.35;
+                // 计算噪声值
+                const rawRegionValue = this.regionNoise(x * 0.015, y * 0.015);
+                const regionValue = (rawRegionValue + 1) / 2; // 归一化到 0-1
+                const elevation = this.fbm(x * 0.03, y * 0.03, this.elevationNoise);
+                const moisture = this.fbm(x * 0.04, y * 0.04, this.moistureNoise);
+                const detail = this.detailNoise(x * 0.1, y * 0.1);
+                // 合并噪声并加入垂直海拔梯度
+                const combinedElevation = elevation * 0.6 + (regionValue - 0.5) * 0.4 + detail * 0.2 + verticalBias;
+                const combinedMoisture = moisture * 0.7 + (regionValue - 0.5) * 0.6;
+                // 根据地形规则决定地形类型
+                const terrain = this.getTerrainTypeNew(combinedElevation, combinedMoisture, regionValue, detail, x, y);
+                this.tiles[tileIndex].type = terrain;
+                stats[terrain] = (stats[terrain] || 0) + 1;
+            }
+        }
+        // 输出完整地形统计（包括水体）
+        console.log('\n🗺️ 完整地形统计 (共 ' + Object.values(stats).reduce((a, b) => a + b, 0) + ' 格):');
+        for (const [type, count] of Object.entries(stats).sort((a, b) => b[1] - a[1])) {
+            const total = MAP_WIDTH * MAP_HEIGHT;
+            const percent = ((count / total) * 100).toFixed(1);
+            console.log('  ' + type + ': ' + count + '格 (' + percent + '%)');
+        }
+    }
+    // 打印 region 噪声值分布
+    printRegionDistribution() {
+        const buckets = {
+            '0.0-0.1': 0, '0.1-0.2': 0, '0.2-0.3': 0, '0.3-0.4': 0, '0.4-0.5': 0,
+            '0.5-0.6': 0, '0.6-0.7': 0, '0.7-0.8': 0, '0.8-0.9': 0, '0.9-1.0': 0
+        };
+        let minR = Infinity, maxR = -Infinity;
+        let sampleCount = 0;
+        for (let y = 0; y < MAP_HEIGHT; y++) {
+            for (let x = 0; x < MAP_WIDTH; x++) {
+                const rawNoise = this.regionNoise(x * 0.015, y * 0.015);
+                const r = (rawNoise + 1) / 2; // 归一化到 0-1
+                minR = Math.min(minR, r);
+                maxR = Math.max(maxR, r);
+                const bucket = Math.min(9, Math.floor(r * 10));
+                const rangeKeys = Object.keys(buckets);
+                if (rangeKeys[bucket]) {
+                    buckets[rangeKeys[bucket]]++;
+                }
+                sampleCount++;
+            }
+        }
+        console.log('\n📊 Region 噪声值范围: min=' + minR.toFixed(3) + ', max=' + maxR.toFixed(3));
+        console.log('📊 Region 噪声值分布 (归一化到 0-1):');
+        for (const [range, count] of Object.entries(buckets)) {
+            const percent = ((count / (MAP_WIDTH * MAP_HEIGHT)) * 100).toFixed(1);
+            console.log('  ' + range + ': ' + count + '格 (' + percent + '%)');
+        }
+    }
+    // 打印完整地形统计
+    printFullTerrainStats() {
+        const stats = {};
+        for (const tile of this.tiles) {
+            stats[tile.type] = (stats[tile.type] || 0) + 1;
+        }
+        console.log('\n🗺️ 完整地图地形统计 (共 ' + this.tiles.length + ' 格):');
+        const sortedStats = Object.entries(stats).sort((a, b) => b[1] - a[1]);
+        for (const [type, count] of sortedStats) {
+            const percent = ((count / this.tiles.length) * 100).toFixed(1);
+            console.log('  ' + type + ': ' + count + '格 (' + percent + '%)');
+        }
+    }
+    // 检查是否为沙滩格子（只在海洋正上方）
+    isBeachTile(x, y) {
+        // 检查正下方是否是海洋
+        if (y + 1 < MAP_HEIGHT) {
+            const belowTile = this.tiles[(y + 1) * MAP_WIDTH + x];
+            if (belowTile && belowTile.type === 'ocean') {
+                return true;
+            }
+        }
+        // 检查左下方是否是海洋
+        if (y + 1 < MAP_HEIGHT && x - 1 >= 0) {
+            const belowLeftTile = this.tiles[(y + 1) * MAP_WIDTH + (x - 1)];
+            if (belowLeftTile && belowLeftTile.type === 'ocean') {
+                return true;
+            }
+        }
+        // 检查右下方是否是海洋
+        if (y + 1 < MAP_HEIGHT && x + 1 < MAP_WIDTH) {
+            const belowRightTile = this.tiles[(y + 1) * MAP_WIDTH + (x + 1)];
+            if (belowRightTile && belowRightTile.type === 'ocean') {
+                return true;
+            }
+        }
+        return false;
     }
     // 检测是否为河流格子
     isRiverTile(x, y) {
-        const noise = createNoise(this.seed + 500);
         // 从顶部到底部的河流，稍微窄一点
-        const riverX = 0.5 + noise(y * 0.05, 0) * 0.2 - 0.1;
+        const riverX = 0.5 + this.riverNoise(y * 0.05, 0) * 0.2 - 0.1;
         const dist = Math.abs(x / MAP_WIDTH - riverX);
-        return dist < 0.02;
+        return dist < 0.015;
     }
-    // 检测是否为湖泊区域
-    isLakeArea(x, y) {
-        const noise = createNoise(this.seed + 600);
-        // 湖泊位置
-        const lakeX = 0.3 + noise(0, 0) * 0.4;
-        const lakeY = 0.5 + noise(100, 100) * 0.3;
-        const dx = x / MAP_WIDTH - lakeX;
-        const dy = y / MAP_HEIGHT - lakeY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        return dist < 0.06;
+    // 新湖泊检测 - 使用区域噪声
+    isLakeAreaNew(x, y) {
+        // 使用区域噪声创建更自然的湖泊
+        const lakeCenter1 = this.regionNoise(50, 50) * 0.3 + 0.35;
+        const lakeCenter2 = this.regionNoise(150, 80) * 0.3 + 0.65;
+        const dx1 = x / MAP_WIDTH - lakeCenter1;
+        const dy1 = y / MAP_HEIGHT - 0.5;
+        const dist1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+        const dx2 = x / MAP_WIDTH - lakeCenter2;
+        const dy2 = y / MAP_HEIGHT - 0.6;
+        const dist2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+        return dist1 < 0.04 || dist2 < 0.03;
     }
-    getTerrainType(elevation, moisture) {
+    // 新的地形类型决定函数 - 多样化区域型
+    getTerrainTypeNew(elevation, moisture, region, detail, x, y) {
         // 归一化到0-1
         const e = (elevation + 1) / 2;
         const m = (moisture + 1) / 2;
-        // 不再在这里产生海洋（海洋只在底部）
-        if (e < 0.20)
-            return 'beach';
-        if (e > 0.80)
-            return 'mountain';
-        if (e > 0.70)
-            return 'hill';
-        if (m > 0.6 && e > 0.4)
-            return 'forest';
-        if (m < 0.3)
+        const d = (detail + 1) / 2;
+        // 注意：region 参数已经是 0-1 范围（来自 (regionNoise + 1) / 2）
+        const r = region; // 直接使用，已经是 0-1 范围
+        // 根据区域调整湿度和海拔
+        const regionMoisture = m + (r - 0.5) * 0.5;
+        const regionElevation = e + (r - 0.5) * 0.25;
+        // 垂直梯度：地图上部（y小）海拔更高
+        const verticalGradient = (1 - y / MAP_HEIGHT) * 0.35;
+        const adjustedElevation = Math.min(1, regionElevation + verticalGradient);
+        // ====== 基于区域噪声的大区域划分 ======
+        // 使用 region 噪声划分大区域（调整比例）
+        // 0-0.15=沙漠, 0.15-0.3=平原, 0.3-0.5=森林, 0.5-0.7=草地, 0.7-0.85=丘陵, 0.85-1=山地
+        const regionType = r; // 0-1 范围的 region 值
+        // 1. 沙漠大区域 (regionType < 0.15)
+        if (regionType < 0.15) {
+            if (adjustedElevation > 0.7) {
+                return 'badlands';
+            }
+            if (detail > 0.8 && this.isNearWater(x, y)) {
+                return 'grass';
+            }
             return 'desert';
-        if (m > 0.7 && e > 0.35)
-            return 'swamp';
-        return e > 0.45 ? 'grass' : 'plains';
+        }
+        // 2. 平原大区域 (0.15 <= regionType < 0.3)
+        if (regionType < 0.3) {
+            if (regionMoisture > 0.75 && adjustedElevation < 0.4) {
+                return 'marsh';
+            }
+            if (detail > 0.8) {
+                return 'grass';
+            }
+            if (detail < 0.2) {
+                return 'plains';
+            }
+            return 'grass';
+        }
+        // 3. 森林大区域 (0.3 <= regionType < 0.5)
+        if (regionType < 0.5) {
+            if (adjustedElevation > 0.8) {
+                return 'hill';
+            }
+            if (regionMoisture > 0.8 && adjustedElevation < 0.35) {
+                return 'swamp';
+            }
+            if (detail > 0.8) {
+                return 'grass';
+            }
+            return 'forest';
+        }
+        // 4. 草地大区域 (0.5 <= regionType < 0.7)
+        if (regionType < 0.7) {
+            if (detail > 0.9) {
+                return 'forest';
+            }
+            if (detail < 0.1) {
+                return 'plains';
+            }
+            return 'grass';
+        }
+        // 5. 丘陵大区域 (0.7 <= regionType < 0.85)
+        if (regionType < 0.85) {
+            if (adjustedElevation > 0.85) {
+                return 'mountain';
+            }
+            if (regionMoisture < 0.35) {
+                return 'badlands';
+            }
+            return 'hill';
+        }
+        // 6. 山地大区域 (regionType >= 0.85)
+        if (regionType >= 0.85) {
+            if (adjustedElevation > 0.85) {
+                return 'mountain';
+            }
+            if (regionMoisture < 0.35) {
+                return 'badlands';
+            }
+            if (adjustedElevation > 0.65) {
+                return 'hill';
+            }
+            return 'forest';
+        }
+        return 'grass';
+    }
+    // 检查是否靠近水体
+    isNearWater(x, y) {
+        // 检查周围8个格子是否有水
+        for (let dy = -2; dy <= 2; dy++) {
+            for (let dx = -2; dx <= 2; dx++) {
+                const nx = x + dx;
+                const ny = y + dy;
+                if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT)
+                    continue;
+                const tileIndex = ny * MAP_WIDTH + nx;
+                const tile = this.tiles[tileIndex];
+                if (tile && (tile.type === 'lake' || tile.type === 'river' || tile.type === 'ocean')) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
     generateGroundObjects() {
-        // 确定性随机
-        const noise = createNoise(this.seed + 200);
+        // 使用 simplex-noise 生成物品
         for (let y = 0; y < MAP_HEIGHT; y++) {
             for (let x = 0; x < MAP_WIDTH; x++) {
-                const tile = this.getTile(x, y);
-                if (!tile)
+                // 直接从 tiles 数组中查找（使用确定性索引）
+                const tileIndex = y * MAP_WIDTH + x;
+                const tile = this.tiles[tileIndex];
+                if (!tile || tile.x !== x || tile.y !== y)
                     continue;
+                // 跳过水域地形
+                if (tile.type === 'lake' || tile.type === 'river' || tile.type === 'ocean') {
+                    continue;
+                }
                 // 森林地形：每个格子都生成树（100%覆盖）
                 if (tile.type === 'forest') {
                     // 确定性随机选择树种（1:5比例）
-                    // 使用坐标生成确定性随机数
                     const hash = (x * 12345 + y * 67890 + this.seed) % 100;
-                    // 约17%是果树(tree)，83%是森林树(forest_tree)
                     const treeType = hash < 17 ? 'tree' : 'forest_tree';
                     this.groundObjects.push({
                         id: `tree_${x}_${y}`,
@@ -144,8 +383,8 @@ class WorldState {
                         terrain: 'forest'
                     });
                 }
-                else if (tile.type === 'grass' && Math.abs(noise(x * 0.3, y * 0.3)) < 0.05) {
-                    // 灌木 - 保持在格子内（5%概率）
+                else if (tile.type === 'grass' && Math.abs(this.itemNoise(x * 0.3, y * 0.3)) < 0.05) {
+                    // 灌木 - 5%概率
                     const bushId = `bush_${x}_${y}`;
                     this.groundObjects.push({
                         id: bushId,
@@ -154,23 +393,30 @@ class WorldState {
                         y: y,
                         terrain: 'grass'
                     });
-                    // 创建灌木浆果数据（Phase 1）
-                    // 浆果数量：5-30个随机
-                    const berryCount = Math.floor(Math.random() * 26) + 5; // 5-30
-                    const maxBerries = 30; // 最大承载量
+                    const berryCount = Math.floor(Math.abs(this.itemNoise(x * 0.5, y * 0.5)) * 26) + 5;
                     this.bushes.push({
                         id: bushId,
                         x: x,
                         y: y,
                         berryCount: berryCount,
-                        maxBerries: maxBerries,
+                        maxBerries: 30,
                         durability: 100,
                         lastHarvest: 0,
-                        hasBerries: true // 春夏秋有浆果
+                        hasBerries: true
                     });
                 }
-                else if ((tile.type === 'mountain' || tile.type === 'hill') && Math.abs(noise(x * 0.4, y * 0.4)) < 0.08) {
-                    // 石头 - 保持在格子内（8%概率）
+                else if (tile.type === 'mountain' && Math.abs(this.itemNoise(x * 0.4, y * 0.4)) < 0.08) {
+                    // 石头 - 山地8%概率
+                    this.groundObjects.push({
+                        id: `rock_${x}_${y}`,
+                        type: 'rock',
+                        x: x,
+                        y: y,
+                        terrain: 'mountain'
+                    });
+                }
+                else if ((tile.type === 'hill' || tile.type === 'badlands') && Math.abs(this.itemNoise(x * 0.4, y * 0.4)) < 0.05) {
+                    // 石头 - 丘陵/荒原5%概率
                     this.groundObjects.push({
                         id: `rock_${x}_${y}`,
                         type: 'rock',
@@ -179,8 +425,8 @@ class WorldState {
                         terrain: tile.type
                     });
                 }
-                else if (tile.type === 'beach' && Math.abs(noise(x * 0.6, y * 0.6)) < 0.02) {
-                    // 贝壳 - 保持在格子内（2%概率）
+                else if (tile.type === 'beach' && Math.abs(this.itemNoise(x * 0.6, y * 0.6)) < 0.02) {
+                    // 贝壳 - 沙滩2%概率
                     this.groundObjects.push({
                         id: `shell_${x}_${y}`,
                         type: 'shell',
@@ -189,9 +435,9 @@ class WorldState {
                         terrain: 'beach'
                     });
                 }
-                else if (tile.type === 'grass' && Math.abs(noise(x * 0.5, y * 0.5)) < 0.03) {
-                    // 树枝 - 3%概率出现在草地上
-                    const qty = Math.floor(Math.random() * 3) + 2; // 2-4个
+                else if (tile.type === 'grass' && Math.abs(this.itemNoise(x * 0.5, y * 0.5)) < 0.03) {
+                    // 树枝 - 草地3%概率
+                    const qty = Math.floor(Math.abs(this.itemNoise(x * 0.7, y * 0.7)) * 3) + 2;
                     this.groundObjects.push({
                         id: `twig_${x}_${y}`,
                         type: 'twig',
@@ -201,9 +447,9 @@ class WorldState {
                         quantity: qty
                     });
                 }
-                else if ((tile.type === 'grass' || tile.type === 'plains') && Math.abs(noise(x * 0.7, y * 0.7)) < 0.02) {
-                    // 石头 - 2%概率出现在草地/平原
-                    const qty = Math.floor(Math.random() * 2) + 1; // 1-2个
+                else if ((tile.type === 'grass' || tile.type === 'plains') && Math.abs(this.itemNoise(x * 0.8, y * 0.8)) < 0.02) {
+                    // 石头 - 草地/平原2%概率
+                    const qty = Math.floor(Math.abs(this.itemNoise(x * 0.9, y * 0.9)) * 2) + 1;
                     this.groundObjects.push({
                         id: `stone_${x}_${y}`,
                         type: 'stone',
@@ -217,7 +463,13 @@ class WorldState {
         }
     }
     getTile(x, y) {
-        return this.tiles.find(t => t.x === x && t.y === y);
+        if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT)
+            return undefined;
+        const index = y * MAP_WIDTH + x;
+        const tile = this.tiles[index];
+        if (tile && tile.x === x && tile.y === y)
+            return tile;
+        return undefined;
     }
     getAllTiles() {
         return this.tiles;
@@ -268,6 +520,19 @@ class WorldState {
         // 可通行地形
         const walkable = ['grass', 'plains', 'forest', 'desert', 'beach'];
         return walkable.includes(tile.type);
+    }
+    /**
+     * 获取水源位置（用于AI决策）
+     */
+    getWaterSources() {
+        const water = [];
+        // 从地形找水源
+        for (const tile of this.tiles) {
+            if (tile.type === 'river' || tile.type === 'lake') {
+                water.push({ x: tile.x, y: tile.y });
+            }
+        }
+        return water;
     }
     // 获取指定位置的地形类型
     getTerrainAt(x, y) {
@@ -439,6 +704,26 @@ class WorldState {
         // 从地面移除
         this.groundObjects = this.groundObjects.filter(obj => !(obj.x === x && obj.y === y));
         return { type: item.type, quantity: qty };
+    }
+    /**
+     * 导出存档数据
+     */
+    toJSON() {
+        return {
+            groundObjects: this.groundObjects,
+            bushes: this.bushes
+        };
+    }
+    /**
+     * 从存档数据恢复
+     */
+    fromJSON(data) {
+        if (data.groundObjects) {
+            this.groundObjects = data.groundObjects;
+        }
+        if (data.bushes) {
+            this.bushes = data.bushes;
+        }
     }
 }
 exports.WorldState = WorldState;

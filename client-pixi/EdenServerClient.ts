@@ -100,6 +100,15 @@ export class EdenServerClient {
                 this.selectedCharacterId = message.characterId;
                 this.emit('character_selected', message.data);
                 break;
+            case 'time_update':
+                this.emit('time_update', message);
+                break;
+            case 'season_changed':
+                this.emit('season_changed', message);
+                break;
+            case 'viewport_update':
+                this.emit('viewport_update', message.data);
+                break;
             default:
                 console.log('未知消息类型:', message.type);
         }
@@ -142,6 +151,18 @@ export class EdenServerClient {
             characterId,
             seq,
             input
+        });
+    }
+    
+    /**
+     * 请求视口地形数据
+     */
+    requestViewport(centerX: number, centerY: number) {
+        console.log(`📡 EdenServerClient.requestViewport: centerX=${centerX}, centerY=${centerY}, wsState=${this.ws?.readyState}`);
+        this.send({
+            type: 'get_viewport',
+            centerX,
+            centerY
         });
     }
     

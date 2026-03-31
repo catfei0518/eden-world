@@ -12,6 +12,8 @@ import { CharacterManager } from './CharacterManager';
 import { WorldState } from './WorldState';
 import { GameLoop } from './GameLoop';
 import { WebSocketHandler } from './WebSocketHandler';
+import { TimeManager } from './TimeManager';
+import { SaveManager } from './SaveManager';
 import auth from './auth';
 
 const PORT = 3333;
@@ -26,17 +28,45 @@ export class GameServer {
     private worldState: WorldState;
     private gameLoop: GameLoop;
     private wsHandler: WebSocketHandler;
+    private timeManager: TimeManager;
+    private saveManager: SaveManager;
     
     constructor() {
+        // 初始化存档管理器
+        this.saveManager = new SaveManager('./saves');
+        
+        // 尝试加载存档
+        const loaded = this.saveManager.load();
+        
         // 初始化组件
         this.worldState = new WorldState();
         this.characterManager = new CharacterManager();
         this.characterManager.setWorldState(this.worldState);  // Phase 1: 传递真实WorldState
         this.gameLoop = new GameLoop(this.characterManager, this.worldState);
         this.wsHandler = new WebSocketHandler(this.characterManager, this.worldState);
+        this.timeManager = new TimeManager();
         
-        // 创建角色
+        // 如果有存档，恢复数据
+        if (loaded) {
+            this.restoreFromSave();
+        }
+        
+        // 将时间管理器传递给WebSocketHandler
+        this.wsHandler.setTimeManager(this.timeManager);
+        
+        // 设置时间系统事件监听
+        this.setupTimeSystem();
+        
+        // 设置存档回调
+        this.setupSaveSystem();
+        
+        // 始终创建初始角色（如果角色不存在）
         this.createInitialCharacters();
+        
+        // 如果有存档，恢复角色状态
+        if (loaded) {
+            this.restoreCharactersFromSave();
+        }
         
         // Express应用
         this.app = express();
@@ -60,8 +90,178 @@ export class GameServer {
         });
     }
     
+    /**
+     * 从存档恢复游戏状态
+     */
+    private restoreFromSave(): void {
+        console.log('🔄 从存档恢复游戏状态...');
+        
+        // 获取存档数据
+        const saveInfo = this.saveManager.getSaveInfo();
+        if (!saveInfo.exists) return;
+        
+        // 读取存档
+        try {
+            const fs = require('fs');
+            const saveFile = './saves/eden_world_save.json';
+            if (fs.existsSync(saveFile)) {
+                const data = JSON.parse(fs.readFileSync(saveFile, 'utf8'));
+                
+                // 恢复时间
+                if (data.time) {
+                    this.timeManager.fromJSON(data.time);
+                    console.log(`⏰ 时间已恢复: ${data.time.gameYears}年${data.time.gameDays}日`);
+                }
+                
+                // 恢复世界状态
+                if (data.world) {
+                    this.worldState.fromJSON(data.world);
+                    console.log('🌍 世界状态已恢复');
+                }
+                
+                // 恢复角色（这个只是记录，实际恢复在 restoreCharactersFromSave 中）
+                if (data.characters) {
+                    console.log(`👥 存档中有 ${data.characters.length} 个角色待恢复`);
+                }
+            }
+        } catch (error) {
+            console.error('❌ 恢复存档失败:', error);
+        }
+    }
+    
+    /**
+     * 从存档恢复角色状态
+     */
+    private restoreCharactersFromSave(): void {
+        try {
+            const fs = require('fs');
+            const saveFile = './saves/eden_world_save.json';
+            if (fs.existsSync(saveFile)) {
+                const data = JSON.parse(fs.readFileSync(saveFile, 'utf8'));
+                if (data.characters) {
+                    for (const charData of data.characters) {
+                        const existing = this.characterManager.getCharacter(charData.id);
+                        if (existing) {
+                            existing.fromJSON(charData);
+                            console.log(`👤 角色已恢复: ${charData.name} (${charData.id})`);
+                        }
+                    }
+                    console.log(`👥 共恢复 ${data.characters.length} 个角色状态`);
+                }
+            }
+        } catch (error) {
+            console.error('❌ 恢复角色失败:', error);
+        }
+    }
+    
+    /**
+     * 设置存档系统
+     */
+    private setupSaveSystem(): void {
+        // 设置存档数据回调
+        this.saveManager.setSaveDataCallback(() => {
+            return {
+                version: GAME_VERSION,
+                timestamp: Date.now(),
+                time: this.timeManager.toJSON(),
+                world: this.worldState.toJSON(),
+                characters: this.characterManager.toJSON()
+            };
+        });
+        
+        // 设置加载回调
+        this.saveManager.setLoadCallback((data) => {
+            // 这个回调在SaveManager.load()中被调用
+            // 实际恢复逻辑在restoreFromSave中
+        });
+        
+        // 启动自动存档（每5分钟）
+        this.saveManager.startAutoSave();
+        
+        // 注册进程关闭时的存档
+        process.on('SIGINT', () => {
+            console.log('\n💾 服务器关闭，保存存档...');
+            this.saveManager.saveSync();
+            process.exit();
+        });
+        
+        process.on('SIGTERM', () => {
+            console.log('\n💾 服务器关闭，保存存档...');
+            this.saveManager.saveSync();
+            process.exit();
+        });
+        
+        console.log('💾 存档系统已初始化');
+    }
+    
+    /**
+     * 设置时间系统
+     */
+    private setupTimeSystem(): void {
+        // 季节变化时更新世界状态
+        this.timeManager.on('onSeasonChange', (data) => {
+            this.worldState.updateSeasonForBushes(data.season);
+            this.wsHandler.broadcast({ 
+                type: 'season_changed', 
+                season: data.season,
+                seasonInfo: data.seasonInfo
+            });
+        });
+        
+        // 每小时更新（可以用于AI决策等）
+        this.timeManager.on('onHourChange', (data) => {
+            const timeInfo = this.timeManager.getFullTimeInfo();
+            // 广播时间更新
+            this.wsHandler.broadcast({
+                type: 'time_update',
+                ...timeInfo
+            });
+            console.log(`⏰ 广播time_update: ${timeInfo.timeString} (${timeInfo.hour}时${timeInfo.minute}分)`);
+        });
+        
+        // 驱动时间前进（每秒一次）
+        setInterval(() => {
+            if (this.gameLoop.isActive()) {
+                // 驱动时间前进1秒（deltaMs）
+                this.timeManager.advance(1000);
+            }
+        }, 1000);
+    }
+    
+    /**
+     * 获取时间管理器
+     */
+    getTimeManager(): TimeManager {
+        return this.timeManager;
+    }
+    
     private createInitialCharacters(): void {
-        // 找到合适的出生地（有水源和食物）
+        // 尝试从存档加载角色
+        const fs = require('fs');
+        const saveFile = './saves/eden_world_save.json';
+        let savedCharacters: any[] = [];
+        
+        if (fs.existsSync(saveFile)) {
+            try {
+                const data = JSON.parse(fs.readFileSync(saveFile, 'utf8'));
+                if (data.characters) {
+                    savedCharacters = data.characters;
+                }
+            } catch (e) {
+                console.error('❌ 读取存档角色失败:', e);
+            }
+        }
+        
+        // 如果有存档角色，用存档角色创建
+        if (savedCharacters.length > 0) {
+            for (const charData of savedCharacters) {
+                this.characterManager.createCharacterFromSave(charData);
+                console.log(`👤 从存档创建角色: ${charData.name} (ID: ${charData.id})`);
+            }
+            return;
+        }
+        
+        // 没有存档，创建新角色
         const spawnPos = CharacterManager.findGoodSpawnPosition(this.worldState);
         
         // 创建亚当（在出生地）
@@ -193,10 +393,62 @@ export class GameServer {
                 return res.status(400).json({ error: '无效的季节' });
             }
             
-            this.worldState.setSeason(season);
+            this.timeManager.setSeason(season);
             this.wsHandler.broadcast({ type: 'season_changed', season });
             
             res.json({ success: true, season });
+        });
+        
+        // 时间控制API
+        this.app.post('/api/time/speed', (req, res) => {
+            const authHeader = req.headers.authorization;
+            if (!authHeader || !authHeader.startsWith('Bearer ')) {
+                return res.status(401).json({ error: '未授权' });
+            }
+            const token = authHeader.substring(7);
+            const user = auth.getUserInfo(token);
+            if (!user || user.role !== 'admin') {
+                return res.status(403).json({ error: '需要管理员权限' });
+            }
+            
+            const { speed } = req.body;
+            if (typeof speed !== 'number' || speed < 0) {
+                return res.status(400).json({ error: '无效的速度值' });
+            }
+            
+            this.timeManager.setTimeSpeed(speed);
+            res.json({ success: true, speed });
+        });
+        
+        // 获取当前时间
+        this.app.get('/api/time', (req, res) => {
+            res.json(this.timeManager.getFullTimeInfo());
+        });
+        
+        // 手动存档API
+        this.app.post('/api/save', (req, res) => {
+            const authHeader = req.headers.authorization;
+            if (!authHeader || !authHeader.startsWith('Bearer ')) {
+                return res.status(401).json({ error: '未授权' });
+            }
+            const token = authHeader.substring(7);
+            const user = auth.getUserInfo(token);
+            if (!user || user.role !== 'admin') {
+                return res.status(403).json({ error: '需要管理员权限' });
+            }
+            
+            const success = this.saveManager.save();
+            if (success) {
+                res.json({ success: true, message: '存档成功' });
+            } else {
+                res.status(500).json({ error: '存档失败' });
+            }
+        });
+        
+        // 获取存档信息API
+        this.app.get('/api/save/info', (req, res) => {
+            const info = this.saveManager.getSaveInfo();
+            res.json(info);
         });
         
         // 客户端HTML
